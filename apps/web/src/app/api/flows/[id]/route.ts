@@ -43,15 +43,21 @@ export async function PUT(req: Request, { params }: Ctx) {
   if (flow.id !== id) {
     return Response.json({ error: "Flow id does not match the URL" }, { status: 400 });
   }
-  if (flow.status === "published" && !flow.nodes.some((n) => registry[n.type]?.isTrigger)) {
+  if (flow.status === "published" && !flow.nodes.some((n) => registry[n.type]?.autoTrigger)) {
     return Response.json(
-      { error: "Publishing requires a trigger block (for example Every)", code: "no_trigger" },
+      { error: "Publishing requires an automatic trigger block (Every or Webhook)", code: "no_trigger" },
       { status: 400 },
     );
   }
 
   const rt = getRuntime();
   await rt.start();
+  if (flow.status === "published") {
+    const problems = rt.scheduler.problems(flow);
+    if (problems.length > 0) {
+      return Response.json({ error: problems.join("; "), code: "bad_trigger", problems }, { status: 409 });
+    }
+  }
   await rt.store.put(flow);
   rt.scheduler.sync(flow);
   return Response.json({ flow, scheduled: rt.scheduler.isScheduled(id) });

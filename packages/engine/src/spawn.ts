@@ -5,7 +5,7 @@
 import { fork, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { runnerEventSchema, type Flow, type RunnerCommand, type RunnerEvent } from "@fl0w/schema";
+import { runnerEventSchema, type Flow, type Json, type RunnerCommand, type RunnerEvent } from "@fl0w/schema";
 
 export type ProcessRunOptions = {
   /** Каталог пакета engine (cwd процесса, откуда резолвится tsx). По умолчанию — рядом с этим файлом. */
@@ -21,6 +21,8 @@ export type ProcessRunOptions = {
   timeoutMs?: number;
   /** Триггер-нода, от которой стартует запуск (плановый запуск); без неё срабатывают все триггеры. */
   trigger?: string;
+  /** Данные срабатывания триггера (тело вебхука и т.п.). */
+  triggerData?: Json;
   /** Отмена: убивает процесс и завершает запуск событием `flow:done` с ошибкой. */
   signal?: AbortSignal;
   /** stderr процесса (лог блоков, падения). */
@@ -129,7 +131,7 @@ export function runFlowInProcess(
       finish({ error: `Runner exited unexpectedly (${how})${tail ? `: ${tail}` : ""}` });
     });
 
-    proc.send({ cmd: "run", flow, trigger: opts.trigger } satisfies RunnerCommand, (err) => {
+    proc.send({ cmd: "run", flow, trigger: opts.trigger, triggerData: opts.triggerData } satisfies RunnerCommand, (err) => {
       if (err) finish({ error: `Failed to send command to runner: ${err.message}` });
     });
   });

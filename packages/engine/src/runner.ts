@@ -3,7 +3,7 @@
  * Протокол по IPC: web → runner `{ cmd: "run", flow }`, runner → web события `RunnerEvent`.
  * Запускается через `fork`; сам ничего не слушает, кроме одной команды, и завершается после `flow:done`.
  */
-import type { RunnerEvent } from "@fl0w/schema";
+import type { Json, RunnerEvent } from "@fl0w/schema";
 import { runFlow } from "./run";
 
 function send(event: RunnerEvent): Promise<void> {
@@ -23,13 +23,14 @@ process.once("message", async (raw: unknown) => {
   };
 
   const cmd =
-    typeof raw === "object" && raw !== null ? (raw as { cmd?: unknown; flow?: unknown; trigger?: unknown }) : {};
+    typeof raw === "object" && raw !== null ? (raw as { cmd?: unknown; flow?: unknown; trigger?: unknown; triggerData?: unknown }) : {};
   if (cmd.cmd !== "run") {
     emit({ event: "flow:done", error: "Unknown runner command" });
   } else {
     // валидация флоу — внутри runFlow, он же формирует внятную ошибку
     await runFlow(cmd.flow, emit, {
       trigger: typeof cmd.trigger === "string" ? cmd.trigger : undefined,
+      triggerData: cmd.triggerData as Json | undefined,
     });
   }
 

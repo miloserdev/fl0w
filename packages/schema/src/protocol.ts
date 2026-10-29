@@ -11,6 +11,8 @@ export const runnerCommandSchema = z.object({
    * Без поля (ручной запуск) срабатывают все триггеры.
    */
   trigger: z.string().optional(),
+  /** Данные срабатывания триггера (тело вебхука и т.п.): получает только нода-триггер через ctx. */
+  triggerData: jsonSchema.optional(),
 });
 export type RunnerCommand = z.infer<typeof runnerCommandSchema>;
 

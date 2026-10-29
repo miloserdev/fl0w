@@ -68,6 +68,9 @@ describe("словари", () => {
     for (const [type, cls] of Object.entries(registry)) {
       expect(has(d, `blocks.${type}`), `${lang}: blocks.${type}`).toBe(true);
       expect(has(d, `categories.${cls.category}`), `${lang}: categories.${cls.category}`).toBe(true);
+      for (const port of [...cls.ports.inputs, ...cls.ports.outputs]) {
+        if (port.label) expect(has(d, `ports.${type}.${port.id}`), `${lang}: ports.${type}.${port.id}`).toBe(true);
+      }
       for (const p of cls.params) {
         if (p.editor === "code") continue; // правится во вкладке кода, подписи нет
         expect(has(d, `params.${type}.${p.name}`), `${lang}: params.${type}.${p.name}`).toBe(true);

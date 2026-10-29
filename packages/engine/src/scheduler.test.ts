@@ -2,9 +2,9 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Flow, WatchMessage } from "@fl0w/schema";
+import type { Flow, Json, RunnerEvent, WatchMessage } from "@fl0w/schema";
 import { RunHub } from "./hub";
-import { Scheduler, type SchedulerRun } from "./scheduler";
+import { Scheduler, SchedulerBusyError, type SchedulerRun } from "./scheduler";
 import { FlowStore } from "./store";
 import { edge, flow, node, testRegistry } from "./test-helpers";
 
@@ -19,22 +19,29 @@ const published = (
 });
 
 function setup(run?: SchedulerRun) {
-  const calls: { flowId: string; trigger: string }[] = [];
+  const calls: { flowId: string; trigger: string; triggerData?: Json }[] = [];
   const hub = new RunHub();
   const logs: string[] = [];
   const impl: SchedulerRun =
     run ??
     (async (f, onEvent, o) => {
-      calls.push({ flowId: f.id, trigger: o.trigger });
+      calls.push({ flowId: f.id, trigger: o.trigger, triggerData: o.triggerData });
       onEvent({ event: "node:start", nodeId: o.trigger });
       onEvent({ event: "flow:done", result: 1 });
     });
   const wrapped: SchedulerRun = async (f, onEvent, o) => {
-    if (run) calls.push({ flowId: f.id, trigger: o.trigger });
+    if (run) calls.push({ flowId: f.id, trigger: o.trigger, triggerData: o.triggerData });
     await impl(f, onEvent, o);
   };
   const store = new FlowStore("/nonexistent");
-  const scheduler = new Scheduler({ store, hub, registry: testRegistry, run: wrapped, log: (m) => logs.push(m) });
+  const scheduler = new Scheduler({
+    store,
+    hub,
+    registry: testRegistry,
+    run: wrapped,
+    log: (m) => logs.push(m),
+    maxConcurrentHookRuns: 2,
+  });
   return { scheduler, hub, calls, logs, store };
 }
 
@@ -207,5 +214,140 @@ describe("Scheduler.start — подъём после рестарта", () => {
     expect(scheduler.isScheduled("on")).toBe(true);
     expect(scheduler.isScheduled("off")).toBe(false);
     scheduler.stop();
+  });
+});
+
+const hookFlow = (
+  id: string,
+  path = "orders",
+  method = "POST",
+  status: "published" | "draft" = "published",
+  extra: Flow["nodes"] = [],
+): Flow => ({
+  ...flow([node("w", "webhook", { path, method }), node("r", "result"), ...extra], [edge("w", "r")]),
+  id,
+  status,
+});
+
+describe("Scheduler: вебхуки", () => {
+  it("опубликованный вебхук регистрируется; путь нормализуется; метод точный, ANY — любой", () => {
+    const { scheduler } = setup();
+    scheduler.sync(hookFlow("a", "/orders/new/", "POST"));
+    scheduler.sync(hookFlow("b", "any-path", "ANY"));
+    expect(scheduler.findWebhook("POST", "orders/new")).toMatchObject({ nodeId: "w", flow: { id: "a" } });
+    expect(scheduler.findWebhook("post", "orders/new")?.flow.id).toBe("a"); // регистр метода не важен
+    expect(scheduler.findWebhook("GET", "orders/new")).toBeUndefined();
+    expect(scheduler.findWebhook("DELETE", "any-path")?.flow.id).toBe("b");
+    expect(scheduler.findWebhook("POST", "nope")).toBeUndefined();
+    expect(scheduler.isScheduled("a")).toBe(true); // активен и без таймеров
+  });
+
+  it("draft и снятие с публикации убирают вебхук; повторная публикация переносит его", () => {
+    const { scheduler } = setup();
+    scheduler.sync(hookFlow("a", "one"));
+    scheduler.sync(hookFlow("a", "two"));
+    expect(scheduler.findWebhook("POST", "one")).toBeUndefined();
+    expect(scheduler.findWebhook("POST", "two")).toBeDefined();
+    scheduler.sync(hookFlow("a", "two", "POST", "draft"));
+    expect(scheduler.findWebhook("POST", "two")).toBeUndefined();
+    expect(scheduler.isScheduled("a")).toBe(false);
+    scheduler.sync(hookFlow("d", "three", "POST", "draft"));
+    expect(scheduler.findWebhook("POST", "three")).toBeUndefined();
+  });
+
+  it("конфликт пути: второй флоу не перехватывает чужой вебхук; problems() сообщает заранее", () => {
+    const { scheduler, logs } = setup();
+    scheduler.sync(hookFlow("first", "shared"));
+    expect(scheduler.problems(hookFlow("second", "shared"))).toEqual(["Webhook POST shared is already used by flow first"]);
+    expect(scheduler.problems(hookFlow("first", "shared"))).toEqual([]); // свой же путь при обновлении — не конфликт
+    scheduler.sync(hookFlow("second", "shared"));
+    expect(scheduler.findWebhook("POST", "shared")?.flow.id).toBe("first");
+    expect(logs.join("\n")).toMatch(/already used by flow first/);
+    scheduler.sync(hookFlow("first", "shared", "POST", "draft")); // освободил — путь снова доступен
+    scheduler.sync(hookFlow("second", "shared"));
+    expect(scheduler.findWebhook("POST", "shared")?.flow.id).toBe("second");
+  });
+
+  it("problems(): кривой путь, дубль внутри флоу, кривое расписание", () => {
+    const { scheduler } = setup();
+    expect(scheduler.problems(hookFlow("a", "a b"))[0]).toMatch(/Invalid webhook path/);
+    const twice = hookFlow("a", "x", "POST", "published", [node("w2", "webhook", { path: "x", method: "POST" })]);
+    expect(scheduler.problems(twice)).toEqual(["Webhook POST x is used by more than one trigger of this flow"]);
+    expect(scheduler.problems(published("e", { interval: 1, unit: "weeks" }))[0]).toMatch(/Unknown unit/);
+    expect(scheduler.problems(published("ok"))).toEqual([]);
+  });
+
+  it("trigger запускает флоу от нужной ноды с данными запроса; события идут в хаб и вызывающему", async () => {
+    const { scheduler, hub, calls } = setup();
+    scheduler.sync(hookFlow("a"));
+    const msgs: WatchMessage[] = [];
+    hub.subscribe("a", (m) => msgs.push(m));
+    const seen: RunnerEvent[] = [];
+    const payload = { method: "POST", body: { id: 1 } };
+    await scheduler.trigger("a", "w", payload, (e) => void seen.push(e));
+    expect(calls).toEqual([{ flowId: "a", trigger: "w", triggerData: payload }]);
+    expect(seen.map((e) => e.event)).toEqual(["node:start", "flow:done"]);
+    expect(msgs.map((m) => (m.type === "run:event" ? m.event.event : m.type))).toEqual(["run:start", "node:start", "flow:done"]);
+    expect(hub.lastRun("a")?.status).toBe("done");
+  });
+
+  it("лимит параллельных запусков проверяется синхронно и освобождается после завершения", async () => {
+    const releases: (() => void)[] = [];
+    const { scheduler } = setup(async (_f, onEvent) => {
+      await new Promise<void>((r) => releases.push(r));
+      onEvent({ event: "flow:done" });
+    });
+    scheduler.sync(hookFlow("a"));
+    const p1 = scheduler.trigger("a", "w", {});
+    const p2 = scheduler.trigger("a", "w", {});
+    expect(() => scheduler.trigger("a", "w", {})).toThrow(SchedulerBusyError); // лимит = 2
+    releases[0]!();
+    await p1;
+    const p3 = scheduler.trigger("a", "w", {}); // слот освободился
+    releases.slice(1).forEach((r) => r());
+    await vi.advanceTimersByTimeAsync(0);
+    releases.forEach((r) => r());
+    await Promise.all([p2, p3]);
+    expect(() => scheduler.trigger("a", "w", {})).not.toThrow();
+  });
+
+  it("запуск по вебхуку не блокируется плановым запуском того же флоу", async () => {
+    let release!: () => void;
+    const hold = new Promise<void>((r) => (release = r));
+    const { scheduler, calls } = setup(async (_f, onEvent) => {
+      await hold;
+      onEvent({ event: "flow:done" });
+    });
+    const mixed: Flow = {
+      ...flow(
+        [node("t", "every", { interval: 1, unit: "seconds" }), node("w", "webhook", { path: "p" }), node("r1", "result"), node("r2", "result")],
+        [edge("t", "r1"), edge("w", "r2")],
+      ),
+      id: "mix",
+      status: "published",
+    };
+    scheduler.sync(mixed);
+    await vi.advanceTimersByTimeAsync(1000); // плановый запуск повис
+    expect(calls).toHaveLength(1);
+    void scheduler.trigger("mix", "w", {});
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls.map((c) => c.trigger)).toEqual(["t", "w"]);
+    release();
+    scheduler.stop();
+  });
+
+  it("trigger неопубликованного флоу — ошибка", () => {
+    const { scheduler } = setup();
+    expect(() => scheduler.trigger("ghost", "w", {})).toThrow(/not published/);
+    scheduler.sync(hookFlow("a"));
+    scheduler.sync(hookFlow("a", "orders", "POST", "draft"));
+    expect(() => scheduler.trigger("a", "w", {})).toThrow(/not published/);
+  });
+
+  it("stop снимает вебхуки", () => {
+    const { scheduler } = setup();
+    scheduler.sync(hookFlow("a"));
+    scheduler.stop();
+    expect(scheduler.findWebhook("POST", "orders")).toBeUndefined();
   });
 });

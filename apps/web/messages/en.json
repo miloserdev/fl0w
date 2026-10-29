@@ -23,7 +23,7 @@
     "unpublishedChanges": "There are unpublished changes — update the published version",
     "publishBlocked": {
       "issues": "Fix the flow problems first",
-      "noTrigger": "Add a trigger block, for example “Every”"
+      "noTrigger": "An automatic trigger is required: “Every” or “Webhook”"
     }
   },
   "theme": {
@@ -54,7 +54,27 @@
     "http_request": "HTTP Request",
     "code": "Code",
     "merge": "Merge",
-    "every": "Every"
+    "every": "Every",
+    "manual": "Manual Trigger",
+    "webhook": "Webhook",
+    "respond_to_webhook": "Respond to Webhook",
+    "set": "Edit Fields",
+    "filter": "Filter",
+    "sort": "Sort",
+    "limit": "Limit",
+    "remove_duplicates": "Remove Duplicates",
+    "aggregate": "Aggregate",
+    "split_out": "Split Out",
+    "summarize": "Summarize",
+    "rename_keys": "Rename Keys",
+    "datetime": "Date & Time",
+    "crypto": "Crypto",
+    "jwt": "JWT",
+    "switch": "Switch",
+    "compare_datasets": "Compare Datasets",
+    "wait": "Wait",
+    "stop_and_error": "Stop and Error",
+    "noop": "No Operation"
   },
   "node": {
     "unknown": "Unknown block: {type}",
@@ -70,7 +90,8 @@
     "notJson": "The file is not valid JSON",
     "dismiss": "Dismiss",
     "invalidFile": "The file is not a valid flow:",
-    "publishFailed": "Could not change the publication:"
+    "publishFailed": "Could not change the publication:",
+    "publishConflict": "Cannot publish:"
   },
   "inspector": {
     "tabParams": "Parameters",
@@ -119,6 +140,119 @@
     "every": {
       "interval": "Interval",
       "unit": "Unit"
+    },
+    "webhook": {
+      "path": "Path (/api/hooks/…)",
+      "method": "HTTP method",
+      "respond": "Respond"
+    },
+    "respond_to_webhook": {
+      "status": "HTTP status",
+      "body": "Response body (empty — input)",
+      "headers": "Headers"
+    },
+    "set": {
+      "fields": "Fields (path → value)",
+      "keepOnlySet": "Keep only set fields",
+      "remove": "Remove fields"
+    },
+    "filter": {
+      "path": "List path",
+      "field": "Field",
+      "operator": "Operator",
+      "value": "Value"
+    },
+    "sort": {
+      "path": "List path",
+      "mode": "Mode",
+      "fields": "Sort fields",
+      "order": "Order"
+    },
+    "limit": {
+      "path": "List path",
+      "count": "Count",
+      "keep": "Keep"
+    },
+    "remove_duplicates": {
+      "path": "List path",
+      "compare": "Compare",
+      "fields": "Fields"
+    },
+    "aggregate": {
+      "path": "List path",
+      "mode": "Mode",
+      "fields": "Fields",
+      "mergeLists": "Merge nested lists",
+      "keepMissing": "Keep missing (null)",
+      "into": "Output field",
+      "include": "Include fields",
+      "fieldsList": "Field list"
+    },
+    "split_out": {
+      "field": "Field with the list",
+      "include": "Other fields",
+      "fieldsToInclude": "Fields to include",
+      "into": "Element field name"
+    },
+    "summarize": {
+      "path": "List path",
+      "aggregations": "Calculations",
+      "groupBy": "Group by"
+    },
+    "rename_keys": {
+      "keys": "Renames (old → new)"
+    },
+    "switch": {
+      "field": "Field",
+      "rules": "Rules (up to 4)",
+      "mode": "Mode"
+    },
+    "compare_datasets": {
+      "fieldA": "Key field A",
+      "fieldB": "Key field B (empty — same as A)",
+      "skip": "Fields to skip",
+      "fuzzy": "Fuzzy compare",
+      "resolve": "On differences"
+    },
+    "datetime": {
+      "operation": "Operation",
+      "value": "Date (empty — input)",
+      "unit": "Unit",
+      "amount": "Amount",
+      "format": "Format (empty — ISO)",
+      "part": "Date part",
+      "other": "Second date",
+      "direction": "Round",
+      "field": "Output field",
+      "includeInput": "Include input fields"
+    },
+    "crypto": {
+      "action": "Action",
+      "value": "Value (empty — input)",
+      "algorithm": "Algorithm",
+      "encoding": "Encoding",
+      "secret": "Key / passphrase",
+      "kind": "Generate",
+      "length": "Length, bytes",
+      "field": "Output field",
+      "includeInput": "Include input fields"
+    },
+    "jwt": {
+      "operation": "Operation",
+      "secret": "Secret",
+      "algorithm": "Algorithm",
+      "payload": "Claims (payload)",
+      "expiresInSeconds": "Expires in, s (0 — never)",
+      "token": "Token (empty — input)"
+    },
+    "wait": {
+      "amount": "Wait for",
+      "unit": "Unit"
+    },
+    "stop_and_error": {
+      "errorType": "Error type",
+      "message": "Message",
+      "errorObject": "Error object"
     }
   },
   "run": {
@@ -148,7 +282,12 @@
       "array": "array — list of values",
       "object": "object — keyed by input",
       "assign": "assign — merge objects",
-      "concat": "concat — join arrays"
+      "concat": "concat — join arrays",
+      "simple": "simple — by fields",
+      "random": "random — shuffle",
+      "fields": "fields — field values",
+      "all": "all",
+      "first": "first — first match"
     },
     "operator": {
       "eq": "equals",
@@ -163,12 +302,104 @@
     },
     "method": {
       "GET": "GET",
-      "POST": "POST"
+      "POST": "POST",
+      "PUT": "PUT",
+      "PATCH": "PATCH",
+      "DELETE": "DELETE",
+      "ANY": "ANY — any method"
     },
     "unit": {
       "seconds": "seconds",
       "minutes": "minutes",
-      "hours": "hours"
+      "hours": "hours",
+      "years": "years",
+      "months": "months",
+      "weeks": "weeks",
+      "days": "days"
+    },
+    "respond": {
+      "onReceived": "immediately on receipt",
+      "whenFinished": "when the flow finishes"
+    },
+    "order": {
+      "asc": "ascending",
+      "desc": "descending"
+    },
+    "keep": {
+      "first": "first",
+      "last": "last"
+    },
+    "compare": {
+      "all": "whole value",
+      "fields": "selected fields"
+    },
+    "include": {
+      "all": "all",
+      "only": "only listed",
+      "except": "all except listed",
+      "none": "none",
+      "selected": "only listed"
+    },
+    "operation": {
+      "now": "now",
+      "format": "format",
+      "add": "add",
+      "subtract": "subtract",
+      "diff": "diff — difference",
+      "extract": "extract — date part",
+      "round": "round",
+      "sign": "sign",
+      "verify": "verify",
+      "decode": "decode"
+    },
+    "part": {
+      "year": "year",
+      "month": "month",
+      "week": "week (ISO)",
+      "weekday": "weekday (1 = Mon)",
+      "day": "day",
+      "hour": "hour",
+      "minute": "minute",
+      "second": "second"
+    },
+    "direction": {
+      "down": "down",
+      "up": "up"
+    },
+    "action": {
+      "hash": "hash",
+      "hmac": "hmac",
+      "generate": "generate — random",
+      "encrypt": "encrypt",
+      "decrypt": "decrypt"
+    },
+    "algorithm": {
+      "md5": "md5",
+      "sha1": "sha1",
+      "sha256": "sha256",
+      "sha384": "sha384",
+      "sha512": "sha512",
+      "HS256": "HS256",
+      "HS384": "HS384",
+      "HS512": "HS512"
+    },
+    "encoding": {
+      "hex": "hex",
+      "base64": "base64",
+      "base64url": "base64url"
+    },
+    "kind": {
+      "uuid": "UUID",
+      "bytes": "random bytes"
+    },
+    "resolve": {
+      "a": "version A",
+      "b": "version B",
+      "both": "both versions"
+    },
+    "errorType": {
+      "message": "message",
+      "object": "object"
     }
   },
   "issues": {
@@ -190,5 +421,30 @@
     "description": "Pick a block — it appears in the middle of the canvas and opens for editing",
     "search": "Search blocks…",
     "empty": "Nothing found"
+  },
+  "ports": {
+    "branch": {
+      "out0": "true",
+      "out1": "false"
+    },
+    "filter": {
+      "out0": "kept",
+      "out1": "discarded"
+    },
+    "switch": {
+      "out0": "0",
+      "out1": "1",
+      "out2": "2",
+      "out3": "3",
+      "fallback": "fallback"
+    },
+    "compare_datasets": {
+      "in0": "A",
+      "in1": "B",
+      "out0": "A only",
+      "out1": "same",
+      "out2": "different",
+      "out3": "B only"
+    }
   }
 }

@@ -12,6 +12,8 @@ export type RunOptions = {
    * Без опции (ручной запуск) срабатывают все триггеры.
    */
   trigger?: string;
+  /** Данные срабатывания триггера; передаются в ctx.triggerData ноды `trigger`. */
+  triggerData?: Json;
 };
 
 // защита от потока логов из пользовательского кода: IPC и UI не должны захлебнуться
@@ -100,6 +102,7 @@ export async function runFlow(
       const cls = registry[node.type]!;
       const ctx: RunContext = {
         signal,
+        triggerData: id === opts.trigger ? opts.triggerData : undefined,
         log: (msg) => {
           if (!live || ++logged > MAX_LOGS_PER_NODE + 1) return;
           const message =

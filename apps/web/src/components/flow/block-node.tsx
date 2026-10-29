@@ -33,7 +33,11 @@ const portTop = (i: number, n: number) => `${((i + 1) / (n + 1)) * 100}%`;
  */
 export function BlockNode({ id, data, selected }: NodeProps<BlockNodeType>) {
   const t = useTranslations("node");
+  const tPorts = useTranslations("ports");
   const blockLabel = useBlockLabel();
+  /** Подпись порта: перевод из словаря, иначе label из класса блока. */
+  const portLabel = (portId: string, fallback?: string) =>
+    tPorts.has(`${data.blockType}.${portId}`) ? tPorts(`${data.blockType}.${portId}`) : fallback;
   const runStatus = useNodeRunStatus(id);
   const issues = useNodeIssues(id);
   const cls = registry[data.blockType];
@@ -87,7 +91,7 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNodeType>) {
               className="text-muted-foreground pointer-events-none absolute right-full mr-2.5 -translate-y-1/2 text-[10px]"
               style={{ top: portTop(i, ports.inputs.length) }}
             >
-              {p.label}
+              {portLabel(p.id, p.label)}
             </span>
           ),
       )}
@@ -99,7 +103,7 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNodeType>) {
               className="text-muted-foreground pointer-events-none absolute left-full ml-2.5 -translate-y-1/2 text-[10px]"
               style={{ top: portTop(i, ports.outputs.length) }}
             >
-              {p.label}
+              {portLabel(p.id, p.label)}
             </span>
           ),
       )}

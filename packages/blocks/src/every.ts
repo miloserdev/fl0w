@@ -14,6 +14,7 @@ export class Every extends Block {
   static icon = "clock";
   static category = "trigger";
   static isTrigger = true;
+  static autoTrigger = true;
   static ports = { inputs: [], outputs: [{ id: "out0" }] };
   static params: ParamSchema[] = [
     { name: "interval", type: "number", required: true, default: 1, min: 1, max: 100_000 },

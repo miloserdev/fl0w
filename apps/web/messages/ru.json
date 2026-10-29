@@ -23,7 +23,7 @@
     "unpublishedChanges": "Есть неопубликованные изменения — обновите опубликованную версию",
     "publishBlocked": {
       "issues": "Сначала исправьте проблемы флоу",
-      "noTrigger": "Добавьте блок-триггер, например «Каждые N»"
+      "noTrigger": "Нужен автоматический триггер: «Каждые N» или «Вебхук»"
     }
   },
   "theme": {
@@ -54,7 +54,27 @@
     "http_request": "HTTP-запрос",
     "code": "Код",
     "merge": "Объединение",
-    "every": "Каждые N"
+    "every": "Каждые N",
+    "manual": "Ручной запуск",
+    "webhook": "Вебхук",
+    "respond_to_webhook": "Ответ на вебхук",
+    "set": "Редактирование полей",
+    "filter": "Фильтр",
+    "sort": "Сортировка",
+    "limit": "Лимит",
+    "remove_duplicates": "Удаление дубликатов",
+    "aggregate": "Агрегация",
+    "split_out": "Разделение списка",
+    "summarize": "Сводка",
+    "rename_keys": "Переименование ключей",
+    "datetime": "Дата и время",
+    "crypto": "Криптография",
+    "jwt": "JWT",
+    "switch": "Переключатель",
+    "compare_datasets": "Сравнение наборов",
+    "wait": "Ожидание",
+    "stop_and_error": "Остановка с ошибкой",
+    "noop": "Ничего не делать"
   },
   "node": {
     "unknown": "Неизвестный блок: {type}",
@@ -70,7 +90,8 @@
     "notJson": "Файл не является корректным JSON",
     "dismiss": "Закрыть",
     "invalidFile": "Файл не является корректным флоу:",
-    "publishFailed": "Не удалось изменить публикацию:"
+    "publishFailed": "Не удалось изменить публикацию:",
+    "publishConflict": "Публикация невозможна:"
   },
   "inspector": {
     "tabParams": "Параметры",
@@ -119,6 +140,119 @@
     "every": {
       "interval": "Интервал",
       "unit": "Единица"
+    },
+    "webhook": {
+      "path": "Путь (/api/hooks/…)",
+      "method": "HTTP-метод",
+      "respond": "Когда отвечать"
+    },
+    "respond_to_webhook": {
+      "status": "HTTP-статус",
+      "body": "Тело ответа (пусто — вход)",
+      "headers": "Заголовки"
+    },
+    "set": {
+      "fields": "Поля (путь → значение)",
+      "keepOnlySet": "Оставить только заданные",
+      "remove": "Удалить поля"
+    },
+    "filter": {
+      "path": "Путь к списку",
+      "field": "Поле",
+      "operator": "Оператор",
+      "value": "Значение"
+    },
+    "sort": {
+      "path": "Путь к списку",
+      "mode": "Режим",
+      "fields": "Поля сортировки",
+      "order": "Порядок"
+    },
+    "limit": {
+      "path": "Путь к списку",
+      "count": "Количество",
+      "keep": "Оставить"
+    },
+    "remove_duplicates": {
+      "path": "Путь к списку",
+      "compare": "Сравнивать",
+      "fields": "Поля"
+    },
+    "aggregate": {
+      "path": "Путь к списку",
+      "mode": "Режим",
+      "fields": "Поля",
+      "mergeLists": "Слить вложенные списки",
+      "keepMissing": "Сохранять пустые (null)",
+      "into": "Поле результата",
+      "include": "Включить поля",
+      "fieldsList": "Список полей"
+    },
+    "split_out": {
+      "field": "Поле со списком",
+      "include": "Остальные поля",
+      "fieldsToInclude": "Какие поля включить",
+      "into": "Имя поля элемента"
+    },
+    "summarize": {
+      "path": "Путь к списку",
+      "aggregations": "Вычисления",
+      "groupBy": "Группировать по"
+    },
+    "rename_keys": {
+      "keys": "Переименования (старое → новое)"
+    },
+    "switch": {
+      "field": "Поле",
+      "rules": "Правила (до 4)",
+      "mode": "Режим"
+    },
+    "compare_datasets": {
+      "fieldA": "Ключевое поле A",
+      "fieldB": "Ключевое поле B (пусто — как у A)",
+      "skip": "Не сравнивать поля",
+      "fuzzy": "Нестрогое сравнение",
+      "resolve": "При различиях"
+    },
+    "datetime": {
+      "operation": "Операция",
+      "value": "Дата (пусто — вход)",
+      "unit": "Единица",
+      "amount": "Количество",
+      "format": "Формат (пусто — ISO)",
+      "part": "Часть даты",
+      "other": "Вторая дата",
+      "direction": "Округлять",
+      "field": "Поле результата",
+      "includeInput": "Сохранить входные поля"
+    },
+    "crypto": {
+      "action": "Действие",
+      "value": "Значение (пусто — вход)",
+      "algorithm": "Алгоритм",
+      "encoding": "Кодировка",
+      "secret": "Ключ / парольная фраза",
+      "kind": "Что генерировать",
+      "length": "Длина, байт",
+      "field": "Поле результата",
+      "includeInput": "Сохранить входные поля"
+    },
+    "jwt": {
+      "operation": "Операция",
+      "secret": "Секрет",
+      "algorithm": "Алгоритм",
+      "payload": "Claims (payload)",
+      "expiresInSeconds": "Срок жизни, с (0 — бессрочно)",
+      "token": "Токен (пусто — вход)"
+    },
+    "wait": {
+      "amount": "Сколько ждать",
+      "unit": "Единица"
+    },
+    "stop_and_error": {
+      "errorType": "Тип ошибки",
+      "message": "Сообщение",
+      "errorObject": "Объект ошибки"
     }
   },
   "run": {
@@ -148,7 +282,12 @@
       "array": "array — массив значений",
       "object": "object — объект по входам",
       "assign": "assign — слить объекты",
-      "concat": "concat — склеить массивы"
+      "concat": "concat — склеить массивы",
+      "simple": "simple — по полям",
+      "random": "random — перемешать",
+      "fields": "fields — значения полей",
+      "all": "all — все",
+      "first": "first — первое совпадение"
     },
     "operator": {
       "eq": "равно",
@@ -163,12 +302,104 @@
     },
     "method": {
       "GET": "GET",
-      "POST": "POST"
+      "POST": "POST",
+      "PUT": "PUT",
+      "PATCH": "PATCH",
+      "DELETE": "DELETE",
+      "ANY": "ANY — любой метод"
     },
     "unit": {
       "seconds": "секунды",
       "minutes": "минуты",
-      "hours": "часы"
+      "hours": "часы",
+      "years": "годы",
+      "months": "месяцы",
+      "weeks": "недели",
+      "days": "дни"
+    },
+    "respond": {
+      "onReceived": "сразу после получения",
+      "whenFinished": "после завершения флоу"
+    },
+    "order": {
+      "asc": "по возрастанию",
+      "desc": "по убыванию"
+    },
+    "keep": {
+      "first": "первые",
+      "last": "последние"
+    },
+    "compare": {
+      "all": "всё значение",
+      "fields": "выбранные поля"
+    },
+    "include": {
+      "all": "все",
+      "only": "только указанные",
+      "except": "все, кроме указанных",
+      "none": "никакие",
+      "selected": "только указанные"
+    },
+    "operation": {
+      "now": "now — сейчас",
+      "format": "format — форматировать",
+      "add": "add — прибавить",
+      "subtract": "subtract — вычесть",
+      "diff": "diff — разница",
+      "extract": "extract — часть даты",
+      "round": "round — округлить",
+      "sign": "sign — подписать",
+      "verify": "verify — проверить",
+      "decode": "decode — прочитать"
+    },
+    "part": {
+      "year": "год",
+      "month": "месяц",
+      "week": "неделя (ISO)",
+      "weekday": "день недели (1 = пн)",
+      "day": "день",
+      "hour": "час",
+      "minute": "минута",
+      "second": "секунда"
+    },
+    "direction": {
+      "down": "вниз",
+      "up": "вверх"
+    },
+    "action": {
+      "hash": "hash — хэш",
+      "hmac": "hmac",
+      "generate": "generate — случайное",
+      "encrypt": "encrypt — зашифровать",
+      "decrypt": "decrypt — расшифровать"
+    },
+    "algorithm": {
+      "md5": "md5",
+      "sha1": "sha1",
+      "sha256": "sha256",
+      "sha384": "sha384",
+      "sha512": "sha512",
+      "HS256": "HS256",
+      "HS384": "HS384",
+      "HS512": "HS512"
+    },
+    "encoding": {
+      "hex": "hex",
+      "base64": "base64",
+      "base64url": "base64url"
+    },
+    "kind": {
+      "uuid": "UUID",
+      "bytes": "случайные байты"
+    },
+    "resolve": {
+      "a": "версия A",
+      "b": "версия B",
+      "both": "обе версии"
+    },
+    "errorType": {
+      "message": "сообщение",
+      "object": "объект"
     }
   },
   "issues": {
@@ -190,5 +421,30 @@
     "description": "Выберите блок — он появится в центре холста и откроется для настройки",
     "search": "Поиск блока…",
     "empty": "Ничего не найдено"
+  },
+  "ports": {
+    "branch": {
+      "out0": "да",
+      "out1": "нет"
+    },
+    "filter": {
+      "out0": "прошли",
+      "out1": "не прошли"
+    },
+    "switch": {
+      "out0": "0",
+      "out1": "1",
+      "out2": "2",
+      "out3": "3",
+      "fallback": "иначе"
+    },
+    "compare_datasets": {
+      "in0": "A",
+      "in1": "B",
+      "out0": "только A",
+      "out1": "совпали",
+      "out2": "отличаются",
+      "out3": "только B"
+    }
   }
 }

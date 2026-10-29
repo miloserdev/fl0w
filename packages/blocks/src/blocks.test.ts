@@ -182,7 +182,8 @@ describe("Every (триггер)", () => {
   });
   it("без входов; триггером является только Every", () => {
     expect(Every.ports.inputs).toEqual([]);
-    expect(Object.values(registry).filter((c) => c.isTrigger).map((c) => c.type)).toEqual(["every"]);
+    expect(Object.values(registry).filter((c) => c.isTrigger).map((c) => c.type).sort()).toEqual(["every", "manual", "webhook"]);
+    expect(Object.values(registry).filter((c) => c.autoTrigger).map((c) => c.type).sort()).toEqual(["every", "webhook"]);
     expect(Object.values(registry).filter((c) => c.type !== "every").every((c) => c.intervalMs({}) === null)).toBe(true);
   });
   it("run отдаёт метку времени", async () => {
@@ -261,8 +262,12 @@ describe("HttpRequest", () => {
 });
 
 describe("реестр и метаданные", () => {
-  it("6 блоков MVP + Merge + Every", () => {
-    expect(Object.keys(registry).sort()).toEqual(["branch", "code", "every", "http_request", "merge", "result", "source", "transform"]);
+  it("28 блоков: MVP + аналоги core-нод n8n", () => {
+    expect(Object.keys(registry).sort()).toEqual([
+      "aggregate", "branch", "code", "compare_datasets", "crypto", "datetime", "every", "filter", "http_request", "jwt",
+      "limit", "manual", "merge", "noop", "remove_duplicates", "rename_keys", "respond_to_webhook", "result", "set",
+      "sort", "source", "split_out", "stop_and_error", "summarize", "switch", "transform", "wait", "webhook",
+    ]);
   });
   it("ключ реестра = static type; метаданные заполнены", () => {
     for (const [key, cls] of Object.entries(registry)) {
@@ -278,10 +283,30 @@ describe("реестр и метаданные", () => {
     expect(registry["branch"]!.ports.outputs.map((p) => p.id)).toEqual(["out0", "out1"]);
   });
   it("default-параметры блоков проходят собственную валидацию (кроме обязательных без default)", () => {
-    expect(validateParams(registry["branch"]!.params, {})).toEqual([]);
-    expect(validateParams(registry["transform"]!.params, {})).toEqual([]);
-    expect(validateParams(registry["code"]!.params, {})).toEqual([]);
+    for (const cls of Object.values(registry)) {
+      for (const issue of validateParams(cls.params, {})) {
+        const p = cls.params.find((x) => x.name === issue.param)!;
+        expect(issue.code, `${cls.type}.${p.name}`).toBe("required");
+        expect(p.default, `${cls.type}.${p.name}`).toBeUndefined();
+      }
+    }
     expect(validateParams(registry["http_request"]!.params, {}).map((i) => i.param)).toEqual(["url"]);
+  });
+  it("порты и параметры согласованы: id уникальны, у выходов-меток нет дублей, имена параметров уникальны", () => {
+    for (const cls of Object.values(registry)) {
+      const ids = [...cls.ports.inputs, ...cls.ports.outputs].map((p) => p.id);
+      expect(new Set(ids).size, cls.type).toBe(ids.length);
+      const names = cls.params.map((p) => p.name);
+      expect(new Set(names).size, cls.type).toBe(names.length);
+      for (const p of cls.params) if (p.type === "enum") expect(p.options.some((o) => o.value === p.default) || p.default === undefined, `${cls.type}.${p.name}`).toBe(true);
+    }
+  });
+  it("все блоки не импортируют node-only на уровне модуля (динамические import внутри run)", async () => {
+    const { readdirSync, readFileSync } = await import("node:fs");
+    const dir = new URL(".", import.meta.url);
+    for (const f of readdirSync(dir).filter((n) => n.endsWith(".ts") && !n.endsWith(".test.ts"))) {
+      expect(readFileSync(new URL(f, dir), "utf8"), f).not.toMatch(/^import .* from "node:/m);
+    }
   });
   it("только Code-блок имеет параметр-редактор кода", () => {
     const withEditor = Object.values(registry).filter((c) => c.params.some((p) => p.editor === "code"));
