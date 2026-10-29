@@ -58,7 +58,9 @@ export async function PUT(req: Request, { params }: Ctx) {
       return Response.json({ error: problems.join("; "), code: "bad_trigger", problems }, { status: 409 });
     }
   }
+  // повод для триггеров жизненного цикла: первая публикация или обновление уже опубликованного флоу
+  const previous = await rt.store.get(id);
   await rt.store.put(flow);
-  rt.scheduler.sync(flow);
+  rt.scheduler.sync(flow, flow.status === "published" ? (previous?.status === "published" ? "update" : "publish") : undefined);
   return Response.json({ flow, scheduled: rt.scheduler.isScheduled(id) });
 }

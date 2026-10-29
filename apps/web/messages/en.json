@@ -74,7 +74,13 @@
     "compare_datasets": "Compare Datasets",
     "wait": "Wait",
     "stop_and_error": "Stop and Error",
-    "noop": "No Operation"
+    "noop": "No Operation",
+    "files": "Read/Write Files",
+    "shell": "Shell",
+    "local_file_trigger": "Local File Trigger",
+    "error_trigger": "Error Trigger",
+    "workflow_trigger": "Workflow Trigger",
+    "activation_trigger": "Activation Trigger"
   },
   "node": {
     "unknown": "Unknown block: {type}",
@@ -253,6 +259,42 @@
       "errorType": "Error type",
       "message": "Message",
       "errorObject": "Error object"
+    },
+    "files": {
+      "operation": "Operation",
+      "path": "Path (pattern * ? [])",
+      "format": "Format",
+      "content": "Content (empty — input)",
+      "createDirs": "Create folders",
+      "overwrite": "Overwrite"
+    },
+    "shell": {
+      "script": "Script",
+      "args": "Arguments ($1, $2…)",
+      "env": "Environment variables",
+      "stdin": "Input (stdin)",
+      "cwd": "Folder (inside the files directory)",
+      "shell": "Shell",
+      "timeoutMs": "Timeout, ms",
+      "failOnError": "Fail on non-zero exit"
+    },
+    "local_file_trigger": {
+      "path": "File or folder",
+      "event": "Event",
+      "pattern": "Name pattern",
+      "recursive": "Include subfolders"
+    },
+    "error_trigger": {
+      "flows": "Flows (empty — all)"
+    },
+    "workflow_trigger": {
+      "onPublish": "On publish",
+      "onUpdate": "On update"
+    },
+    "activation_trigger": {
+      "onPublish": "On publish",
+      "onUpdate": "On update",
+      "onStartup": "On server start"
     }
   },
   "run": {
@@ -350,7 +392,11 @@
       "round": "round",
       "sign": "sign",
       "verify": "verify",
-      "decode": "decode"
+      "decode": "decode",
+      "read": "read",
+      "write": "write",
+      "append": "append",
+      "list": "list"
     },
     "part": {
       "year": "year",
@@ -400,6 +446,21 @@
     "errorType": {
       "message": "message",
       "object": "object"
+    },
+    "format": {
+      "text": "text",
+      "json": "JSON",
+      "base64": "base64 (binary data)"
+    },
+    "event": {
+      "any": "any",
+      "add": "file added",
+      "change": "file changed",
+      "unlink": "file deleted"
+    },
+    "shell": {
+      "bash": "bash",
+      "sh": "sh"
     }
   },
   "issues": {

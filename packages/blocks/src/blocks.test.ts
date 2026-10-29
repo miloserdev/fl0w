@@ -182,8 +182,12 @@ describe("Every (триггер)", () => {
   });
   it("без входов; триггером является только Every", () => {
     expect(Every.ports.inputs).toEqual([]);
-    expect(Object.values(registry).filter((c) => c.isTrigger).map((c) => c.type).sort()).toEqual(["every", "manual", "webhook"]);
-    expect(Object.values(registry).filter((c) => c.autoTrigger).map((c) => c.type).sort()).toEqual(["every", "webhook"]);
+    expect(Object.values(registry).filter((c) => c.isTrigger).map((c) => c.type).sort()).toEqual([
+      "activation_trigger", "error_trigger", "every", "local_file_trigger", "manual", "webhook", "workflow_trigger",
+    ]);
+    expect(Object.values(registry).filter((c) => c.autoTrigger).map((c) => c.type).sort()).toEqual([
+      "activation_trigger", "error_trigger", "every", "local_file_trigger", "webhook", "workflow_trigger",
+    ]);
     expect(Object.values(registry).filter((c) => c.type !== "every").every((c) => c.intervalMs({}) === null)).toBe(true);
   });
   it("run отдаёт метку времени", async () => {
@@ -262,11 +266,12 @@ describe("HttpRequest", () => {
 });
 
 describe("реестр и метаданные", () => {
-  it("28 блоков: MVP + аналоги core-нод n8n", () => {
+  it("34 блока: MVP + аналоги core-нод n8n", () => {
     expect(Object.keys(registry).sort()).toEqual([
-      "aggregate", "branch", "code", "compare_datasets", "crypto", "datetime", "every", "filter", "http_request", "jwt",
-      "limit", "manual", "merge", "noop", "remove_duplicates", "rename_keys", "respond_to_webhook", "result", "set",
-      "sort", "source", "split_out", "stop_and_error", "summarize", "switch", "transform", "wait", "webhook",
+      "activation_trigger", "aggregate", "branch", "code", "compare_datasets", "crypto", "datetime", "error_trigger", "every",
+      "files", "filter", "http_request", "jwt", "limit", "local_file_trigger", "manual", "merge", "noop", "remove_duplicates",
+      "rename_keys", "respond_to_webhook", "result", "set", "shell", "sort", "source", "split_out", "stop_and_error",
+      "summarize", "switch", "transform", "wait", "webhook", "workflow_trigger",
     ]);
   });
   it("ключ реестра = static type; метаданные заполнены", () => {

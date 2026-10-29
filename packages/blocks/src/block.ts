@@ -1,5 +1,17 @@
 import type { Json, ParamSchema, PortsDef } from "@fl0w/schema";
 
+export type FileWatchSpec = {
+  /** Файл или папка, относительно каталога файлов (`FL0W_FILES_DIR`). */
+  path: string;
+  event: "any" | "add" | "change" | "unlink";
+  /** Маска имени файла: `*` и `?`. */
+  pattern: string;
+  recursive: boolean;
+};
+
+export type LifecycleReason = "publish" | "update" | "startup";
+export type LifecycleSpec = Record<LifecycleReason, boolean>;
+
 export interface RunContext {
   log(msg: string): void;
   signal: AbortSignal;
@@ -26,6 +38,21 @@ export abstract class Block {
    * Опубликованный флоу без таких триггеров никогда не запустится, поэтому публикация требует хотя бы один.
    */
   static autoTrigger = false;
+  /** Для триггеров по файловой системе: что отслеживать (путь относительно каталога файлов); null — не файловый. */
+  static fileWatch(_params: Record<string, Json>): FileWatchSpec | null {
+    return null;
+  }
+  /**
+   * Для триггеров жизненного цикла флоу: при каких событиях срабатывать — публикация,
+   * обновление опубликованного флоу, старт сервера; null — не такой триггер.
+   */
+  static lifecycle(_params: Record<string, Json>): LifecycleSpec | null {
+    return null;
+  }
+  /** Для триггера ошибок: ошибки каких флоу обрабатывать (пустой список — любых); null — не такой триггер. */
+  static errorScope(_params: Record<string, Json>): { flows: string[] } | null {
+    return null;
+  }
   /** Для триггеров-вебхуков: на какой путь и метод слушать; null — нода не вебхук. */
   static webhook(_params: Record<string, Json>): { path: string; method: string } | null {
     return null;

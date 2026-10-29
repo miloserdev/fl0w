@@ -1,7 +1,7 @@
 import path from "node:path";
 import { registry } from "@fl0w/blocks";
 import { processSchedulerRun } from "@fl0w/engine/process";
-import { FlowStore, RunHub, Scheduler } from "@fl0w/engine/server";
+import { createFileWatcher, FlowStore, RunHub, Scheduler } from "@fl0w/engine/server";
 import { engineDir } from "./engine-dir";
 
 /** Предел времени одного запуска; дальше процесс-раннер убивается. */
@@ -17,12 +17,17 @@ class Runtime {
     // Каталог данных: переменная окружения или .data рядом с приложением (в .gitignore).
     const dir = process.env["FL0W_DATA_DIR"] ?? path.join(/* turbopackIgnore: true */ process.cwd(), ".data", "flows");
     this.store = new FlowStore(dir);
+    // Каталог файлов для блоков Read/Write Files, Shell и Local File Trigger (выше него доступа нет).
+    // Переменная выставляется в окружение сервера, поэтому её наследуют процессы-раннеры.
+    const filesDir = process.env["FL0W_FILES_DIR"] ?? path.join(/* turbopackIgnore: true */ process.cwd(), ".data", "files");
+    process.env["FL0W_FILES_DIR"] = filesDir;
     this.scheduler = new Scheduler({
       store: this.store,
       hub: this.hub,
       registry,
       // каждый плановый запуск — отдельный процесс, как и ручной (SPEC §2.1)
       run: processSchedulerRun({ engineDir: engineDir(), timeoutMs: RUN_TIMEOUT_MS }),
+      watchFiles: createFileWatcher({ baseDir: filesDir, log: (msg) => console.log(`[file-watch] ${msg}`) }),
       log: (msg) => console.log(`[scheduler] ${msg}`),
     });
   }

@@ -73,6 +73,10 @@ describe("утилиты путей и шаблонов", () => {
     expect(interpolate("{{ missing }}", data)).toBeNull();
     expect(interpolate("{{ . }}", data)).toBe(data);
     expect(interpolate("no templates", data)).toBe("no templates");
+    // пробелы и переводы строк ВОКРУГ шаблона — часть текста: тип не сохраняется, пробелы не теряются
+    expect(interpolate("{{ n }}\n", data)).toBe("5\n");
+    expect(interpolate(" {{ n }} ", data)).toBe(" 5 ");
+    expect(interpolate("{{ user.name }}\n", data)).toBe("Ann\n");
   });
   it("resolveTemplates обходит вложенные значения", () => {
     expect(resolveTemplates({ a: ["{{ x }}", 1], b: { c: "v={{x}}" } }, { x: 7 })).toEqual({ a: [7, 1], b: { c: "v=7" } });

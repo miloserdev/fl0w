@@ -108,7 +108,18 @@ export function ParamForm({ blockType, schema, values, onChange }: Props) {
               {p.required && <span className="text-destructive">*</span>}
             </Label>
 
-            {p.type === "string" && (
+            {p.type === "string" && p.multiline && (
+              <Textarea
+                id={id}
+                value={typeof value === "string" ? value : ""}
+                spellCheck={false}
+                aria-invalid={missing}
+                className="min-h-32 font-mono text-xs"
+                onChange={(e) => set(p.name, e.target.value)}
+              />
+            )}
+
+            {p.type === "string" && !p.multiline && (
               <Input
                 id={id}
                 value={typeof value === "string" ? value : ""}

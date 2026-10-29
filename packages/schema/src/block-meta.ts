@@ -23,7 +23,8 @@ const paramBase = {
 };
 
 export const paramSchemaSchema = z.discriminatedUnion("type", [
-  z.object({ ...paramBase, type: z.literal("string") }),
+  // multiline — многострочное поле (скрипты, шаблоны); иначе однострочное
+  z.object({ ...paramBase, type: z.literal("string"), multiline: z.boolean().optional() }),
   z.object({
     ...paramBase,
     type: z.literal("number"),

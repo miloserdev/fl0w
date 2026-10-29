@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "id": "flow_error_handler",
+  "name": "error-handler",
+  "nodes": [
+    {
+      "id": "on_error",
+      "type": "error_trigger",
+      "position": {
+        "x": 0,
+        "y": 120
+      },
+      "params": {
+        "flows": []
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "describe",
+      "type": "set",
+      "position": {
+        "x": 240,
+        "y": 120
+      },
+      "params": {
+        "fields": {
+          "line": "[{{ at }}] {{ flow.name }} failed in {{ error.node }}: {{ error.message }}"
+        },
+        "keepOnlySet": true
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "log",
+      "type": "files",
+      "position": {
+        "x": 500,
+        "y": 120
+      },
+      "params": {
+        "operation": "append",
+        "path": "logs/errors.log",
+        "content": "{{ line }}\n"
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "res",
+      "type": "result",
+      "position": {
+        "x": 760,
+        "y": 120
+      },
+      "params": {},
+      "portsOverride": null,
+      "cssOverride": null
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_on_error_out0_describe_in0",
+      "source": "on_error",
+      "sourcePort": "out0",
+      "target": "describe",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_describe_out0_log_in0",
+      "source": "describe",
+      "sourcePort": "out0",
+      "target": "log",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_log_out0_res_in0",
+      "source": "log",
+      "sourcePort": "out0",
+      "target": "res",
+      "targetPort": "in0"
+    }
+  ]
+}

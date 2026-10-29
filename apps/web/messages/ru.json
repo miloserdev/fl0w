@@ -74,7 +74,13 @@
     "compare_datasets": "Сравнение наборов",
     "wait": "Ожидание",
     "stop_and_error": "Остановка с ошибкой",
-    "noop": "Ничего не делать"
+    "noop": "Ничего не делать",
+    "files": "Чтение/запись файлов",
+    "shell": "Shell",
+    "local_file_trigger": "Изменение файлов",
+    "error_trigger": "Ошибка флоу",
+    "workflow_trigger": "Событие флоу",
+    "activation_trigger": "Активация"
   },
   "node": {
     "unknown": "Неизвестный блок: {type}",
@@ -253,6 +259,42 @@
       "errorType": "Тип ошибки",
       "message": "Сообщение",
       "errorObject": "Объект ошибки"
+    },
+    "files": {
+      "operation": "Операция",
+      "path": "Путь (маска * ? [])",
+      "format": "Формат",
+      "content": "Содержимое (пусто — вход)",
+      "createDirs": "Создавать папки",
+      "overwrite": "Перезаписывать"
+    },
+    "shell": {
+      "script": "Скрипт",
+      "args": "Аргументы ($1, $2…)",
+      "env": "Переменные окружения",
+      "stdin": "Ввод (stdin)",
+      "cwd": "Папка (внутри каталога файлов)",
+      "shell": "Оболочка",
+      "timeoutMs": "Таймаут, мс",
+      "failOnError": "Ошибка при ненулевом коде"
+    },
+    "local_file_trigger": {
+      "path": "Файл или папка",
+      "event": "Событие",
+      "pattern": "Маска имени",
+      "recursive": "Включая вложенные папки"
+    },
+    "error_trigger": {
+      "flows": "Флоу (пусто — все)"
+    },
+    "workflow_trigger": {
+      "onPublish": "При публикации",
+      "onUpdate": "При обновлении"
+    },
+    "activation_trigger": {
+      "onPublish": "При публикации",
+      "onUpdate": "При обновлении",
+      "onStartup": "При старте сервера"
     }
   },
   "run": {
@@ -350,7 +392,11 @@
       "round": "round — округлить",
       "sign": "sign — подписать",
       "verify": "verify — проверить",
-      "decode": "decode — прочитать"
+      "decode": "decode — прочитать",
+      "read": "read — прочитать",
+      "write": "write — записать",
+      "append": "append — дописать",
+      "list": "list — список"
     },
     "part": {
       "year": "год",
@@ -400,6 +446,21 @@
     "errorType": {
       "message": "сообщение",
       "object": "объект"
+    },
+    "format": {
+      "text": "текст",
+      "json": "JSON",
+      "base64": "base64 (бинарные данные)"
+    },
+    "event": {
+      "any": "любое",
+      "add": "файл добавлен",
+      "change": "файл изменён",
+      "unlink": "файл удалён"
+    },
+    "shell": {
+      "bash": "bash",
+      "sh": "sh"
     }
   },
   "issues": {

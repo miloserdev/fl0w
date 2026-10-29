@@ -351,3 +351,293 @@ describe("Scheduler: вебхуки", () => {
     expect(scheduler.findWebhook("POST", "orders")).toBeUndefined();
   });
 });
+
+const withNodes = (id: string, nodes: Flow["nodes"], status: "published" | "draft" = "published"): Flow => ({
+  ...flow([...nodes, node("r", "result")], [edge(nodes[0]!.id, "r")]),
+  id,
+  status,
+});
+
+describe("Scheduler: жизненный цикл флоу", () => {
+  const activation = (id: string, params: Record<string, Json> = {}, status: "published" | "draft" = "published") =>
+    withNodes(id, [node("t", "activation_trigger", params)], status);
+
+  it("publish / update / startup срабатывают только при своём поводе", async () => {
+    const { scheduler, calls } = setup();
+    scheduler.sync(activation("a"), "publish");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls.map((c) => (c.triggerData as { event: string }).event)).toEqual(["publish"]);
+    scheduler.sync(activation("a"), "update");
+    scheduler.sync(activation("a"), "startup");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls.map((c) => (c.triggerData as { event: string }).event)).toEqual(["publish", "update", "startup"]);
+    scheduler.stop();
+  });
+
+  it("без повода sync ничего не запускает; draft тоже", async () => {
+    const { scheduler, calls } = setup();
+    scheduler.sync(activation("a"));
+    scheduler.sync(activation("b", {}, "draft"), "publish");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls).toEqual([]);
+  });
+
+  it("флаги onPublish/onUpdate/onStartup отключают события", async () => {
+    const { scheduler, calls } = setup();
+    scheduler.sync(activation("a", { onPublish: false, onUpdate: false }), "publish");
+    scheduler.sync(activation("a", { onPublish: false, onUpdate: false }), "update");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls).toEqual([]);
+    scheduler.sync(activation("a", { onPublish: false, onUpdate: false }), "startup");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("Workflow Trigger не реагирует на старт сервера", async () => {
+    const { scheduler, calls } = setup();
+    const f = withNodes("w", [node("t", "workflow_trigger")]);
+    scheduler.sync(f, "startup");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls).toEqual([]);
+    scheduler.sync(f, "publish");
+    scheduler.sync(f, "update");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls).toHaveLength(2);
+  });
+
+  it("данные события: повод, время и флоу", async () => {
+    const { scheduler, calls } = setup();
+    scheduler.sync({ ...activation("a"), name: "My flow" }, "publish");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls[0]).toMatchObject({ flowId: "a", trigger: "t", triggerData: { event: "publish", flow: { id: "a", name: "My flow" }, at: expect.any(String) } });
+  });
+
+  it("start() поднимает флоу из хранилища с поводом startup", async () => {
+    vi.useRealTimers();
+    const dir = mkdtempSync(path.join(tmpdir(), "fl0w-life-"));
+    try {
+      const store = new FlowStore(dir);
+      await store.put(activation("persisted"));
+      await store.put(activation("draft-one", {}, "draft"));
+      const calls: string[] = [];
+      const scheduler = new Scheduler({
+        store,
+        hub: new RunHub(),
+        registry: testRegistry,
+        run: async (f, onEvent, o) => {
+          calls.push(`${f.id}:${(o.triggerData as { event: string }).event}`);
+          onEvent({ event: "flow:done" });
+        },
+      });
+      await scheduler.start();
+      await new Promise((r) => setTimeout(r, 20));
+      expect(calls).toEqual(["persisted:startup"]);
+      scheduler.stop();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("Scheduler: Error Trigger", () => {
+  const failing = (id: string) => withNodes(id, [node("t", "every", { interval: 1, unit: "seconds" })]);
+  const handler = (id: string, flows: string[] = []) => withNodes(id, [node("h", "error_trigger", { flows })]);
+
+  /** Запуск «упавшего» флоу даёт flow:done с ошибкой и node:error; обработчики завершаются успешно. */
+  const runner = (failIds: string[]) =>
+    setup(async (f, onEvent) => {
+      if (failIds.includes(f.id)) {
+        onEvent({ event: "node:error", nodeId: "boomNode", error: "kaboom" });
+        onEvent({ event: "flow:done", error: 'Node "boomNode" failed: kaboom' });
+      } else onEvent({ event: "flow:done" });
+    });
+
+  it("упавший автоматический запуск вызывает обработчик с деталями ошибки", async () => {
+    const { scheduler, calls } = runner(["bad"]);
+    scheduler.sync(handler("h1"));
+    scheduler.sync(failing("bad"));
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(calls.map((c) => c.flowId)).toEqual(["bad", "h1"]);
+    expect(calls[1]).toMatchObject({
+      trigger: "h",
+      triggerData: {
+        flow: { id: "bad", name: "test" },
+        run: { id: expect.stringMatching(/^run_/), trigger: "t" },
+        error: { message: 'Node "boomNode" failed: kaboom', node: "boomNode" },
+        at: expect.any(String),
+      },
+    });
+    scheduler.stop();
+  });
+
+  it("успешные запуски обработчик не вызывают", async () => {
+    const { scheduler, calls } = runner([]);
+    scheduler.sync(handler("h1"));
+    scheduler.sync(failing("good"));
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(calls.map((c) => c.flowId)).toEqual(["good", "good", "good"]);
+    scheduler.stop();
+  });
+
+  it("список flows ограничивает область; пустой список — любые флоу", async () => {
+    const { scheduler, calls } = runner(["bad1", "bad2"]);
+    scheduler.sync(handler("only1", ["bad1"]));
+    scheduler.sync(handler("all"));
+    scheduler.sync(failing("bad1"));
+    scheduler.sync(failing("bad2"));
+    await vi.advanceTimersByTimeAsync(1000);
+    const byHandler = (id: string) => calls.filter((c) => c.flowId === id).map((c) => (c.triggerData as { flow: { id: string } }).flow.id).sort();
+    expect(byHandler("only1")).toEqual(["bad1"]);
+    expect(byHandler("all")).toEqual(["bad1", "bad2"]);
+    scheduler.stop();
+  });
+
+  it("обработчик не вызывается для неопубликованных и снятых флоу; снятие обработчика отключает его", async () => {
+    const { scheduler, calls } = runner(["bad"]);
+    scheduler.sync(handler("h1"));
+    scheduler.sync({ ...handler("h2"), status: "draft" });
+    scheduler.sync(failing("bad"));
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(calls.filter((c) => c.flowId === "h2")).toEqual([]);
+    expect(calls.filter((c) => c.flowId === "h1")).toHaveLength(1);
+    scheduler.sync({ ...handler("h1"), status: "draft" });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(calls.filter((c) => c.flowId === "h1")).toHaveLength(1);
+    scheduler.stop();
+  });
+
+  it("падение самого обработчика не порождает цепочку; флоу может обрабатывать собственные ошибки", async () => {
+    const { scheduler, calls } = runner(["selfy", "h1"]);
+    scheduler.sync(handler("h1")); // обработчик, который сам падает
+    scheduler.sync(failing("selfy"));
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(calls.map((c) => c.flowId)).toEqual(["selfy", "h1"]); // h1 упал, но новых вызовов нет
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls).toHaveLength(2);
+
+    const both = withNodes("both", [node("t", "every", { interval: 1, unit: "seconds" }), node("h", "error_trigger")]);
+    const second = runner(["both"]);
+    second.scheduler.sync(both);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(second.calls.map((c) => c.trigger)).toEqual(["t", "h"]); // сам себе обработчик (как в n8n)
+    scheduler.stop();
+    second.scheduler.stop();
+  });
+
+  it("при исчерпании лимита параллельных запусков обработчик пропускается без исключения", async () => {
+    const releases: (() => void)[] = [];
+    const { scheduler, hub } = setup(async (f, onEvent) => {
+      if (f.id === "bad") {
+        onEvent({ event: "flow:done", error: "boom" });
+        return;
+      }
+      await new Promise<void>((r) => releases.push(r)); // обработчики зависают и занимают слоты
+      onEvent({ event: "flow:done" });
+    });
+    const msgs: WatchMessage[] = [];
+    scheduler.sync(handler("h1"));
+    scheduler.sync(handler("h2"));
+    scheduler.sync(handler("h3"));
+    hub.subscribe("h3", (m) => void msgs.push(m));
+    scheduler.sync(failing("bad"));
+    await vi.advanceTimersByTimeAsync(1000); // лимит 2: третий обработчик отказан
+    expect(releases).toHaveLength(2);
+    expect(msgs.some((m) => m.type === "run:skip")).toBe(true);
+    releases.forEach((r) => r());
+    scheduler.stop();
+  });
+
+  it("problems() сообщает о кривых параметрах обработчика", () => {
+    const { scheduler } = setup();
+    expect(scheduler.problems(handler("h", ["a"]))).toEqual([]);
+    expect(scheduler.problems(withNodes("h", [node("h", "error_trigger", { flows: [1] })]))[0]).toMatch(/list of strings/);
+  });
+});
+
+describe("Scheduler: Local File Trigger", () => {
+  const fileFlow = (id: string, params: Record<string, Json> = {}, status: "published" | "draft" = "published") =>
+    withNodes(id, [node("f", "local_file_trigger", params)], status);
+
+  function watcherSetup() {
+    const watchers: { spec: unknown; emit: (p: Json) => void; stopped: boolean }[] = [];
+    const base = setup();
+    const scheduler = new Scheduler({
+      store: new FlowStore("/nonexistent"),
+      hub: base.hub,
+      registry: testRegistry,
+      run: async (f, onEvent, o) => {
+        base.calls.push({ flowId: f.id, trigger: o.trigger, triggerData: o.triggerData });
+        onEvent({ event: "flow:done" });
+      },
+      log: (m) => base.logs.push(m),
+      maxConcurrentHookRuns: 2,
+      watchFiles: (spec, onChange) => {
+        const w = { spec, emit: onChange, stopped: false };
+        watchers.push(w);
+        return () => void (w.stopped = true);
+      },
+    });
+    return { ...base, scheduler, watchers };
+  }
+
+  it("публикация ставит наблюдателя с нормализованными параметрами; событие запускает флоу с данными файла", async () => {
+    const { scheduler, watchers, calls } = watcherSetup();
+    scheduler.sync(fileFlow("a", { path: "./inbox/", event: "add", pattern: "*.csv", recursive: true }));
+    expect(watchers).toHaveLength(1);
+    expect(watchers[0]!.spec).toEqual({ path: "inbox", event: "add", pattern: "*.csv", recursive: true });
+    const payload = { event: "add", path: "inbox/a.csv", name: "a.csv", size: 3, modifiedAt: "x" };
+    watchers[0]!.emit(payload);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls).toEqual([{ flowId: "a", trigger: "f", triggerData: payload }]);
+    expect(scheduler.isScheduled("a")).toBe(true);
+  });
+
+  it("снятие с публикации, повторная публикация и stop отписывают наблюдателя", () => {
+    const { scheduler, watchers } = watcherSetup();
+    scheduler.sync(fileFlow("a"));
+    scheduler.sync(fileFlow("a", { path: "other" })); // повторная публикация заменяет наблюдателя
+    expect(watchers.map((w) => w.stopped)).toEqual([true, false]);
+    scheduler.sync(fileFlow("a", {}, "draft"));
+    expect(watchers.map((w) => w.stopped)).toEqual([true, true]);
+    scheduler.sync(fileFlow("b"));
+    scheduler.stop();
+    expect(watchers.every((w) => w.stopped)).toBe(true);
+    expect(scheduler.isScheduled("b")).toBe(false);
+  });
+
+  it("кривой путь не активируется и виден в problems(); без наблюдателя — запись в лог", () => {
+    const { scheduler, logs, watchers } = watcherSetup();
+    expect(scheduler.problems(fileFlow("a", { path: "../x" }))[0]).toMatch(/\.\./);
+    scheduler.sync(fileFlow("a", { path: "../x" }));
+    expect(watchers).toEqual([]);
+    expect(logs.join("\n")).toMatch(/not activated/);
+
+    const plain = setup();
+    plain.scheduler.sync(fileFlow("b"));
+    expect(plain.logs.join("\n")).toMatch(/needs a file watcher/);
+  });
+
+  it("поток событий упирается в лимит: лишние пропускаются, остальные выполняются", async () => {
+    const releases: (() => void)[] = [];
+    const base = setup();
+    const watchers: ((p: Json) => void)[] = [];
+    const scheduler = new Scheduler({
+      store: new FlowStore("/nonexistent"),
+      hub: base.hub,
+      registry: testRegistry,
+      run: async (f, onEvent) => {
+        await new Promise<void>((r) => releases.push(r));
+        onEvent({ event: "flow:done" });
+      },
+      log: (m) => base.logs.push(m),
+      maxConcurrentHookRuns: 2,
+      watchFiles: (_s, onChange) => (watchers.push(onChange), () => {}),
+    });
+    scheduler.sync(fileFlow("a"));
+    for (let i = 0; i < 5; i++) watchers[0]!({ event: "add", path: `f${i}`, name: `f${i}` });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(releases).toHaveLength(2);
+    expect(base.logs.filter((l) => /too many concurrent/.test(l))).toHaveLength(3);
+    releases.forEach((r) => r());
+  });
+});

@@ -1,0 +1,171 @@
+{
+  "version": 1,
+  "id": "flow_file_report",
+  "name": "file-report",
+  "nodes": [
+    {
+      "id": "start",
+      "type": "manual",
+      "position": {
+        "x": 0,
+        "y": 120
+      },
+      "params": {},
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "rows",
+      "type": "set",
+      "position": {
+        "x": 220,
+        "y": 120
+      },
+      "params": {
+        "fields": {
+          "sales": [
+            {
+              "rep": "ann",
+              "amount": 120
+            },
+            {
+              "rep": "bob",
+              "amount": 75
+            },
+            {
+              "rep": "ann",
+              "amount": 60
+            }
+          ]
+        },
+        "keepOnlySet": true
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "split",
+      "type": "split_out",
+      "position": {
+        "x": 440,
+        "y": 120
+      },
+      "params": {
+        "field": "sales"
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "summary",
+      "type": "summarize",
+      "position": {
+        "x": 660,
+        "y": 120
+      },
+      "params": {
+        "aggregations": [
+          {
+            "field": "amount",
+            "op": "sum",
+            "as": "total"
+          },
+          {
+            "op": "count",
+            "as": "deals"
+          }
+        ],
+        "groupBy": [
+          "rep"
+        ]
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "save",
+      "type": "files",
+      "position": {
+        "x": 880,
+        "y": 120
+      },
+      "params": {
+        "operation": "write",
+        "path": "reports/summary.json",
+        "format": "json"
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "load",
+      "type": "files",
+      "position": {
+        "x": 1100,
+        "y": 120
+      },
+      "params": {
+        "operation": "read",
+        "path": "{{ path }}",
+        "format": "json"
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "res",
+      "type": "result",
+      "position": {
+        "x": 1320,
+        "y": 120
+      },
+      "params": {},
+      "portsOverride": null,
+      "cssOverride": null
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_start_out0_rows_in0",
+      "source": "start",
+      "sourcePort": "out0",
+      "target": "rows",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_rows_out0_split_in0",
+      "source": "rows",
+      "sourcePort": "out0",
+      "target": "split",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_split_out0_summary_in0",
+      "source": "split",
+      "sourcePort": "out0",
+      "target": "summary",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_summary_out0_save_in0",
+      "source": "summary",
+      "sourcePort": "out0",
+      "target": "save",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_save_out0_load_in0",
+      "source": "save",
+      "sourcePort": "out0",
+      "target": "load",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_load_out0_res_in0",
+      "source": "load",
+      "sourcePort": "out0",
+      "target": "res",
+      "targetPort": "in0"
+    }
+  ]
+}

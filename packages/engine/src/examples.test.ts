@@ -1,14 +1,29 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { registry } from "@fl0w/blocks";
 import type { Json, RunnerEvent } from "@fl0w/schema";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { runFlowInProcess } from "./spawn";
 import { validateFlow } from "./validate";
 
 const dir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../examples");
 const files = readdirSync(dir).filter((f) => f.endsWith(".json"));
+
+// примеры с файлами пишут в каталог файлов — подменяем его временным (процесс-раннер наследует окружение)
+let filesDir: string;
+let savedFilesDir: string | undefined;
+beforeAll(() => {
+  savedFilesDir = process.env["FL0W_FILES_DIR"];
+  filesDir = mkdtempSync(path.join(tmpdir(), "fl0w-examples-"));
+  process.env["FL0W_FILES_DIR"] = filesDir;
+});
+afterAll(() => {
+  if (savedFilesDir === undefined) delete process.env["FL0W_FILES_DIR"];
+  else process.env["FL0W_FILES_DIR"] = savedFilesDir;
+  rmSync(filesDir, { recursive: true, force: true });
+});
 
 const load = (file: string): unknown => JSON.parse(readFileSync(path.join(dir, file), "utf8"));
 
@@ -34,6 +49,8 @@ describe("examples/*.json", () => {
       "compare-datasets.json",
       "data-pipeline.json",
       "demo.json",
+      "error-handler.json",
+      "file-report.json",
       "jwt-and-hash.json",
       "showcase.json",
       "webhook-api.json",
@@ -105,6 +122,28 @@ describe("examples/*.json", () => {
     const r = result(await run("jwt-and-hash.json")) as { valid: boolean; subject: string; role: string; fingerprint: string };
     expect(r).toMatchObject({ valid: true, subject: "ann", role: "admin" });
     expect(r.fingerprint).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("file-report.json: сводка пишется в файл и читается обратно", async () => {
+    const r = result(await run("file-report.json")) as { path: string; content: Json };
+    const expected = [{ rep: "ann", total: 180, deals: 2 }, { rep: "bob", total: 75, deals: 1 }];
+    expect(r.path).toBe("reports/summary.json");
+    expect(r.content).toEqual(expected);
+    expect(JSON.parse(readFileSync(path.join(filesDir, "reports/summary.json"), "utf8"))).toEqual(expected);
+  });
+
+  it("error-handler.json: данные об ошибке дописываются в журнал", async () => {
+    const data: Json = {
+      flow: { id: "flow_x", name: "nightly-sync" },
+      run: { id: "run_1", trigger: "t" },
+      error: { message: "HTTP 500", node: "fetch" },
+      at: "2026-01-02T03:04:05.000Z",
+    };
+    await run("error-handler.json", { trigger: "on_error", triggerData: data });
+    await run("error-handler.json", { trigger: "on_error", triggerData: data });
+    expect(readFileSync(path.join(filesDir, "logs/errors.log"), "utf8")).toBe(
+      "[2026-01-02T03:04:05.000Z] nightly-sync failed in fetch: HTTP 500\n".repeat(2),
+    );
   });
 
   describe("webhook-api.json", () => {

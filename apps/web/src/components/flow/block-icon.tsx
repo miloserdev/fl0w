@@ -11,7 +11,9 @@ import {
   CornerUpLeft,
   Database,
   Filter,
+  FileText,
   Flag,
+  FolderSearch,
   GitCompare,
   GitFork,
   GitMerge,
@@ -20,14 +22,18 @@ import {
   Layers,
   ListEnd,
   MousePointerClick,
+  OctagonAlert,
   OctagonX,
   Pencil,
+  Power,
   Replace,
   Sigma,
   Split,
+  Terminal,
   Timer,
   UnfoldVertical,
   Webhook,
+  Workflow,
   type LucideIcon,
 } from "lucide-react";
 
@@ -61,6 +67,12 @@ const icons: Record<string, LucideIcon> = {
   "octagon-x": OctagonX,
   "arrow-right": ArrowRight,
   "git-compare": GitCompare,
+  "file-text": FileText,
+  "folder-search": FolderSearch,
+  "octagon-alert": OctagonAlert,
+  workflow: Workflow,
+  power: Power,
+  terminal: Terminal,
 };
 
 export function BlockIcon({ name, className }: { name: string; className?: string }) {

@@ -21,7 +21,12 @@ import { Wait } from "./wait";
 import { Webhook } from "./webhook";
 import { Branch } from "./branch";
 import { CodeBlock } from "./code";
+import { ActivationTrigger, WorkflowTrigger } from "./lifecycle-triggers";
+import { ErrorTrigger } from "./error-trigger";
 import { Every } from "./every";
+import { Files } from "./files";
+import { LocalFileTrigger } from "./local-file-trigger";
+import { Shell } from "./shell";
 import { HttpRequest } from "./http-request";
 import { Merge } from "./merge";
 import { ResultBlock } from "./result";
@@ -35,10 +40,16 @@ export const registry: Record<string, BlockClass> = {
   manual: ManualTrigger,
   every: Every,
   webhook: Webhook,
+  local_file_trigger: LocalFileTrigger,
+  error_trigger: ErrorTrigger,
+  workflow_trigger: WorkflowTrigger,
+  activation_trigger: ActivationTrigger,
   // ввод / вывод
   source: Source,
   http_request: HttpRequest,
   respond_to_webhook: RespondToWebhook,
+  files: Files,
+  shell: Shell,
   result: ResultBlock,
   // данные
   transform: Transform,
