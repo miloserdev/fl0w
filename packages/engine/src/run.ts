@@ -1,6 +1,7 @@
-import { registry as defaultRegistry, resolveParams, type RunContext } from "@fl0w/blocks";
+import { getNodePorts, registry as defaultRegistry, resolveParams, type RunContext } from "@fl0w/blocks";
 import { jsonSchema, type Flow, type Json, type RunnerEvent } from "@fl0w/schema";
 import { z } from "zod";
+import { participatingNodes } from "./participants";
 import { toposort } from "./toposort";
 import { formatIssues, validateFlow, type Registry } from "./validate";
 
@@ -76,6 +77,9 @@ export async function runFlow(
     outgoing.set(e.source, [...(outgoing.get(e.source) ?? []), e]);
   }
 
+  // Запускаются только ноды, связанные со стартовыми (триггеры / источники данных), — не любая «без входов».
+  const participants = participatingNodes(flow, registry, opts.trigger);
+
   const edgeValues = new Map<string, Json>(); // edge.id → JSON, лежащий на ребре
   const results: [string, Json][] = [];
 
@@ -85,10 +89,15 @@ export async function runFlow(
       return;
     }
 
+    if (!participants.has(id)) continue; // нет связи со стартовой нодой
     const node = nodes.get(id)!;
     // другие триггеры в этом запуске молчат: он начат от выбранного
     if (opts.trigger !== undefined && registry[node.type]!.isTrigger && id !== opts.trigger) continue;
     const edges = incoming.get(id) ?? [];
+    // нода со входными портами, у которой ничего не подключено, сама не стартует (стартуют триггеры и источники)
+    const cls = registry[node.type]!;
+    const entry = cls.isTrigger || getNodePorts(cls, node.portsOverride).inputs.length === 0;
+    if (edges.length === 0 && !entry) continue;
     if (!edges.every((e) => edgeValues.has(e.id))) continue; // вход не готов — ветка не пошла
 
     const inputs: Record<string, Json> = {};
@@ -99,7 +108,6 @@ export async function runFlow(
     let live = true;
     let logged = 0;
     try {
-      const cls = registry[node.type]!;
       const ctx: RunContext = {
         signal,
         triggerData: id === opts.trigger ? opts.triggerData : undefined,

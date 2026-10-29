@@ -76,7 +76,7 @@ describe("MVP-блоки в отдельном процессе", () => {
 
   it("Code: require / process недоступны — node:error, раннер жив", async () => {
     for (const body of [`return { out0: require("fs").readdirSync("/") }`, `process.exit(1)`, `return { out0: process.env }`]) {
-      const f = flow([code("c", body), node("res", "result")], [edge("c", "res")]);
+      const f = flow([node("s", "source", { json: 1 }), code("c", body), node("res", "result")], [edge("s", "c"), edge("c", "res")]);
       const { events, done } = await run(f);
       expect(events).toContainEqual({
         event: "node:error",
@@ -108,7 +108,7 @@ describe("MVP-блоки в отдельном процессе", () => {
   });
 
   it("Code: ошибка кода → node:error вместо падения", async () => {
-    const f = flow([code("c", `throw new Error("custom failure")`)], []);
+    const f = flow([node("s", "source", { json: 1 }), code("c", `throw new Error("custom failure")`)], [edge("s", "c")]);
     const { events, done } = await run(f);
     expect(events).toContainEqual({ event: "node:error", nodeId: "c", error: "custom failure" });
     expect(done?.error).toBe('Node "c" failed: custom failure');
@@ -171,8 +171,8 @@ describe("Merge в отдельном процессе", () => {
 
   it("логи Code-блока приходят событиями node:log из процесса", async () => {
     const f = flow(
-      [code("c", `log("hello", { a: 1 }); log("second"); return { out0: 1 }`), node("res", "result")],
-      [edge("c", "res")],
+      [node("s", "source", { json: 1 }), code("c", `log("hello", { a: 1 }); log("second"); return { out0: 1 }`), node("res", "result")],
+      [edge("s", "c"), edge("c", "res")],
     );
     const { events } = await run(f);
     const lines = events.flatMap((e) => (e.event === "node:log" ? [`${e.nodeId}:${e.message}`] : []));
