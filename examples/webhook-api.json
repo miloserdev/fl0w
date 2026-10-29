@@ -1,0 +1,150 @@
+{
+  "version": 1,
+  "id": "flow_webhook_api",
+  "name": "webhook-api",
+  "nodes": [
+    {
+      "id": "hook",
+      "type": "webhook",
+      "position": {
+        "x": 0,
+        "y": 200
+      },
+      "params": {
+        "path": "demo/orders",
+        "method": "POST",
+        "respond": "whenFinished"
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "stamp",
+      "type": "datetime",
+      "position": {
+        "x": 240,
+        "y": 200
+      },
+      "params": {
+        "operation": "now",
+        "format": "YYYY-MM-DD HH:mm:ss",
+        "field": "receivedAt",
+        "includeInput": true
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "route",
+      "type": "switch",
+      "position": {
+        "x": 500,
+        "y": 200
+      },
+      "params": {
+        "field": "body.total",
+        "rules": [
+          {
+            "operator": "gte",
+            "value": 1000
+          },
+          {
+            "operator": "gt",
+            "value": 0
+          }
+        ]
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "vip",
+      "type": "respond_to_webhook",
+      "position": {
+        "x": 800,
+        "y": 60
+      },
+      "params": {
+        "status": 200,
+        "body": {
+          "tier": "vip",
+          "total": "{{ body.total }}",
+          "receivedAt": "{{ receivedAt }}"
+        }
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "regular",
+      "type": "respond_to_webhook",
+      "position": {
+        "x": 800,
+        "y": 200
+      },
+      "params": {
+        "status": 200,
+        "body": {
+          "tier": "regular",
+          "total": "{{ body.total }}",
+          "receivedAt": "{{ receivedAt }}"
+        }
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "bad",
+      "type": "respond_to_webhook",
+      "position": {
+        "x": 800,
+        "y": 360
+      },
+      "params": {
+        "status": 422,
+        "body": {
+          "error": "total must be a positive number"
+        }
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_hook_out0_stamp_in0",
+      "source": "hook",
+      "sourcePort": "out0",
+      "target": "stamp",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_stamp_out0_route_in0",
+      "source": "stamp",
+      "sourcePort": "out0",
+      "target": "route",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_route_out0_vip_in0",
+      "source": "route",
+      "sourcePort": "out0",
+      "target": "vip",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_route_out1_regular_in0",
+      "source": "route",
+      "sourcePort": "out1",
+      "target": "regular",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_route_fallback_bad_in0",
+      "source": "route",
+      "sourcePort": "fallback",
+      "target": "bad",
+      "targetPort": "in0"
+    }
+  ]
+}

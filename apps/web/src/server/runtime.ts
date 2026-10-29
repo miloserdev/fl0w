@@ -1,6 +1,6 @@
 import path from "node:path";
 import { registry } from "@fl0w/blocks";
-import { runFlowInProcess } from "@fl0w/engine/process";
+import { processSchedulerRun } from "@fl0w/engine/process";
 import { FlowStore, RunHub, Scheduler } from "@fl0w/engine/server";
 import { engineDir } from "./engine-dir";
 
@@ -22,12 +22,7 @@ class Runtime {
       hub: this.hub,
       registry,
       // каждый плановый запуск — отдельный процесс, как и ручной (SPEC §2.1)
-      run: (flow, onEvent, { trigger }) =>
-        runFlowInProcess(flow, onEvent, {
-          engineDir: engineDir(),
-          trigger,
-          timeoutMs: RUN_TIMEOUT_MS,
-        }),
+      run: processSchedulerRun({ engineDir: engineDir(), timeoutMs: RUN_TIMEOUT_MS }),
       log: (msg) => console.log(`[scheduler] ${msg}`),
     });
   }

@@ -1,0 +1,167 @@
+{
+  "version": 1,
+  "id": "flow_compare",
+  "name": "compare-datasets",
+  "nodes": [
+    {
+      "id": "a",
+      "type": "source",
+      "position": {
+        "x": 0,
+        "y": 60
+      },
+      "params": {
+        "json": [
+          {
+            "id": 1,
+            "name": "ann",
+            "plan": "free"
+          },
+          {
+            "id": 2,
+            "name": "bob",
+            "plan": "pro"
+          },
+          {
+            "id": 3,
+            "name": "cat",
+            "plan": "pro"
+          }
+        ]
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "b",
+      "type": "source",
+      "position": {
+        "x": 0,
+        "y": 300
+      },
+      "params": {
+        "json": [
+          {
+            "id": 2,
+            "name": "bob",
+            "plan": "pro"
+          },
+          {
+            "id": 3,
+            "name": "cat",
+            "plan": "team"
+          },
+          {
+            "id": 4,
+            "name": "dan",
+            "plan": "free"
+          }
+        ]
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "cmp",
+      "type": "compare_datasets",
+      "position": {
+        "x": 300,
+        "y": 180
+      },
+      "params": {
+        "fieldA": "id",
+        "resolve": "both"
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "only_a",
+      "type": "result",
+      "position": {
+        "x": 640,
+        "y": -20
+      },
+      "params": {},
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "same",
+      "type": "result",
+      "position": {
+        "x": 640,
+        "y": 120
+      },
+      "params": {},
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "different",
+      "type": "result",
+      "position": {
+        "x": 640,
+        "y": 260
+      },
+      "params": {},
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "only_b",
+      "type": "result",
+      "position": {
+        "x": 640,
+        "y": 400
+      },
+      "params": {},
+      "portsOverride": null,
+      "cssOverride": null
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_a_out0_cmp_in0",
+      "source": "a",
+      "sourcePort": "out0",
+      "target": "cmp",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_b_out0_cmp_in1",
+      "source": "b",
+      "sourcePort": "out0",
+      "target": "cmp",
+      "targetPort": "in1"
+    },
+    {
+      "id": "e_cmp_out0_only_a_in0",
+      "source": "cmp",
+      "sourcePort": "out0",
+      "target": "only_a",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_cmp_out1_same_in0",
+      "source": "cmp",
+      "sourcePort": "out1",
+      "target": "same",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_cmp_out2_different_in0",
+      "source": "cmp",
+      "sourcePort": "out2",
+      "target": "different",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_cmp_out3_only_b_in0",
+      "source": "cmp",
+      "sourcePort": "out3",
+      "target": "only_b",
+      "targetPort": "in0"
+    }
+  ]
+}

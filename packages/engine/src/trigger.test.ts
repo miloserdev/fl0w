@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { collect, edge, flow, node } from "./test-helpers";
-import { runFlowInProcess } from "./spawn";
+import { runFlowInProcess, processSchedulerRun } from "./spawn";
+import { RunHub } from "./hub";
+import { Scheduler } from "./scheduler";
+import { FlowStore } from "./store";
+import { registry } from "@fl0w/blocks";
+import type { Flow, Json, WatchMessage } from "@fl0w/schema";
 import type { RunnerEvent } from "@fl0w/schema";
 
 const twoTriggers = flow(
@@ -59,5 +64,52 @@ describe("запуск от триггера в отдельном процес�
     const events = await run({});
     const started = events.flatMap((e) => (e.event === "node:start" ? [e.nodeId] : []));
     expect(started).toEqual(["a", "b", "ra", "rb"]);
+  });
+});
+
+describe("данные триггера (вебхук) доходят до ноды через процесс", () => {
+  const hook: Flow = {
+    ...flow(
+      [
+        node("w", "webhook", { path: "orders", method: "POST" }),
+        node("pick", "set", { fields: { who: "{{ body.customer }}", qty: "{{ body.qty }}", q: "{{ query.a }}" }, keepOnlySet: true }),
+        node("res", "result"),
+      ],
+      [edge("w", "pick"), edge("pick", "res")],
+    ),
+    id: "flow_hook",
+    status: "published",
+  };
+  const payload: Json = { method: "POST", path: "orders", query: { a: "1" }, headers: {}, body: { customer: "ann", qty: 3 } };
+
+  it("runFlowInProcess: triggerData попадает в ctx.triggerData триггер-ноды", async () => {
+    const events: RunnerEvent[] = [];
+    await runFlowInProcess(hook, (e) => void events.push(e), { trigger: "w", triggerData: payload, timeoutMs: 20000 });
+    expect(events.at(-1)).toEqual({ event: "flow:done", result: { who: "ann", qty: 3, q: "1" } });
+  });
+
+  it("без triggerData триггер отдаёт пример запроса (ручной запуск)", async () => {
+    const events: RunnerEvent[] = [];
+    await runFlowInProcess(hook, (e) => void events.push(e), { timeoutMs: 20000 });
+    expect(events.at(-1)).toMatchObject({ event: "flow:done", result: { who: null, qty: null, q: null } });
+  });
+
+  it("Scheduler + processSchedulerRun: запрос вебхука проходит весь путь до результата", async () => {
+    const hub = new RunHub();
+    const scheduler = new Scheduler({
+      store: new FlowStore("/nonexistent"),
+      hub,
+      registry,
+      run: processSchedulerRun({ timeoutMs: 20000 }),
+    });
+    scheduler.sync(hook);
+    const found = scheduler.findWebhook("POST", "orders")!;
+    const msgs: WatchMessage[] = [];
+    hub.subscribe("flow_hook", (m) => void msgs.push(m));
+    const seen: RunnerEvent[] = [];
+    await scheduler.trigger("flow_hook", found.nodeId, payload, (e) => void seen.push(e));
+    expect(seen.at(-1)).toEqual({ event: "flow:done", result: { who: "ann", qty: 3, q: "1" } });
+    expect(msgs.some((m) => m.type === "run:event" && m.event.event === "flow:done")).toBe(true);
+    scheduler.stop();
   });
 });

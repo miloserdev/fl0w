@@ -1,0 +1,157 @@
+{
+  "version": 1,
+  "id": "flow_jwt",
+  "name": "jwt-and-hash",
+  "nodes": [
+    {
+      "id": "start",
+      "type": "manual",
+      "position": {
+        "x": 0,
+        "y": 100
+      },
+      "params": {},
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "user",
+      "type": "set",
+      "position": {
+        "x": 220,
+        "y": 100
+      },
+      "params": {
+        "fields": {
+          "user": "ann",
+          "role": "admin"
+        },
+        "keepOnlySet": true
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "sign",
+      "type": "jwt",
+      "position": {
+        "x": 440,
+        "y": 100
+      },
+      "params": {
+        "operation": "sign",
+        "secret": "change-me",
+        "payload": {
+          "sub": "{{ user }}",
+          "role": "{{ role }}"
+        },
+        "expiresInSeconds": 3600
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "check",
+      "type": "jwt",
+      "position": {
+        "x": 660,
+        "y": 100
+      },
+      "params": {
+        "operation": "verify",
+        "secret": "change-me"
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "claims",
+      "type": "set",
+      "position": {
+        "x": 880,
+        "y": 100
+      },
+      "params": {
+        "fields": {
+          "valid": "{{ valid }}",
+          "subject": "{{ payload.sub }}",
+          "role": "{{ payload.role }}"
+        },
+        "keepOnlySet": true
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "fingerprint",
+      "type": "crypto",
+      "position": {
+        "x": 1100,
+        "y": 100
+      },
+      "params": {
+        "action": "hash",
+        "value": "{{ subject }}:{{ role }}",
+        "field": "fingerprint",
+        "includeInput": true
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "res",
+      "type": "result",
+      "position": {
+        "x": 1320,
+        "y": 100
+      },
+      "params": {},
+      "portsOverride": null,
+      "cssOverride": null
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_start_out0_user_in0",
+      "source": "start",
+      "sourcePort": "out0",
+      "target": "user",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_user_out0_sign_in0",
+      "source": "user",
+      "sourcePort": "out0",
+      "target": "sign",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_sign_out0_check_in0",
+      "source": "sign",
+      "sourcePort": "out0",
+      "target": "check",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_check_out0_claims_in0",
+      "source": "check",
+      "sourcePort": "out0",
+      "target": "claims",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_claims_out0_fingerprint_in0",
+      "source": "claims",
+      "sourcePort": "out0",
+      "target": "fingerprint",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_fingerprint_out0_res_in0",
+      "source": "fingerprint",
+      "sourcePort": "out0",
+      "target": "res",
+      "targetPort": "in0"
+    }
+  ]
+}

@@ -6,6 +6,7 @@ import { fork, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { runnerEventSchema, type Flow, type Json, type RunnerCommand, type RunnerEvent } from "@fl0w/schema";
+import type { SchedulerRun } from "./scheduler";
 
 export type ProcessRunOptions = {
   /** Каталог пакета engine (cwd процесса, откуда резолвится tsx). По умолчанию — рядом с этим файлом. */
@@ -135,4 +136,12 @@ export function runFlowInProcess(
       if (err) finish({ error: `Failed to send command to runner: ${err.message}` });
     });
   });
+}
+
+/**
+ * Исполнитель для планировщика: каждый запуск — отдельный процесс-раннер (SPEC §2.1).
+ * Передаёт триггер И его данные целиком — планировщик и раннер не должны расходиться в наборе полей.
+ */
+export function processSchedulerRun(base: Pick<ProcessRunOptions, "engineDir" | "timeoutMs" | "execArgv"> = {}): SchedulerRun {
+  return (flow, onEvent, { trigger, triggerData }) => runFlowInProcess(flow, onEvent, { ...base, trigger, triggerData });
 }

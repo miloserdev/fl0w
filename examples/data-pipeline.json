@@ -1,0 +1,333 @@
+{
+  "version": 1,
+  "id": "flow_data_pipeline",
+  "name": "data-pipeline",
+  "nodes": [
+    {
+      "id": "start",
+      "type": "manual",
+      "position": {
+        "x": 0,
+        "y": 200
+      },
+      "params": {},
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "load",
+      "type": "set",
+      "position": {
+        "x": 220,
+        "y": 200
+      },
+      "params": {
+        "fields": {
+          "orders": [
+            {
+              "id": 1,
+              "customer": "ann",
+              "region": "eu",
+              "status": "paid",
+              "total": 120
+            },
+            {
+              "id": 2,
+              "customer": "bob",
+              "region": "us",
+              "status": "paid",
+              "total": 75
+            },
+            {
+              "id": 3,
+              "customer": "cat",
+              "region": "eu",
+              "status": "refunded",
+              "total": 300
+            },
+            {
+              "id": 4,
+              "customer": "dan",
+              "region": "us",
+              "status": "paid",
+              "total": 410
+            },
+            {
+              "id": 5,
+              "customer": "eve",
+              "region": "eu",
+              "status": "paid",
+              "total": 60
+            },
+            {
+              "id": 6,
+              "customer": "fay",
+              "region": "asia",
+              "status": "pending",
+              "total": 15
+            },
+            {
+              "id": 7,
+              "customer": "gus",
+              "region": "asia",
+              "status": "paid",
+              "total": 220
+            }
+          ]
+        },
+        "keepOnlySet": true
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "split",
+      "type": "split_out",
+      "position": {
+        "x": 440,
+        "y": 200
+      },
+      "params": {
+        "field": "orders"
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "paid",
+      "type": "filter",
+      "position": {
+        "x": 660,
+        "y": 200
+      },
+      "params": {
+        "field": "status",
+        "operator": "eq",
+        "value": "paid"
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "rank",
+      "type": "sort",
+      "position": {
+        "x": 900,
+        "y": 60
+      },
+      "params": {
+        "fields": [
+          {
+            "field": "total",
+            "order": "desc"
+          }
+        ]
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "top",
+      "type": "limit",
+      "position": {
+        "x": 1120,
+        "y": 60
+      },
+      "params": {
+        "count": 3
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "report",
+      "type": "summarize",
+      "position": {
+        "x": 1340,
+        "y": 60
+      },
+      "params": {
+        "aggregations": [
+          {
+            "field": "total",
+            "op": "sum",
+            "as": "revenue"
+          },
+          {
+            "field": "total",
+            "op": "average",
+            "as": "average"
+          },
+          {
+            "op": "count",
+            "as": "orders"
+          }
+        ]
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "res_top",
+      "type": "result",
+      "position": {
+        "x": 1580,
+        "y": 60
+      },
+      "params": {},
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "regions",
+      "type": "summarize",
+      "position": {
+        "x": 900,
+        "y": 340
+      },
+      "params": {
+        "aggregations": [
+          {
+            "field": "total",
+            "op": "sum",
+            "as": "revenue"
+          },
+          {
+            "op": "count",
+            "as": "orders"
+          }
+        ],
+        "groupBy": [
+          "region"
+        ]
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "res_regions",
+      "type": "result",
+      "position": {
+        "x": 1140,
+        "y": 340
+      },
+      "params": {},
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "skipped",
+      "type": "summarize",
+      "position": {
+        "x": 900,
+        "y": 540
+      },
+      "params": {
+        "aggregations": [
+          {
+            "op": "count",
+            "as": "count"
+          },
+          {
+            "field": "status",
+            "op": "concatenate",
+            "as": "statuses",
+            "separator": ", "
+          }
+        ]
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "res_skipped",
+      "type": "result",
+      "position": {
+        "x": 1140,
+        "y": 540
+      },
+      "params": {},
+      "portsOverride": null,
+      "cssOverride": null
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_start_out0_load_in0",
+      "source": "start",
+      "sourcePort": "out0",
+      "target": "load",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_load_out0_split_in0",
+      "source": "load",
+      "sourcePort": "out0",
+      "target": "split",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_split_out0_paid_in0",
+      "source": "split",
+      "sourcePort": "out0",
+      "target": "paid",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_paid_out0_rank_in0",
+      "source": "paid",
+      "sourcePort": "out0",
+      "target": "rank",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_rank_out0_top_in0",
+      "source": "rank",
+      "sourcePort": "out0",
+      "target": "top",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_top_out0_report_in0",
+      "source": "top",
+      "sourcePort": "out0",
+      "target": "report",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_report_out0_res_top_in0",
+      "source": "report",
+      "sourcePort": "out0",
+      "target": "res_top",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_paid_out0_regions_in0",
+      "source": "paid",
+      "sourcePort": "out0",
+      "target": "regions",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_regions_out0_res_regions_in0",
+      "source": "regions",
+      "sourcePort": "out0",
+      "target": "res_regions",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_paid_out1_skipped_in0",
+      "source": "paid",
+      "sourcePort": "out1",
+      "target": "skipped",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_skipped_out0_res_skipped_in0",
+      "source": "skipped",
+      "sourcePort": "out0",
+      "target": "res_skipped",
+      "targetPort": "in0"
+    }
+  ]
+}

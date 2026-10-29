@@ -1,0 +1,145 @@
+{
+  "version": 1,
+  "id": "flow_cleanup",
+  "name": "cleanup",
+  "nodes": [
+    {
+      "id": "raw",
+      "type": "source",
+      "position": {
+        "x": 0,
+        "y": 120
+      },
+      "params": {
+        "json": [
+          {
+            "mail": "ann@x.io",
+            "tags": [
+              "a",
+              "b"
+            ],
+            "user": {
+              "nick": "ann"
+            }
+          },
+          {
+            "mail": "bob@x.io",
+            "tags": [
+              "b"
+            ],
+            "user": {
+              "nick": "bob"
+            }
+          },
+          {
+            "mail": "ann@x.io",
+            "tags": [
+              "c"
+            ],
+            "user": {
+              "nick": "ann2"
+            }
+          }
+        ]
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "dedupe",
+      "type": "remove_duplicates",
+      "position": {
+        "x": 260,
+        "y": 120
+      },
+      "params": {
+        "compare": "fields",
+        "fields": [
+          "mail"
+        ]
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "rename",
+      "type": "rename_keys",
+      "position": {
+        "x": 520,
+        "y": 120
+      },
+      "params": {
+        "keys": {
+          "mail": "email",
+          "user.nick": "handle"
+        }
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "collect",
+      "type": "aggregate",
+      "position": {
+        "x": 780,
+        "y": 120
+      },
+      "params": {
+        "fields": [
+          {
+            "field": "email",
+            "as": "emails"
+          },
+          {
+            "field": "tags",
+            "as": "tags"
+          }
+        ],
+        "mergeLists": true
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "res",
+      "type": "result",
+      "position": {
+        "x": 1040,
+        "y": 120
+      },
+      "params": {},
+      "portsOverride": null,
+      "cssOverride": null
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_raw_out0_dedupe_in0",
+      "source": "raw",
+      "sourcePort": "out0",
+      "target": "dedupe",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_dedupe_out0_rename_in0",
+      "source": "dedupe",
+      "sourcePort": "out0",
+      "target": "rename",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_rename_out0_collect_in0",
+      "source": "rename",
+      "sourcePort": "out0",
+      "target": "collect",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_collect_out0_res_in0",
+      "source": "collect",
+      "sourcePort": "out0",
+      "target": "res",
+      "targetPort": "in0"
+    }
+  ]
+}

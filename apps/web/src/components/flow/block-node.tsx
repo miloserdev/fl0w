@@ -88,7 +88,7 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNodeType>) {
           p.label && (
             <span
               key={`l-${p.id}`}
-              className="text-muted-foreground pointer-events-none absolute right-full mr-2.5 -translate-y-1/2 text-[10px]"
+              className="text-muted-foreground pointer-events-none absolute right-full mr-2.5 -translate-y-1/2 text-[10px] whitespace-nowrap"
               style={{ top: portTop(i, ports.inputs.length) }}
             >
               {portLabel(p.id, p.label)}
@@ -100,7 +100,7 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNodeType>) {
           p.label && (
             <span
               key={`l-${p.id}`}
-              className="text-muted-foreground pointer-events-none absolute left-full ml-2.5 -translate-y-1/2 text-[10px]"
+              className="text-muted-foreground pointer-events-none absolute left-full ml-2.5 -translate-y-1/2 text-[10px] whitespace-nowrap"
               style={{ top: portTop(i, ports.outputs.length) }}
             >
               {portLabel(p.id, p.label)}

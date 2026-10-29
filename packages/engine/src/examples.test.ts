@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { registry } from "@fl0w/blocks";
-import type { RunnerEvent } from "@fl0w/schema";
+import type { Json, RunnerEvent } from "@fl0w/schema";
 import { describe, expect, it } from "vitest";
 import { runFlowInProcess } from "./spawn";
 import { validateFlow } from "./validate";
@@ -12,22 +12,42 @@ const files = readdirSync(dir).filter((f) => f.endsWith(".json"));
 
 const load = (file: string): unknown => JSON.parse(readFileSync(path.join(dir, file), "utf8"));
 
-async function run(file: string) {
+async function run(file: string, opts: { trigger?: string; triggerData?: Json } = {}) {
   const checked = validateFlow(load(file), registry);
   if (!checked.ok) throw new Error(checked.issues.map((i) => i.message).join("; "));
   const events: RunnerEvent[] = [];
-  await runFlowInProcess(checked.flow, (e) => events.push(e), { timeoutMs: 20000 });
+  await runFlowInProcess(checked.flow, (e) => events.push(e), { timeoutMs: 20000, ...opts });
   return events;
 }
 
+const result = (events: RunnerEvent[]) => {
+  const done = events.at(-1);
+  if (done?.event !== "flow:done") throw new Error("no flow:done");
+  expect(done.error).toBeUndefined();
+  return done.result as Record<string, Json>;
+};
+
 describe("examples/*.json", () => {
-  it("есть примеры", () => {
-    expect(files.sort()).toEqual(["demo.json", "showcase.json"]);
+  it("набор примеров", () => {
+    expect([...files].sort()).toEqual([
+      "cleanup.json",
+      "compare-datasets.json",
+      "data-pipeline.json",
+      "demo.json",
+      "jwt-and-hash.json",
+      "showcase.json",
+      "webhook-api.json",
+    ]);
   });
 
-  it.each(files)("%s проходит валидацию", (file) => {
+  it.each(files)("%s проходит валидацию и у флоу уникальный id", (file) => {
     const r = validateFlow(load(file), registry);
     expect(r.ok, r.ok ? "" : r.issues.map((i) => i.message).join("; ")).toBe(true);
+  });
+
+  it("id флоу не повторяются между примерами", () => {
+    const ids = files.map((f) => (load(f) as { id: string }).id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
   it("demo.json: Source → Transform → Transform → Result", async () => {
@@ -50,5 +70,69 @@ describe("examples/*.json", () => {
     expect(started).not.toContain("label_small");
     expect(started).not.toContain("res_small");
     expect(events).toContainEqual({ event: "node:log", nodeId: "totals", message: "orders: 3 sum: 250" });
+  });
+
+  it("data-pipeline.json: фильтр, сортировка, лимит, сводки, ветка discarded", async () => {
+    expect(result(await run("data-pipeline.json"))).toEqual({
+      // оплаченные: 120, 75, 410, 60, 220 → топ-3 по сумме: 410, 220, 120
+      res_top: { revenue: 750, average: 250, orders: 3 },
+      res_regions: [
+        { region: "eu", revenue: 180, orders: 2 },
+        { region: "us", revenue: 485, orders: 2 },
+        { region: "asia", revenue: 220, orders: 1 },
+      ],
+      res_skipped: { count: 2, statuses: "refunded, pending" },
+    });
+  });
+
+  it("compare-datasets.json: четыре выхода сравнения", async () => {
+    expect(result(await run("compare-datasets.json"))).toEqual({
+      only_a: [{ id: 1, name: "ann", plan: "free" }],
+      same: [{ id: 2, name: "bob", plan: "pro" }],
+      different: [{ keys: { id: 3 }, same: { id: 3, name: "cat" }, different: { plan: { inputA: "pro", inputB: "team" } } }],
+      only_b: [{ id: 4, name: "dan", plan: "free" }],
+    });
+  });
+
+  it("cleanup.json: дубликаты, переименование, агрегация", async () => {
+    expect(result(await run("cleanup.json"))).toEqual({
+      emails: ["ann@x.io", "bob@x.io"],
+      tags: ["a", "b", "b"],
+    });
+  });
+
+  it("jwt-and-hash.json: токен подписывается и проверяется", async () => {
+    const r = result(await run("jwt-and-hash.json")) as { valid: boolean; subject: string; role: string; fingerprint: string };
+    expect(r).toMatchObject({ valid: true, subject: "ann", role: "admin" });
+    expect(r.fingerprint).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  describe("webhook-api.json", () => {
+    const respond = (events: RunnerEvent[], nodeId: string) => {
+      const e = events.find((x) => x.event === "node:done" && x.nodeId === nodeId);
+      return e?.event === "node:done" ? (e.output["response"] as { status: number; body: Json }) : undefined;
+    };
+    const call = (body: Json) =>
+      run("webhook-api.json", {
+        trigger: "hook",
+        triggerData: { method: "POST", path: "demo/orders", query: {}, headers: {}, body },
+      });
+
+    it("большой заказ → ветка vip", async () => {
+      const events = await call({ total: 2500 });
+      expect(respond(events, "vip")).toMatchObject({ status: 200, body: { tier: "vip", total: 2500 } });
+      expect(respond(events, "regular")).toBeUndefined();
+      const stamp = (respond(events, "vip")!.body as { receivedAt: string }).receivedAt;
+      expect(stamp).toMatch(/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/);
+    });
+
+    it("обычный заказ → ветка regular", async () => {
+      expect(respond(await call({ total: 40 }), "regular")).toMatchObject({ body: { tier: "regular", total: 40 } });
+    });
+
+    it("мусор → fallback с 422", async () => {
+      expect(respond(await call({ total: -5 }), "bad")).toEqual({ status: 422, headers: {}, body: { error: "total must be a positive number" } });
+      expect(respond(await call({}), "bad")?.status).toBe(422);
+    });
   });
 });
