@@ -104,28 +104,28 @@ export function Topbar({
           }}
         />
         <Separator orientation="vertical" className="mx-0.5 h-5" />
-        {publish.published ? (
-          <>
-            {publish.dirty && (
-              <Button size="sm" onClick={publish.onPublish} disabled={publish.busy || publish.blockedBy !== null} title={t("unpublishedChanges")}>
-                <Rocket className="size-4" />
-                {t("update")}
-              </Button>
-            )}
-            <Button size="sm" variant="outline" onClick={publish.onUnpublish} disabled={publish.busy}>
-              {t("unpublish")}
-            </Button>
-          </>
-        ) : (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={publish.onPublish}
-            disabled={publish.busy || publish.blockedBy !== null}
-            title={publish.blockedBy ? t(`publishBlocked.${publish.blockedBy}`) : undefined}
-          >
-            <Rocket className="size-4" />
-            {t("publish")}
+        {/* тумблер, как «Наблюдать»: опубликован — нажата, зелёный индикатор и надпись «Опубликован» */}
+        <Button
+          size="sm"
+          variant={publish.published ? "secondary" : "outline"}
+          aria-pressed={publish.published}
+          disabled={publish.busy || (!publish.published && publish.blockedBy !== null)}
+          onClick={publish.published ? publish.onUnpublish : publish.onPublish}
+          title={
+            publish.published
+              ? t("unpublish")
+              : publish.blockedBy
+                ? t(`publishBlocked.${publish.blockedBy}`)
+                : undefined
+          }
+        >
+          <Rocket className="size-4" />
+          {publish.published ? t("published") : t("publish")}
+          {publish.published && <span className="size-2 rounded-full bg-green-500" />}
+        </Button>
+        {publish.published && publish.dirty && (
+          <Button size="sm" onClick={publish.onPublish} disabled={publish.busy || publish.blockedBy !== null} title={t("unpublishedChanges")}>
+            {t("update")}
           </Button>
         )}
         <Button
@@ -148,12 +148,6 @@ export function Topbar({
           )}
         </Button>
         <IssuesMenu issues={issues} onSelectNode={onSelectIssueNode} />
-        {publish.published && (
-          <span className="text-muted-foreground hidden items-center gap-1.5 text-sm md:flex">
-            <span className="size-2 rounded-full bg-green-500" />
-            {t("published")}
-          </span>
-        )}
         <span className="text-muted-foreground mx-1 hidden text-sm md:inline">
           {t("runtime")}: {tRun(`status.${runStatus}`)}
         </span>
