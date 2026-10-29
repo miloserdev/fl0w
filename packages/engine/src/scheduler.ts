@@ -312,10 +312,13 @@ export class Scheduler {
     const runId = hub.startRun(flow.id, nodeId);
     const started = Date.now();
     let failedNode: string | null = null;
+    let nodeMessage: string | undefined;
     let failure: string | undefined;
     const emit = (e: RunnerEvent) => {
-      if (e.event === "node:error") failedNode = e.nodeId;
-      else if (e.event === "flow:done" && e.error !== undefined) failure = e.error;
+      if (e.event === "node:error") {
+        failedNode = e.nodeId;
+        nodeMessage = e.error;
+      } else if (e.event === "flow:done" && e.error !== undefined) failure = e.error;
       hub.publish(flow.id, runId, e);
       try {
         extra?.(e);
@@ -334,7 +337,11 @@ export class Scheduler {
     } finally {
       const last = hub.lastRun(flow.id);
       this.log(`flow ${flow.id}: run ${runId} ${last?.status ?? "?"} in ${Date.now() - started} ms`);
-      if (failure !== undefined && !opts?.errorRun) this.dispatchError(flow, runId, nodeId, failure, failedNode);
+      // обработчику — собственное сообщение упавшей ноды, а не обёртка итога («Node "x" failed: …»);
+      // если нода не называлась (невалидный флоу, падение процесса) — сообщение итога запуска
+      if (failure !== undefined && !opts?.errorRun) {
+        this.dispatchError(flow, runId, nodeId, nodeMessage ?? failure, failedNode);
+      }
     }
   }
 }

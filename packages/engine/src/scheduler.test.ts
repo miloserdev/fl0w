@@ -463,10 +463,21 @@ describe("Scheduler: Error Trigger", () => {
       triggerData: {
         flow: { id: "bad", name: "test" },
         run: { id: expect.stringMatching(/^run_/), trigger: "t" },
-        error: { message: 'Node "boomNode" failed: kaboom', node: "boomNode" },
+        error: { message: "kaboom", node: "boomNode" }, // сообщение самой ноды, без обёртки итога
         at: expect.any(String),
       },
     });
+    scheduler.stop();
+  });
+
+  it("если упала не нода (процесс, невалидный флоу) — сообщение итога запуска и node: null", async () => {
+    const { scheduler, calls } = setup(async (f, onEvent) => {
+      onEvent({ event: "flow:done", error: f.id === "bad" ? "Runner exited unexpectedly (code 3)" : undefined });
+    });
+    scheduler.sync(handler("h1"));
+    scheduler.sync(failing("bad"));
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(calls[1]!.triggerData).toMatchObject({ error: { message: "Runner exited unexpectedly (code 3)", node: null } });
     scheduler.stop();
   });
 
