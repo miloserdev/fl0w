@@ -1,0 +1,230 @@
+{
+  "version": 1,
+  "id": "flow_showcase",
+  "name": "showcase",
+  "nodes": [
+    {
+      "id": "orders",
+      "type": "source",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "params": {
+        "json": {
+          "orders": [
+            {
+              "id": 1,
+              "total": 40
+            },
+            {
+              "id": 2,
+              "total": 120
+            },
+            {
+              "id": 3,
+              "total": 90
+            }
+          ]
+        }
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "totals",
+      "type": "code",
+      "position": {
+        "x": 300,
+        "y": 0
+      },
+      "params": {
+        "code": "const sum = inputs.in0.orders.reduce((a, o) => a + o.total, 0)\nlog('orders:', inputs.in0.orders.length, 'sum:', sum)\nreturn { out0: { sum, count: inputs.in0.orders.length } }\n"
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "big",
+      "type": "branch",
+      "position": {
+        "x": 620,
+        "y": 0
+      },
+      "params": {
+        "field": "sum",
+        "operator": "gt",
+        "value": 200
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "label_big",
+      "type": "code",
+      "position": {
+        "x": 940,
+        "y": -80
+      },
+      "params": {
+        "code": "return { out0: { label: 'big', sum: inputs.in0.sum } }\n"
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "label_small",
+      "type": "code",
+      "position": {
+        "x": 940,
+        "y": 120
+      },
+      "params": {
+        "code": "return { out0: { label: 'small', sum: inputs.in0.sum } }\n"
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "res_big",
+      "type": "result",
+      "position": {
+        "x": 1260,
+        "y": -80
+      },
+      "params": {},
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "res_small",
+      "type": "result",
+      "position": {
+        "x": 1260,
+        "y": 120
+      },
+      "params": {},
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "profile",
+      "type": "source",
+      "position": {
+        "x": 0,
+        "y": 380
+      },
+      "params": {
+        "json": {
+          "name": "Ann"
+        }
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "stats",
+      "type": "source",
+      "position": {
+        "x": 0,
+        "y": 520
+      },
+      "params": {
+        "json": {
+          "visits": 12
+        }
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "merged",
+      "type": "merge",
+      "position": {
+        "x": 320,
+        "y": 420
+      },
+      "params": {
+        "mode": "assign"
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "res_merged",
+      "type": "result",
+      "position": {
+        "x": 640,
+        "y": 420
+      },
+      "params": {},
+      "portsOverride": null,
+      "cssOverride": null
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_orders_out0_totals_in0",
+      "source": "orders",
+      "sourcePort": "out0",
+      "target": "totals",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_totals_out0_big_in0",
+      "source": "totals",
+      "sourcePort": "out0",
+      "target": "big",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_big_out0_label_big_in0",
+      "source": "big",
+      "sourcePort": "out0",
+      "target": "label_big",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_big_out1_label_small_in0",
+      "source": "big",
+      "sourcePort": "out1",
+      "target": "label_small",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_label_big_out0_res_big_in0",
+      "source": "label_big",
+      "sourcePort": "out0",
+      "target": "res_big",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_label_small_out0_res_small_in0",
+      "source": "label_small",
+      "sourcePort": "out0",
+      "target": "res_small",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_profile_out0_merged_in0",
+      "source": "profile",
+      "sourcePort": "out0",
+      "target": "merged",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_stats_out0_merged_in1",
+      "source": "stats",
+      "sourcePort": "out0",
+      "target": "merged",
+      "targetPort": "in1"
+    },
+    {
+      "id": "e_merged_out0_res_merged_in0",
+      "source": "merged",
+      "sourcePort": "out0",
+      "target": "res_merged",
+      "targetPort": "in0"
+    }
+  ]
+}

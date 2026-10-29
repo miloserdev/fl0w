@@ -1,0 +1,20 @@
+{
+  "name": "@fl0w/blocks",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "lint": "eslint --config ../../eslint.config.mjs src",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fl0w/schema": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "vitest": "^5.0.5"
+  }
+}

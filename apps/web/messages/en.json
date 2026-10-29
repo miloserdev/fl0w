@@ -1,0 +1,194 @@
+{
+  "app": {
+    "title": "Node Flow Board"
+  },
+  "topbar": {
+    "run": "Run",
+    "save": "Save",
+    "runtime": "Runtime",
+    "load": "Open",
+    "stop": "Stop",
+    "problems": "{count, plural, one {# problem} other {# problems}}",
+    "problemsTitle": "Flow problems",
+    "add": "Add",
+    "publish": "Publish",
+    "update": "Update",
+    "unpublish": "Unpublish",
+    "published": "Published",
+    "watch": "Watch",
+    "live": "Watching live",
+    "reconnecting": "Reconnecting…",
+    "watchUnavailable": "Only a published flow can be watched",
+    "runDisabledWatching": "Turn watching off to run manually",
+    "unpublishedChanges": "There are unpublished changes — update the published version",
+    "publishBlocked": {
+      "issues": "Fix the flow problems first",
+      "noTrigger": "Add a trigger block, for example “Every”"
+    }
+  },
+  "theme": {
+    "toggle": "Toggle theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "language": {
+    "label": "Language",
+    "ru": "Русский",
+    "en": "English"
+  },
+  "canvas": {
+    "empty": "The canvas is empty. Press “Add” to place your first block"
+  },
+  "categories": {
+    "io": "Input / output",
+    "data": "Data",
+    "flow": "Logic",
+    "trigger": "Triggers"
+  },
+  "blocks": {
+    "source": "Source",
+    "result": "Result",
+    "transform": "Transform",
+    "branch": "Branch",
+    "http_request": "HTTP Request",
+    "code": "Code",
+    "merge": "Merge",
+    "every": "Every"
+  },
+  "node": {
+    "unknown": "Unknown block: {type}",
+    "status": {
+      "running": "running",
+      "done": "done",
+      "error": "error",
+      "skipped": "skipped"
+    }
+  },
+  "errors": {
+    "invalidFlow": "The flow has errors and cannot run:",
+    "notJson": "The file is not valid JSON",
+    "dismiss": "Dismiss",
+    "invalidFile": "The file is not a valid flow:",
+    "publishFailed": "Could not change the publication:"
+  },
+  "inspector": {
+    "tabParams": "Parameters",
+    "tabCss": "CSS",
+    "noParams": "This block has no parameters",
+    "required": "Required field",
+    "invalidJson": "Invalid JSON",
+    "select": "Select…",
+    "cssHint": "Block styles. & is the block itself, .fl-node-icon the icon, .fl-node-label the caption.",
+    "cssReset": "Reset to block styles",
+    "tabCode": "Code",
+    "codeHint": "Function body. inputs, params, log and fetch are available. Return '{ out0: … }'.",
+    "close": "Close block window",
+    "outOfRange": "Out of range: {range}"
+  },
+  "params": {
+    "source": {
+      "json": "JSON data"
+    },
+    "transform": {
+      "mode": "Mode",
+      "path": "Array path",
+      "fields": "Fields (map)",
+      "field": "Field (filter)",
+      "operator": "Operator (filter)",
+      "value": "Value (filter)"
+    },
+    "branch": {
+      "field": "Field",
+      "operator": "Operator",
+      "value": "Value"
+    },
+    "http_request": {
+      "method": "Method",
+      "url": "URL",
+      "headers": "Headers",
+      "body": "Body (POST)",
+      "timeoutMs": "Timeout, ms"
+    },
+    "code": {
+      "timeoutMs": "Timeout, ms"
+    },
+    "merge": {
+      "mode": "Mode"
+    },
+    "every": {
+      "interval": "Interval",
+      "unit": "Unit"
+    }
+  },
+  "run": {
+    "title": "Run result",
+    "close": "Close",
+    "noResult": "The run finished, but no data reached a Result block",
+    "progress": "Running…",
+    "status": {
+      "idle": "Idle",
+      "running": "Running",
+      "done": "Done",
+      "error": "Error",
+      "aborted": "Stopped"
+    },
+    "result": "Result",
+    "logs": "Logs",
+    "logsDropped": "Showing the latest lines, {count} earlier hidden",
+    "liveTitle": "Live",
+    "connected": "Connected",
+    "reconnecting": "Reconnecting…",
+    "waiting": "Waiting for the next scheduled run…"
+  },
+  "paramOptions": {
+    "mode": {
+      "map": "map — transform",
+      "filter": "filter — keep matching",
+      "array": "array — list of values",
+      "object": "object — keyed by input",
+      "assign": "assign — merge objects",
+      "concat": "concat — join arrays"
+    },
+    "operator": {
+      "eq": "equals",
+      "neq": "not equals",
+      "gt": "greater than",
+      "gte": "greater or equal",
+      "lt": "less than",
+      "lte": "less or equal",
+      "contains": "contains",
+      "exists": "exists",
+      "truthy": "is truthy"
+    },
+    "method": {
+      "GET": "GET",
+      "POST": "POST"
+    },
+    "unit": {
+      "seconds": "seconds",
+      "minutes": "minutes",
+      "hours": "hours"
+    }
+  },
+  "issues": {
+    "schema": "Invalid flow structure: {details}",
+    "duplicate_node": "Duplicate block id “{node}”",
+    "duplicate_edge": "Duplicate edge id “{edge}”",
+    "unknown_type": "Block “{node}”: unknown type “{type}”",
+    "unknown_node": "Edge “{edge}” points to a missing block “{node}”",
+    "unknown_port": "Edge “{edge}”: block “{node}” has no port “{port}”",
+    "port_occupied": "Input “{port}” of block “{node}” already has an incoming edge",
+    "cycle": "The flow contains a cycle (blocks: {nodes})",
+    "param_required": "Block “{node}”: parameter “{param}” is required",
+    "param_type": "Block “{node}”: parameter “{param}” has the wrong type",
+    "param_enum": "Block “{node}”: invalid value for parameter “{param}”",
+    "param_range": "Block “{node}”: parameter “{param}” is out of range"
+  },
+  "addBlock": {
+    "title": "Add block",
+    "description": "Pick a block — it appears in the middle of the canvas and opens for editing",
+    "search": "Search blocks…",
+    "empty": "Nothing found"
+  }
+}

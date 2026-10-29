@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "id": "flow_demo",
+  "name": "demo",
+  "nodes": [
+    {
+      "id": "src",
+      "type": "source",
+      "position": {
+        "x": 0,
+        "y": 120
+      },
+      "params": {
+        "json": {
+          "users": [
+            {
+              "name": "ann",
+              "age": 31
+            },
+            {
+              "name": "bob",
+              "age": 17
+            },
+            {
+              "name": "cat",
+              "age": 45
+            }
+          ]
+        }
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "adults",
+      "type": "transform",
+      "position": {
+        "x": 300,
+        "y": 120
+      },
+      "params": {
+        "mode": "filter",
+        "path": "users",
+        "field": "age",
+        "operator": "gte",
+        "value": 18
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "names",
+      "type": "transform",
+      "position": {
+        "x": 600,
+        "y": 120
+      },
+      "params": {
+        "mode": "map",
+        "fields": {
+          "who": "name"
+        }
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "res",
+      "type": "result",
+      "position": {
+        "x": 900,
+        "y": 120
+      },
+      "params": {},
+      "portsOverride": null,
+      "cssOverride": null
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_src_out0_adults_in0",
+      "source": "src",
+      "sourcePort": "out0",
+      "target": "adults",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_adults_out0_names_in0",
+      "source": "adults",
+      "sourcePort": "out0",
+      "target": "names",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_names_out0_res_in0",
+      "source": "names",
+      "sourcePort": "out0",
+      "target": "res",
+      "targetPort": "in0"
+    }
+  ]
+}

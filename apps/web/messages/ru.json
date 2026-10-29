@@ -1,0 +1,194 @@
+{
+  "app": {
+    "title": "Node Flow Board"
+  },
+  "topbar": {
+    "run": "Запустить",
+    "save": "Сохранить",
+    "runtime": "Рантайм",
+    "load": "Открыть",
+    "stop": "Остановить",
+    "problems": "{count, plural, one {# проблема} few {# проблемы} many {# проблем} other {# проблемы}}",
+    "problemsTitle": "Проблемы флоу",
+    "add": "Добавить",
+    "publish": "Опубликовать",
+    "update": "Обновить",
+    "unpublish": "Снять с публикации",
+    "published": "Опубликован",
+    "watch": "Наблюдать",
+    "live": "Идёт наблюдение",
+    "reconnecting": "Переподключение…",
+    "watchUnavailable": "Наблюдать можно только за опубликованным флоу",
+    "runDisabledWatching": "Выключите наблюдение, чтобы запускать вручную",
+    "unpublishedChanges": "Есть неопубликованные изменения — обновите опубликованную версию",
+    "publishBlocked": {
+      "issues": "Сначала исправьте проблемы флоу",
+      "noTrigger": "Добавьте блок-триггер, например «Каждые N»"
+    }
+  },
+  "theme": {
+    "toggle": "Сменить тему",
+    "light": "Светлая",
+    "dark": "Тёмная",
+    "system": "Системная"
+  },
+  "language": {
+    "label": "Язык",
+    "ru": "Русский",
+    "en": "English"
+  },
+  "canvas": {
+    "empty": "Холст пуст. Нажмите «Добавить», чтобы поставить первый блок"
+  },
+  "categories": {
+    "io": "Ввод / вывод",
+    "data": "Данные",
+    "flow": "Логика",
+    "trigger": "Триггеры"
+  },
+  "blocks": {
+    "source": "Источник",
+    "result": "Результат",
+    "transform": "Преобразование",
+    "branch": "Ветвление",
+    "http_request": "HTTP-запрос",
+    "code": "Код",
+    "merge": "Объединение",
+    "every": "Каждые N"
+  },
+  "node": {
+    "unknown": "Неизвестный блок: {type}",
+    "status": {
+      "running": "работает",
+      "done": "готово",
+      "error": "ошибка",
+      "skipped": "пропущен"
+    }
+  },
+  "errors": {
+    "invalidFlow": "Флоу содержит ошибки и не может быть запущен:",
+    "notJson": "Файл не является корректным JSON",
+    "dismiss": "Закрыть",
+    "invalidFile": "Файл не является корректным флоу:",
+    "publishFailed": "Не удалось изменить публикацию:"
+  },
+  "inspector": {
+    "tabParams": "Параметры",
+    "tabCss": "CSS",
+    "noParams": "У этого блока нет параметров",
+    "required": "Обязательное поле",
+    "invalidJson": "Некорректный JSON",
+    "select": "Выберите…",
+    "cssHint": "Стили блока. & — сам блок, .fl-node-icon — иконка, .fl-node-label — подпись.",
+    "cssReset": "Сбросить к стилям блока",
+    "tabCode": "Код",
+    "codeHint": "Тело функции. Доступны inputs, params, log, fetch. Верните '{ out0: … }'.",
+    "close": "Закрыть окно блока",
+    "outOfRange": "Вне допустимого диапазона: {range}"
+  },
+  "params": {
+    "source": {
+      "json": "JSON-данные"
+    },
+    "transform": {
+      "mode": "Режим",
+      "path": "Путь к массиву",
+      "fields": "Поля (map)",
+      "field": "Поле (filter)",
+      "operator": "Оператор (filter)",
+      "value": "Значение (filter)"
+    },
+    "branch": {
+      "field": "Поле",
+      "operator": "Оператор",
+      "value": "Значение"
+    },
+    "http_request": {
+      "method": "Метод",
+      "url": "URL",
+      "headers": "Заголовки",
+      "body": "Тело (POST)",
+      "timeoutMs": "Таймаут, мс"
+    },
+    "code": {
+      "timeoutMs": "Таймаут, мс"
+    },
+    "merge": {
+      "mode": "Режим"
+    },
+    "every": {
+      "interval": "Интервал",
+      "unit": "Единица"
+    }
+  },
+  "run": {
+    "title": "Результат запуска",
+    "close": "Закрыть",
+    "noResult": "Запуск завершён, но до блока Result данные не дошли",
+    "progress": "Выполняется…",
+    "status": {
+      "idle": "Ожидание",
+      "running": "Выполняется",
+      "done": "Готово",
+      "error": "Ошибка",
+      "aborted": "Остановлено"
+    },
+    "result": "Результат",
+    "logs": "Логи",
+    "logsDropped": "Показаны последние строки, ранних скрыто: {count}",
+    "liveTitle": "Живой режим",
+    "connected": "Подключено",
+    "reconnecting": "Переподключение…",
+    "waiting": "Ждём запуска по расписанию…"
+  },
+  "paramOptions": {
+    "mode": {
+      "map": "map — преобразовать",
+      "filter": "filter — отфильтровать",
+      "array": "array — массив значений",
+      "object": "object — объект по входам",
+      "assign": "assign — слить объекты",
+      "concat": "concat — склеить массивы"
+    },
+    "operator": {
+      "eq": "равно",
+      "neq": "не равно",
+      "gt": "больше",
+      "gte": "больше или равно",
+      "lt": "меньше",
+      "lte": "меньше или равно",
+      "contains": "содержит",
+      "exists": "существует",
+      "truthy": "истина"
+    },
+    "method": {
+      "GET": "GET",
+      "POST": "POST"
+    },
+    "unit": {
+      "seconds": "секунды",
+      "minutes": "минуты",
+      "hours": "часы"
+    }
+  },
+  "issues": {
+    "schema": "Некорректная структура флоу: {details}",
+    "duplicate_node": "Повторяющийся id блока «{node}»",
+    "duplicate_edge": "Повторяющийся id связи «{edge}»",
+    "unknown_type": "Блок «{node}»: неизвестный тип «{type}»",
+    "unknown_node": "Связь «{edge}» ссылается на несуществующий блок «{node}»",
+    "unknown_port": "Связь «{edge}»: у блока «{node}» нет порта «{port}»",
+    "port_occupied": "Вход «{port}» блока «{node}» уже занят другой связью",
+    "cycle": "В флоу есть цикл (блоки: {nodes})",
+    "param_required": "Блок «{node}»: параметр «{param}» обязателен",
+    "param_type": "Блок «{node}»: параметр «{param}» имеет неверный тип",
+    "param_enum": "Блок «{node}»: недопустимое значение параметра «{param}»",
+    "param_range": "Блок «{node}»: значение параметра «{param}» вне допустимого диапазона"
+  },
+  "addBlock": {
+    "title": "Добавить блок",
+    "description": "Выберите блок — он появится в центре холста и откроется для настройки",
+    "search": "Поиск блока…",
+    "empty": "Ничего не найдено"
+  }
+}
