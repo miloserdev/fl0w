@@ -1,10 +1,10 @@
 "use client";
 
-import { hasExpression, isParamVisible, resolveParams } from "@fl0w/blocks";
+import { isParamVisible, resolveParams } from "@fl0w/blocks";
 import type { Json, ParamSchema } from "@fl0w/schema";
 import { useTranslations } from "next-intl";
 import { Braces } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
+import { ExpressionField } from "./expression-field";
+import { hasTemplate, insertTemplate } from "./expression-segments";
 
 type Props = {
   blockType: string;
@@ -34,36 +35,51 @@ function JsonField({
   id,
   value,
   onValid,
+  register,
+  plain,
 }: {
   id: string;
   value: Json | undefined;
   onValid: (v: Json) => void;
+  /** отдаёт форме функцию вставки шаблона в позицию курсора (кнопка `{ }` в шапке поля) */
+  register: (insert: () => void) => void;
+  plain?: boolean;
 }) {
   const t = useTranslations("inspector");
   const [text, setText] = useState(() => JSON.stringify(value ?? null, null, 2));
   const [invalid, setInvalid] = useState(false);
 
+  const change = (next: string) => {
+    setText(next);
+    try {
+      // строки с `{{ … }}` внутри JSON — обычные строки, разбор их не затрагивает
+      onValid(JSON.parse(next) as Json);
+      setInvalid(false);
+    } catch {
+      setInvalid(true);
+    }
+  };
+  register(() => {
+    const el = document.getElementById(id) as HTMLTextAreaElement | null;
+    const r = insertTemplate(text, el?.selectionStart ?? text.length, el?.selectionEnd ?? text.length, { json: true });
+    change(r.text);
+    focusCaret(id, r.caret);
+  });
+
   return (
     <>
-      <Textarea
-        id={id}
-        value={text}
-        spellCheck={false}
-        aria-invalid={invalid}
-        className="min-h-28 font-mono text-xs"
-        onChange={(e) => {
-          setText(e.target.value);
-          try {
-            onValid(JSON.parse(e.target.value) as Json);
-            setInvalid(false);
-          } catch {
-            setInvalid(true);
-          }
-        }}
-      />
+      <ExpressionField id={id} plain={plain} value={text} multiline invalid={invalid} className="min-h-28" onChange={change} />
       {invalid && <p className="text-destructive text-xs">{t("invalidJson")}</p>}
     </>
   );
+}
+
+function focusCaret(id: string, caret: number) {
+  setTimeout(() => {
+    const el = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null;
+    el?.focus();
+    el?.setSelectionRange(caret, caret);
+  }, 0);
 }
 
 /** Авто-UI настроек блока из `class.params`. */
@@ -75,6 +91,8 @@ export function ParamForm({ blockType, schema, values, onChange }: Props) {
   // режим «выражение» держится, пока поле редактируют: иначе виджет сменился бы обратно, как только в тексте
   // не осталось `{{ }}` (например, при стирании)
   const [exprMode, setExprMode] = useState<Record<string, boolean>>({});
+  // вставка шаблона для JSON-полей (у них текст хранится внутри JsonField)
+  const jsonInsert = useRef<Record<string, () => void>>({});
 
   // параметры с editor: "code" правятся во вкладке кода, а не в форме
   const resolved = resolveParams(schema, values);
@@ -99,8 +117,10 @@ export function ParamForm({ blockType, schema, values, onChange }: Props) {
         const label = t.has(key) ? t(key) : (p.label ?? p.name);
         const value = values[p.name] ?? p.default;
         const missing = p.required && isEmpty(value);
-        const toggleable = TOGGLEABLE.includes(p.type);
-        const expr = toggleable && (exprMode[p.name] ?? hasExpression(value));
+        const toggleable = TOGGLEABLE.includes(p.type) && p.expressions !== false;
+        const expr = toggleable && (exprMode[p.name] ?? hasTemplate(value));
+        const highlighted =
+          p.expressions !== false && (expr || hasTemplate(value) || (p.type === "json" && hasTemplate(JSON.stringify(value))));
         const outOfRange =
           p.type === "number" &&
           typeof value === "number" &&
@@ -120,8 +140,13 @@ export function ParamForm({ blockType, schema, values, onChange }: Props) {
               <Label htmlFor={id}>
                 {label}
                 {p.required && <span className="text-destructive">*</span>}
+                {highlighted && (
+                  <span className="bg-primary/15 text-primary ml-1.5 rounded px-1 font-mono text-[10px] font-normal">
+                    {"{ }"} {t("inspector.expressionBadge")}
+                  </span>
+                )}
               </Label>
-              {p.type === "string" && p.expressions !== false && (
+              {(p.type === "string" || p.type === "json") && p.expressions !== false && (
                 <Button
                   type="button"
                   variant="ghost"
@@ -129,8 +154,15 @@ export function ParamForm({ blockType, schema, values, onChange }: Props) {
                   className="size-6"
                   title={t("inspector.insertExpression")}
                   aria-label={t("inspector.insertExpression")}
-                  // вставка шаблона из входа в конец текста: можно смешивать с обычным текстом
-                  onClick={() => set(p.name, `${typeof value === "string" ? value : ""}{{ inputs.in0. }}`)}
+                  // вставка шаблона из входа в позицию курсора: можно смешивать с обычным текстом
+                  onClick={() => {
+                    if (p.type === "json") return jsonInsert.current[p.name]?.();
+                    const text = typeof value === "string" ? value : "";
+                    const el = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null;
+                    const r = insertTemplate(text, el?.selectionStart ?? text.length, el?.selectionEnd ?? text.length);
+                    set(p.name, r.text);
+                    focusCaret(id, r.caret);
+                  }}
                 >
                   <Braces className="size-3.5" />
                 </Button>
@@ -156,33 +188,23 @@ export function ParamForm({ blockType, schema, values, onChange }: Props) {
             </div>
 
             {expr && (
-              <Input
+              <ExpressionField
                 id={id}
+                forceExpression
                 value={typeof value === "string" ? value : ""}
-                spellCheck={false}
                 placeholder="{{ inputs.in0.field }}"
-                className="font-mono text-xs"
-                onChange={(e) => set(p.name, e.target.value)}
+                onChange={(v) => set(p.name, v)}
               />
             )}
 
-            {p.type === "string" && p.multiline && (
-              <Textarea
+            {p.type === "string" && (
+              <ExpressionField
                 id={id}
+                multiline={p.multiline}
+                plain={p.expressions === false}
                 value={typeof value === "string" ? value : ""}
-                spellCheck={false}
-                aria-invalid={missing}
-                className="min-h-32 font-mono text-xs"
-                onChange={(e) => set(p.name, e.target.value)}
-              />
-            )}
-
-            {p.type === "string" && !p.multiline && (
-              <Input
-                id={id}
-                value={typeof value === "string" ? value : ""}
-                aria-invalid={missing}
-                onChange={(e) => set(p.name, e.target.value)}
+                invalid={missing}
+                onChange={(v) => set(p.name, v)}
               />
             )}
 
@@ -247,7 +269,7 @@ export function ParamForm({ blockType, schema, values, onChange }: Props) {
             )}
 
             {p.type === "json" && (
-              <JsonField id={id} value={value} onValid={(v) => set(p.name, v)} />
+              <JsonField id={id} value={value} onValid={(v) => set(p.name, v)} register={(f) => (jsonInsert.current[p.name] = f)} plain={p.expressions === false} />
             )}
 
             {missing && <p className="text-destructive text-xs">{t("inspector.required")}</p>}

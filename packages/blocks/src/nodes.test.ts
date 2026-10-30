@@ -708,3 +708,10 @@ describe("resolveInputsExpressions / resolveParamExpressions / hasExpression", (
     expect(validateParams(schema, { n: "abc" }, { allowExpressions: true }).map((i) => i.code)).toEqual(["type"]); // не выражение — проверяется
   });
 });
+
+describe("datetime: число через выражение", () => {
+  it("строка из цифр (результат {{ inputs… }}) — миллисекунды эпохи", async () => {
+    const r = (await out0(DateTime, undefined, { operation: "format", value: "1700000000000", format: "YYYY-MM-DD" })) as Json;
+    expect(JSON.stringify(r)).toContain("2023-11-14");
+  });
+});

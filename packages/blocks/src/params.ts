@@ -1,5 +1,5 @@
 import type { Json, ParamSchema } from "@fl0w/schema";
-import { hasExpression, resolveInputsExpressions } from "./json-path";
+import { getPath, hasExpression, resolveInputsExpressions, WHOLE_INPUTS_TEMPLATE } from "./json-path";
 
 export type ParamIssue = {
   param: string;
@@ -45,6 +45,11 @@ export function resolveParamExpressions(
     if (p?.expressions === false) {
       out[k] = v;
       continue;
+    }
+    // «целое» выражение, чей путь не найден во входе, — почти всегда опечатка: ошибка вместо тихого null/значения по умолчанию
+    const whole = typeof v === "string" ? WHOLE_INPUTS_TEMPLATE.exec(v) : null;
+    if (whole && getPath({ inputs } as unknown as Json, whole[1]!) === undefined) {
+      throw new Error(`Parameter "${k}": expression ${JSON.stringify(v)} resolved to no value (no such field in the input)`);
     }
     const r = resolveInputsExpressions(v, inputs);
     // строковый параметр из «целого» выражения: число/булево/объект (id чата, флаг) становятся текстом, а не ошибкой типа

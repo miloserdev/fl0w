@@ -49,8 +49,8 @@ describe("выражения {{ inputs… }} в параметрах любых 
     expect(await result({ rows: [{ v: 10 }, { v: 20 }] }, echo({ n: "{{ inputs.in0.rows.1.v }}" }))).toMatchObject({ n: 20 });
   });
 
-  it("нет значения: целое выражение → null, в тексте → пустая строка (параметр не рушится, пока он необязателен)", async () => {
-    expect(await result({}, echo({ list: "{{ inputs.in0.nope }}", a: "[{{ inputs.in0.nope }}]" }))).toMatchObject({ list: null, a: "[]" });
+  it("нет значения: явный null во входе → null, в тексте → пустая строка (целое выражение с неверным путём — ошибка)", async () => {
+    expect(await result({ z: null }, echo({ list: "{{ inputs.in0.z }}", a: "[{{ inputs.in0.nope }}]" }))).toMatchObject({ list: null, a: "[]" });
   });
 
   it("относительные шаблоны {{ поле }} остаются блокам — движок их не трогает", async () => {
@@ -85,7 +85,7 @@ describe("выражения {{ inputs… }} в параметрах любых 
     it("число из выражения должно быть числом и в диапазоне", async () => {
       expect((await error({ n: "abc" }, { n: "{{ inputs.in0.n }}" })).nodeError).toBe('Invalid parameters after resolving expressions: Parameter "n" must be a number');
       expect((await error({ n: -3 }, { n: "{{ inputs.in0.n }}" })).nodeError).toMatch(/must be >= 0/);
-      expect((await error({}, { n: "{{ inputs.in0.missing }}" })).nodeError).toBeUndefined(); // нет значения у необязательного — не ошибка
+      expect((await error({ x: 1 }, { n: "{{ inputs.in0.missing }}" })).flowError).toMatch(/Parameter "n".*resolved to no value/);
     });
 
     it("enum и boolean из выражения проверяются", async () => {
@@ -94,9 +94,9 @@ describe("выражения {{ inputs… }} в параметрах любых 
     });
 
     it("обязательный параметр, чьё выражение ничего не дало, — понятная ошибка", async () => {
-      const r = await error({}, { need: "{{ inputs.in0.nope }}" });
-      expect(r.nodeError).toMatch(/Parameter "need" is required/);
-      expect(r.flowError).toMatch(/failed: Invalid parameters after resolving expressions/);
+      const r = await error({ x: 1 }, { need: "{{ inputs.in0.nope }}" });
+      expect(r.nodeError).toMatch(/Parameter "need".*resolved to no value/);
+      expect(r.flowError).toMatch(/failed: Parameter "need"/);
     });
   });
 
@@ -169,5 +169,28 @@ describe("выражение в строковом параметре", () => {
   it("объект в строковом параметре — JSON-текстом", async () => {
     const r = await run({ chat: { id: 1 } }, echo({ a: "{{ inputs.in0.chat }}" }));
     expect(r.done?.result).toMatchObject({ a: '{"id":1}' });
+  });
+});
+
+describe("ревью потоков: диагностика и маскирование", () => {
+  it("целое выражение с несуществующим путём — понятная ошибка, а не тихий null/значение по умолчанию", async () => {
+    const r = await run({ n: 1 }, echo({ n: "{{ inputs.in0.nope }}" }));
+    expect(r.done?.error).toMatch(/Parameter "n".*resolved to no value/);
+    const t = await run({ n: 1 }, echo({ a: "{{ inputs.in0.nope }}" }));
+    expect(t.done?.error).toMatch(/Parameter "a".*resolved to no value/);
+  });
+
+  it("явный null во входе — не ошибка, выражение внутри текста с пропущенным полем даёт пустую строку", async () => {
+    const r = await run({ a: null }, echo({ list: "{{ inputs.in0.a }}", a: "x{{ inputs.in0.nope }}y" }));
+    expect(r.done?.error).toBeUndefined();
+    expect(r.done?.result).toMatchObject({ a: "xy" });
+  });
+
+  it("заголовки с учётными данными во входе и выходе ноды маскируются в событиях, а данные дальше идут как есть", async () => {
+    const r = await run({ headers: { authorization: "Bearer abc", accept: "x" } }, echo({ list: "{{ inputs.in0.headers }}" }));
+    const text = JSON.stringify(r.events.filter((e) => e.event === "node:start" || e.event === "node:done"));
+    expect(text).not.toContain("Bearer abc");
+    expect(text).toContain("***");
+    expect(JSON.stringify(r.done?.result)).toContain("Bearer abc");
   });
 });

@@ -101,7 +101,7 @@ export function interpolate(template: string, data: Json | undefined): Json {
 // Выражения уровня ноды: `{{ inputs.in0.поле }}` — данные со входных портов (как $json в n8n). Подставляет движок
 // перед запуском блока в ЛЮБОЙ параметр; относительные шаблоны `{{ поле }}` остаются блокам (они работают по элементам списка).
 const INPUTS_TEMPLATE = /\{\{\s*(inputs(?:\.[^{}\s]+)?)\s*\}\}/g;
-const WHOLE_INPUTS_TEMPLATE = /^\{\{\s*(inputs(?:\.[^{}\s]+)?)\s*\}\}$/;
+export const WHOLE_INPUTS_TEMPLATE = /^\{\{\s*(inputs(?:\.[^{}\s]+)?)\s*\}\}$/;
 
 /** Есть ли в значении выражение `{{ … }}` (проверка параметров откладывает типизацию до запуска). */
 export function hasExpression(v: Json | undefined): boolean {

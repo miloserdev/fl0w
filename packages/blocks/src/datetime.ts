@@ -14,6 +14,8 @@ function parseDate(v: Json): Date {
   if (typeof v === "number") d = new Date(v);
   else if (typeof v === "string") {
     const s = v.trim();
+    // число, пришедшее через выражение `{{ inputs… }}` в строковый параметр, — это миллисекунды эпохи
+    if (/^-?\d+(\.\d+)?$/.test(s)) return parseDate(Number(s));
     const noZone = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(s);
     d = new Date(noZone ? `${s.replace(" ", "T")}Z` : s);
   } else d = new Date(Number.NaN);

@@ -46,6 +46,15 @@ function maskSecrets(value: Json): Json {
   }
   return value;
 }
+/** Заголовки с учётными данными в данных нод (вход вебхука кладёт заголовки запроса в выход) — в ленте маскируются. */
+const SECRET_HEADER = /^(authorization|proxy-authorization|cookie|set-cookie|x-api-key|x-auth-token)$/i;
+function maskHeaders(value: Json): Json {
+  if (Array.isArray(value)) return value.map(maskHeaders);
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, SECRET_HEADER.test(k) && typeof v === "string" ? "***" : maskHeaders(v)]));
+  }
+  return value;
+}
 const capRecord = (r: Record<string, Json>) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, capDebug(v)]));
 
 /** Тип финального блока (SPEC §5.6): нода без выходов, её вход — результат запуска. */
@@ -138,7 +147,7 @@ export async function runFlow(
     } catch (e) {
       paramsError = e;
     }
-    await onEvent({ event: "node:start", nodeId: id, input: capRecord(inputs), params: capRecord(maskSecrets(params) as Record<string, Json>) });
+    await onEvent({ event: "node:start", nodeId: id, input: capRecord(maskHeaders(inputs) as Record<string, Json>), params: capRecord(maskSecrets(params) as Record<string, Json>) });
     // после завершения ноды её ctx.log молчит: код может жить в фоне и писать после flow:done
     let live = true;
     let logged = 0;
@@ -169,7 +178,7 @@ export async function runFlow(
         if (value !== undefined) edgeValues.set(e.id, value);
       }
       if (node.type === RESULT_TYPE) results.push([id, inputs["in0"] ?? null]);
-      await onEvent({ event: "node:done", nodeId: id, output });
+      await onEvent({ event: "node:done", nodeId: id, output: maskHeaders(output) as typeof output });
     } catch (e) {
       live = false;
       await onEvent({ event: "node:error", nodeId: id, error: message(e) });

@@ -98,7 +98,7 @@ try {
     } else if (step.type !== undefined) {
       for (const ch of String(step.type)) {
         const space = ch === " ";
-        const base = { key: ch, code: space ? "Space" : /[a-z]/i.test(ch) ? `Key${ch.toUpperCase()}` : undefined, windowsVirtualKeyCode: space ? 32 : ch.toUpperCase().charCodeAt(0) };
+        const base = { key: ch, code: space ? "Space" : /[a-z]/i.test(ch) ? `Key${ch.toUpperCase()}` : undefined, windowsVirtualKeyCode: space ? 32 : /[a-z0-9]/i.test(ch) ? ch.toUpperCase().charCodeAt(0) : 0 };
         await send("Input.dispatchKeyEvent", { type: "keyDown", text: ch, unmodifiedText: ch, ...base });
         await send("Input.dispatchKeyEvent", { type: "keyUp", ...base });
         if (step.delay) await sleep(step.delay);
