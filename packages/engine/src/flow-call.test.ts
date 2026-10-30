@@ -3,7 +3,7 @@ import type { Flow, Json, RunnerEvent } from "@fl0w/schema";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RunHub } from "./hub";
 import { Scheduler, type SchedulerRun } from "./scheduler";
-import { runFlowInProcess } from "./spawn";
+import { runFlowInProcess, sandboxEnv } from "./spawn";
 import { FlowStore } from "./store";
 import { collect, edge, flow, node, testRegistry } from "./test-helpers";
 
@@ -110,66 +110,98 @@ describe("Scheduler.fireFrom (вызов триггера другого фло�
   });
 });
 
-describe("Scheduler.fireFrom: локальный триггер (флоу из редактора, без публикации)", () => {
+describe("Scheduler.fireFrom: песочница («Запустить» в редакторе) не пересекается с рабочими запусками", () => {
   /** Локальный (НЕ опубликованный) флоу: Manual → Result и триггер вызова `c`. */
-  const localFlow = (): Flow => flow([node("m", "manual"), node("c", "call_trigger"), node("r", "result")], [edge("m", "r"), edge("c", "r", "out0", "in0", "e2")]);
-  const withLocal = (onEvent?: (e: RunnerEvent) => void) => ({ flow: { ...localFlow(), id: "draft" }, onEvent });
+  const localFlow = (id = "draft"): Flow => ({ ...flow([node("m", "manual"), node("c", "call_trigger"), node("r", "result")], [edge("m", "r"), edge("c", "r", "out0", "in0", "e2")]), id });
+  const sandbox = (over: Partial<import("./scheduler").LocalFlow> = {}) => ({ flow: localFlow(), ...over });
 
-  it("вызов на триггер этого же флоу не требует публикации; события вложенного запуска идут вызывающему и запуск дожидается", async () => {
+  it("вызов триггера своего флоу не требует публикации; события вложенного запуска идут вызывающему, запуск дожидается", async () => {
     const got: string[] = [];
-    const calls: { flow: string; trigger: string; data?: Json }[] = [];
+    const calls: { flow: string; trigger: string; data?: Json; sandbox?: boolean }[] = [];
     const { scheduler } = setup(async (f, onEvent, o) => {
-      calls.push({ flow: f.id, trigger: o.trigger, data: o.triggerData });
+      calls.push({ flow: f.id, trigger: o.trigger, data: o.triggerData, sandbox: o.sandbox });
       onEvent({ event: "node:start", nodeId: o.trigger });
       await new Promise((r) => setTimeout(r, 15));
       onEvent({ event: "flow:done", result: 1 });
     });
-    await scheduler.fireFrom(["draft"], { flowId: "draft", triggerId: "c", data: { x: 1 }, allowRecursive: true }, withLocal((e) => got.push(e.event)));
-    expect(calls).toEqual([{ flow: "draft", trigger: "c", data: { x: 1 } }]);
-    expect(got).toEqual(["node:start", "flow:done"]); // дождались: события уже у вызывающего
+    await scheduler.fireFrom(["draft"], { flowId: "draft", triggerId: "c", data: { x: 1 }, allowRecursive: true }, sandbox({ onEvent: (e) => got.push(e.event) }));
+    expect(calls).toEqual([{ flow: "draft", trigger: "c", data: { x: 1 }, sandbox: true }]);
+    expect(got).toEqual(["node:start", "flow:done"]);
     scheduler.stop();
   });
 
-  it("правила рекурсии и глубины те же: вызов себя без allowRecursive запрещён", async () => {
-    const { scheduler } = setup(idle);
-    await expect(scheduler.fireFrom(["draft"], { flowId: "draft", triggerId: "c", data: null }, withLocal())).rejects.toThrow(/Recursive call/);
-    await expect(scheduler.fireFrom(["draft"], { flowId: "draft", triggerId: "c", data: null, allowRecursive: true, maxDepth: 1 }, withLocal())).rejects.toThrow(/too deep/);
-    scheduler.stop();
-  });
-
-  it("нет такого триггера в локальном флоу — понятная ошибка; чужой неопубликованный флоу по-прежнему «not published»", async () => {
-    const { scheduler } = setup(idle);
-    await expect(scheduler.fireFrom(["draft"], { flowId: "draft", triggerId: "zzz", data: null, allowRecursive: true }, withLocal())).rejects.toThrow(/no trigger "zzz"/);
-    await expect(scheduler.fireFrom(["draft"], { flowId: "other", triggerId: "c", data: null }, withLocal())).rejects.toThrow(/not published/);
-    scheduler.stop();
-  });
-
-  it("вложенный локальный вызов видит локальный флоу и дальше (цепочка продолжается без публикации)", async () => {
-    const depth: number[] = [];
-    let level = 0;
-    const run: SchedulerRun = async (_f, onEvent, o) => {
-      depth.push(++level);
-      if (level < 3) await o.onFire!({ flowId: "draft", triggerId: "c", data: level, allowRecursive: true, maxDepth: 10 });
+  it("другой флоу в песочнице — его СОХРАНЁННАЯ копия (черновик подходит), опубликованная рабочая не запускается", async () => {
+    const calls: { flow: string; sandbox?: boolean }[] = [];
+    const { scheduler } = setup(async (f, onEvent, o) => {
+      calls.push({ flow: f.id, sandbox: o.sandbox });
       onEvent({ event: "flow:done", result: 1 });
-    };
-    const { scheduler } = setup(run);
-    await scheduler.fireFrom(["draft"], { flowId: "draft", triggerId: "c", data: 0, allowRecursive: true, maxDepth: 10 }, withLocal());
-    expect(depth).toEqual([1, 2, 3]);
+    });
+    // рабочая (опубликованная) копия того же флоу есть — но песочница обязана взять сохранённую и не трогать рабочую
+    scheduler.sync(pub("other"));
+    const draftCopy: Flow = { ...localFlow("other"), status: "draft" };
+    await scheduler.fireFrom(["draft"], { flowId: "other", triggerId: "c", data: null }, sandbox({ resolve: async (id) => (id === "other" ? draftCopy : null) }));
+    expect(calls).toEqual([{ flow: "other", sandbox: true }]);
     scheduler.stop();
   });
 
-  it("пробный локальный запуск не рассылает ошибки Error Trigger'ам", async () => {
+  it("рабочий флоу не видит пробных запусков: хаб (Watch) пуст, Error Trigger не получает ошибок, лимит вебхуков не тратится", async () => {
+    const hub = new RunHub();
     const handled: string[] = [];
     const run: SchedulerRun = async (f, onEvent) => {
       if (f.id === "handler") handled.push("handler ran");
       else onEvent({ event: "flow:done", error: "boom" });
     };
-    const { scheduler } = setup(run);
+    const scheduler = new Scheduler({ store: new FlowStore("/nonexistent"), hub, registry: testRegistry, run, maxConcurrentHookRuns: 1 });
     scheduler.sync({ ...flow([node("et", "error_trigger"), node("r", "result")], [edge("et", "r")]), id: "handler", status: "published" } as Flow);
-    await scheduler.fireFrom(["draft"], { flowId: "draft", triggerId: "c", data: null, allowRecursive: true }, withLocal());
+    const seen: string[] = [];
+    hub.subscribe("draft", (m) => seen.push(m.type));
+    await scheduler.fireFrom(["draft"], { flowId: "draft", triggerId: "c", data: null, allowRecursive: true }, sandbox());
     await new Promise((r) => setTimeout(r, 20));
+    expect(seen).toEqual([]);
+    expect(hub.lastRun("draft")).toBeUndefined();
     expect(handled).toEqual([]);
     scheduler.stop();
+  });
+
+  it("правила рекурсии и глубины те же: вызов себя без allowRecursive запрещён", async () => {
+    const { scheduler } = setup(idle);
+    await expect(scheduler.fireFrom(["draft"], { flowId: "draft", triggerId: "c", data: null }, sandbox())).rejects.toThrow(/Recursive call/);
+    await expect(scheduler.fireFrom(["draft"], { flowId: "draft", triggerId: "c", data: null, allowRecursive: true, maxDepth: 1 }, sandbox())).rejects.toThrow(/too deep/);
+    scheduler.stop();
+  });
+
+  it("нет такого триггера или флоу не сохранён — понятные ошибки (про публикацию в песочнице речи нет)", async () => {
+    const { scheduler } = setup(idle);
+    await expect(scheduler.fireFrom(["draft"], { flowId: "draft", triggerId: "zzz", data: null, allowRecursive: true }, sandbox())).rejects.toThrow(/no trigger "zzz"/);
+    const e = await scheduler.fireFrom(["draft"], { flowId: "nope", triggerId: "c", data: null }, sandbox()).catch((x: Error) => x.message);
+    expect(e).toMatch(/not saved on the server/);
+    expect(e).not.toMatch(/not published/);
+    scheduler.stop();
+  });
+
+  it("вложенный вызов остаётся в песочнице (цепочка продолжается без публикации)", async () => {
+    const depth: number[] = [];
+    const flags: (boolean | undefined)[] = [];
+    let level = 0;
+    const run: SchedulerRun = async (_f, onEvent, o) => {
+      depth.push(++level);
+      flags.push(o.sandbox);
+      if (level < 3) await o.onFire!({ flowId: "draft", triggerId: "c", data: level, allowRecursive: true, maxDepth: 10 });
+      onEvent({ event: "flow:done", result: 1 });
+    };
+    const { scheduler } = setup(run);
+    await scheduler.fireFrom(["draft"], { flowId: "draft", triggerId: "c", data: 0, allowRecursive: true, maxDepth: 10 }, sandbox());
+    expect(depth).toEqual([1, 2, 3]);
+    expect(flags).toEqual([true, true, true]);
+    scheduler.stop();
+  });
+});
+
+describe("окружение песочницы", () => {
+  it("банки памяти песочницы — вложенный каталог _sandbox; без памяти окружение не меняется", () => {
+    expect(sandboxEnv({ FL0W_MEMORY_DIR: "/data/memory" })["FL0W_MEMORY_DIR"]).toBe("/data/memory/_sandbox");
+    expect(sandboxEnv({ FL0W_MEMORY_DIR: "/data/memory/" })["FL0W_MEMORY_DIR"]).toBe("/data/memory/_sandbox");
+    expect(sandboxEnv({ OTHER: "1" })).toEqual({ OTHER: "1" });
   });
 });
 
@@ -243,5 +275,36 @@ describe("блоки вызова (в памяти)", () => {
     const pinned = flow([{ ...node("c", "call_trigger"), pinData: { out0: { x: 1 } } }, node("r", "result")], [edge("c", "r")]);
     expect((await collect(pinned, { registry })).done?.result).toEqual({ x: 1 });
     expect((await collect(f, { registry, trigger: "c", triggerData: { from: "a", data: 5 } })).done?.result).toEqual({ from: "a", data: 5 });
+  });
+});
+
+describe("песочница: память отдельная от рабочей (настоящий процесс-раннер)", () => {
+  it("sandbox:true пишет банк в <память>/_sandbox, рабочий каталог не трогает", async () => {
+    const { mkdtempSync, existsSync, rmSync, readdirSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const path = await import("node:path");
+    const dir = mkdtempSync(path.join(tmpdir(), "fl0w-sbx-"));
+    const saved = process.env["FL0W_MEMORY_DIR"];
+    process.env["FL0W_MEMORY_DIR"] = dir;
+    try {
+      const f = flow(
+        [node("s", "source", { json: { v: 1 } }), node("a", "code_agent", { code: 'await memory.set("k", 1); return { out0: { ok: true } }' }), node("m", "memory_bank", { name: "bank" }), node("r", "result")],
+        [edge("s", "a"), edge("a", "r"), edge("m", "a", "memory", "memory")],
+      );
+      const run = async (sandbox: boolean) => {
+        const events: RunnerEvent[] = [];
+        await runFlowInProcess(f, (e) => events.push(e), { timeoutMs: 20000, sandbox });
+        expect(events.at(-1)).toMatchObject({ event: "flow:done", result: { ok: true } });
+      };
+      await run(true);
+      expect(existsSync(path.join(dir, "bank.json"))).toBe(false); // рабочая память не тронута
+      expect(existsSync(path.join(dir, "_sandbox", "bank.json"))).toBe(true);
+      await run(false);
+      expect(readdirSync(dir).sort()).toEqual(["_sandbox", "bank.json"]); // обычный запуск пишет в рабочую
+    } finally {
+      if (saved === undefined) delete process.env["FL0W_MEMORY_DIR"];
+      else process.env["FL0W_MEMORY_DIR"] = saved;
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

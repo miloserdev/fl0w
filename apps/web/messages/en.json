@@ -164,8 +164,8 @@
     "pickFlowFirst": "Pick a flow first",
     "pickFlow": "Pick a flow",
     "pickTrigger": "Pick a trigger",
-    "flowUnknown": "No such flow on the server yet — you can create it later, but it must be published by the time of the call",
-    "flowNotPublished": "The flow is saved but not published — publish it before the call runs",
+    "flowUnknown": "No such flow on the server yet. “Run” (sandbox) calls saved copies of flows, a published (production) flow calls only published ones: save and publish the target",
+    "flowNotPublished": "The flow is saved but not published: “Run” will call this saved copy (sandbox), but a published flow needs the target to be published",
     "triggerUnknown": "This flow has no such trigger yet — add it and re-publish the flow",
     "pickerFree": "Pick from the list or type an id: the target flow can be created later",
     "flowUnknownForTrigger": "No such flow on the server — you can type the trigger id manually, but the flow must be saved and published by the time of the call"

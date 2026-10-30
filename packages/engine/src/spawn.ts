@@ -30,6 +30,8 @@ export type ProcessRunOptions = {
   seeds?: Record<string, Record<string, Json>>;
   /** Запуск триггера другого флоу по просьбе блока Run Flow; отказ — исключение (его текст увидит блок). Без него блок падает с понятной ошибкой. */
   onFire?: (req: FireCall) => Promise<void>;
+  /** Пробный запуск из редактора (песочница): отдельный каталог памяти. Плановые запуски опубликованных флоу — без флага. */
+  sandbox?: boolean;
   /** Отмена: убивает процесс и завершает запуск событием `flow:done` с ошибкой. */
   signal?: AbortSignal;
   /** stderr процесса (лог блоков, падения). */
@@ -90,6 +92,8 @@ export function runFlowInProcess(
       child = fork(/* turbopackIgnore: true */ runnerPath, [], {
         cwd: engineDir,
         execArgv: opts.execArgv ?? ["--import", "tsx"],
+        // песочница («Запустить»): банки памяти отдельные от рабочих (опубликованных) флоу — пробные запуски не портят их данные
+        env: opts.sandbox ? sandboxEnv() : process.env,
         serialization: "json",
         stdio: ["ignore", "ignore", "pipe", "ipc"],
       });
@@ -162,6 +166,12 @@ export function runFlowInProcess(
  * Исполнитель для планировщика: каждый запуск — отдельный процесс-раннер (SPEC §2.1).
  * Передаёт триггер И его данные целиком — планировщик и раннер не должны расходиться в наборе полей.
  */
+/** Окружение раннера песочницы: тот же, но каталог банков памяти — вложенная папка `_sandbox`. */
+export function sandboxEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const dir = base["FL0W_MEMORY_DIR"];
+  return dir ? { ...base, FL0W_MEMORY_DIR: `${dir.replace(/[\\/]+$/, "")}/_sandbox` } : base;
+}
+
 export function processSchedulerRun(base: Pick<ProcessRunOptions, "engineDir" | "timeoutMs" | "execArgv"> = {}): SchedulerRun {
-  return (flow, onEvent, { trigger, triggerData, onFire }) => runFlowInProcess(flow, onEvent, { ...base, trigger, triggerData, onFire });
+  return (flow, onEvent, { trigger, triggerData, onFire, sandbox }) => runFlowInProcess(flow, onEvent, { ...base, trigger, triggerData, onFire, sandbox });
 }
