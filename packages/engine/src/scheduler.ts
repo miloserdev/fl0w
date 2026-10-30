@@ -5,6 +5,12 @@ import type { FlowStore } from "./store";
 import { participatingNodes } from "./participants";
 import { validateFlow, type Registry } from "./validate";
 
+/**
+ * Флоу, запущенный из редактора: вызовы на его собственные триггеры идут локально, без публикации (см. `fireFrom`).
+ * `onEvent` получает события вложенного запуска — вызывающий решает, что с ними делать (редактор показывает их в ленте).
+ */
+export type LocalFlow = { flow: Flow; onEvent?: (e: RunnerEvent) => void };
+
 /** Сколько флоу может быть в цепочке вызовов (A вызвал B вызвал C …). */
 const MAX_CALL_DEPTH = 5;
 /** Жёсткий потолок, даже если блок просит больше (`maxDepth`; 0 — без ограничения, в логе предупреждение). */
@@ -252,7 +258,7 @@ export class Scheduler {
     nodeId: string,
     triggerData: Json,
     onEvent?: (e: RunnerEvent) => void,
-    opts?: { errorRun?: boolean; chain?: string[] },
+    opts?: { errorRun?: boolean; chain?: string[]; local?: LocalFlow },
   ): Promise<void> {
     const flow = this.flows.get(flowId);
     if (!flow) throw new Error(`Flow "${flowId}" is not published`);
@@ -268,11 +274,30 @@ export class Scheduler {
    * вызовов (последний — вызывающий). Бросает с понятной причиной: цель не опубликована, нет такого триггера, рекурсия (если не `allowRecursive`),
    * слишком длинная цепочка, цель занята.
    */
-  fireFrom(chain: string[], req: FireCall): Promise<void> {
+  fireFrom(chain: string[], req: FireCall, local?: LocalFlow): Promise<void> {
+    // Локальный триггер: вызов приходит на флоу, который прямо сейчас запущен из редактора (он может быть не опубликован) —
+    // публикация не нужна, флоу берётся из самого запроса. Правила рекурсии и глубины те же.
+    if (local && req.flowId === local.flow.id) return this.fireLocal(chain, req, local);
     const target = this.flows.get(req.flowId);
     if (!target) return Promise.reject(new Error(`Flow "${req.flowId}" is not published`));
+    const refused = this.checkChain(chain, req);
+    if (refused) return Promise.reject(new Error(refused));
+    const node = target.nodes.find((n) => n.id === req.triggerId);
+    if (!node || !this.deps.registry[node.type]?.isTrigger) {
+      return Promise.reject(new Error(`Flow "${req.flowId}" has no trigger "${req.triggerId}"`));
+    }
+    try {
+      void this.trigger(req.flowId, req.triggerId, req.data, undefined, { chain, local });
+    } catch (e) {
+      return Promise.reject(e instanceof SchedulerBusyError ? new Error(`Flow "${req.flowId}" is busy (too many concurrent runs)`) : e);
+    }
+    return Promise.resolve();
+  }
+
+  /** Рекурсия и глубина цепочки вызовов; возвращает причину отказа или null. */
+  private checkChain(chain: string[], req: FireCall): string | null {
     if (chain.includes(req.flowId) && !req.allowRecursive) {
-      return Promise.reject(new Error(`Recursive call: flow "${req.flowId}" is already in the call chain (${[...chain, req.flowId].join(" → ")})`));
+      return `Recursive call: flow "${req.flowId}" is already in the call chain (${[...chain, req.flowId].join(" → ")})`;
     }
     // maxDepth 0 — без ограничения (выбор автора флоу); иначе предел, но не выше жёсткого потолка
     const unlimited = req.maxDepth === 0;
@@ -280,17 +305,21 @@ export class Scheduler {
     if (unlimited && chain.length >= MAX_CALL_DEPTH_HARD && chain.length % MAX_CALL_DEPTH_HARD === 0) {
       this.log(`flow ${chain[0]}: call chain has reached ${chain.length} flows with maxDepth 0 (unlimited) — unpublish the flow to stop it`);
     }
-    if (chain.length >= limit) return Promise.reject(new Error(`Call chain is too deep (limit ${limit} flows; raise maxDepth up to ${MAX_CALL_DEPTH_HARD}, or set 0 for unlimited, if intended)`));
-    const node = target.nodes.find((n) => n.id === req.triggerId);
-    if (!node || !this.deps.registry[node.type]?.isTrigger) {
-      return Promise.reject(new Error(`Flow "${req.flowId}" has no trigger "${req.triggerId}"`));
-    }
-    try {
-      void this.trigger(req.flowId, req.triggerId, req.data, undefined, { chain });
-    } catch (e) {
-      return Promise.reject(e instanceof SchedulerBusyError ? new Error(`Flow "${req.flowId}" is busy (too many concurrent runs)`) : e);
-    }
-    return Promise.resolve();
+    if (chain.length >= limit) return `Call chain is too deep (limit ${limit} flows; raise maxDepth up to ${MAX_CALL_DEPTH_HARD}, or set 0 for unlimited, if intended)`;
+    return null;
+  }
+
+  /**
+   * Вызов триггера флоу, запущенного из редактора (локальная копия из запроса, публикация не требуется). Исполняется и
+   * ДОЖИДАЕТСЯ, а его события уходят вызывающему (`onEvent`), чтобы автор видел, что произошло. Ошибки обработчиков
+   * (Error Trigger) от таких пробных запусков не рассылаются.
+   */
+  private async fireLocal(chain: string[], req: FireCall, local: LocalFlow): Promise<void> {
+    const refused = this.checkChain(chain, req);
+    if (refused) throw new Error(refused);
+    const node = local.flow.nodes.find((n) => n.id === req.triggerId);
+    if (!node || !this.deps.registry[node.type]?.isTrigger) throw new Error(`Flow "${req.flowId}" has no trigger "${req.triggerId}"`);
+    await this.execute(local.flow, req.triggerId, req.data, local.onEvent, { chain, errorRun: true, local });
   }
 
   stop(): void {
@@ -390,7 +419,7 @@ export class Scheduler {
     nodeId: string,
     triggerData?: Json,
     extra?: (e: RunnerEvent) => void,
-    opts?: { errorRun?: boolean; chain?: string[] },
+    opts?: { errorRun?: boolean; chain?: string[]; local?: LocalFlow },
   ): Promise<void> {
     const { hub } = this.deps;
     const runId = hub.startRun(flow.id, nodeId, [...participatingNodes(flow, this.deps.registry, nodeId)]);
@@ -413,7 +442,7 @@ export class Scheduler {
     try {
       // цепочка вызовов: флоу, из которых нас вызвали, плюс мы сами — по ней Run Flow отсекает рекурсию
       const chain = [...(opts?.chain ?? []), flow.id];
-      await this.deps.run(flow, emit, { trigger: nodeId, triggerData, onFire: (req) => this.fireFrom(chain, req) });
+      await this.deps.run(flow, emit, { trigger: nodeId, triggerData, onFire: (req) => this.fireFrom(chain, req, opts?.local) });
     } catch (e) {
       // run не должен бросать, но если бросил — запуск обязан закрыться событием
       emit({

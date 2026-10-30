@@ -50,7 +50,15 @@ export async function POST(req: Request) {
         signal: abort.signal,
         timeoutMs: RUN_TIMEOUT_MS,
         // блок Run Flow в ручном запуске вызывает настоящие опубликованные флоу; цепочка начинается с этого флоу
-        onFire: (req) => getRuntime().scheduler.fireFrom([checked.flow.id], req),
+        // Вызов триггера ЭТОГО ЖЕ флоу (локального, возможно неопубликованного) идёт без публикации, его события попадают в ленту
+        // запуска (кроме flow:done — итог один, внешний). Другие флоу вызываются как опубликованные.
+        onFire: (req) =>
+          getRuntime().scheduler.fireFrom([checked.flow.id], req, {
+            flow: checked.flow,
+            onEvent: (e) => {
+              if (e.event !== "flow:done") emit(e);
+            },
+          }),
         from: from as string | undefined,
         seeds: seeds as Record<string, Record<string, Json>> | undefined,
         onStderr: (chunk) => process.stderr.write(chunk),

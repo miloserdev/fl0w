@@ -110,6 +110,69 @@ describe("Scheduler.fireFrom (вызов триггера другого фло�
   });
 });
 
+describe("Scheduler.fireFrom: локальный триггер (флоу из редактора, без публикации)", () => {
+  /** Локальный (НЕ опубликованный) флоу: Manual → Result и триггер вызова `c`. */
+  const localFlow = (): Flow => flow([node("m", "manual"), node("c", "call_trigger"), node("r", "result")], [edge("m", "r"), edge("c", "r", "out0", "in0", "e2")]);
+  const withLocal = (onEvent?: (e: RunnerEvent) => void) => ({ flow: { ...localFlow(), id: "draft" }, onEvent });
+
+  it("вызов на триггер этого же флоу не требует публикации; события вложенного запуска идут вызывающему и запуск дожидается", async () => {
+    const got: string[] = [];
+    const calls: { flow: string; trigger: string; data?: Json }[] = [];
+    const { scheduler } = setup(async (f, onEvent, o) => {
+      calls.push({ flow: f.id, trigger: o.trigger, data: o.triggerData });
+      onEvent({ event: "node:start", nodeId: o.trigger });
+      await new Promise((r) => setTimeout(r, 15));
+      onEvent({ event: "flow:done", result: 1 });
+    });
+    await scheduler.fireFrom(["draft"], { flowId: "draft", triggerId: "c", data: { x: 1 }, allowRecursive: true }, withLocal((e) => got.push(e.event)));
+    expect(calls).toEqual([{ flow: "draft", trigger: "c", data: { x: 1 } }]);
+    expect(got).toEqual(["node:start", "flow:done"]); // дождались: события уже у вызывающего
+    scheduler.stop();
+  });
+
+  it("правила рекурсии и глубины те же: вызов себя без allowRecursive запрещён", async () => {
+    const { scheduler } = setup(idle);
+    await expect(scheduler.fireFrom(["draft"], { flowId: "draft", triggerId: "c", data: null }, withLocal())).rejects.toThrow(/Recursive call/);
+    await expect(scheduler.fireFrom(["draft"], { flowId: "draft", triggerId: "c", data: null, allowRecursive: true, maxDepth: 1 }, withLocal())).rejects.toThrow(/too deep/);
+    scheduler.stop();
+  });
+
+  it("нет такого триггера в локальном флоу — понятная ошибка; чужой неопубликованный флоу по-прежнему «not published»", async () => {
+    const { scheduler } = setup(idle);
+    await expect(scheduler.fireFrom(["draft"], { flowId: "draft", triggerId: "zzz", data: null, allowRecursive: true }, withLocal())).rejects.toThrow(/no trigger "zzz"/);
+    await expect(scheduler.fireFrom(["draft"], { flowId: "other", triggerId: "c", data: null }, withLocal())).rejects.toThrow(/not published/);
+    scheduler.stop();
+  });
+
+  it("вложенный локальный вызов видит локальный флоу и дальше (цепочка продолжается без публикации)", async () => {
+    const depth: number[] = [];
+    let level = 0;
+    const run: SchedulerRun = async (_f, onEvent, o) => {
+      depth.push(++level);
+      if (level < 3) await o.onFire!({ flowId: "draft", triggerId: "c", data: level, allowRecursive: true, maxDepth: 10 });
+      onEvent({ event: "flow:done", result: 1 });
+    };
+    const { scheduler } = setup(run);
+    await scheduler.fireFrom(["draft"], { flowId: "draft", triggerId: "c", data: 0, allowRecursive: true, maxDepth: 10 }, withLocal());
+    expect(depth).toEqual([1, 2, 3]);
+    scheduler.stop();
+  });
+
+  it("пробный локальный запуск не рассылает ошибки Error Trigger'ам", async () => {
+    const handled: string[] = [];
+    const run: SchedulerRun = async (f, onEvent) => {
+      if (f.id === "handler") handled.push("handler ran");
+      else onEvent({ event: "flow:done", error: "boom" });
+    };
+    const { scheduler } = setup(run);
+    scheduler.sync({ ...flow([node("et", "error_trigger"), node("r", "result")], [edge("et", "r")]), id: "handler", status: "published" } as Flow);
+    await scheduler.fireFrom(["draft"], { flowId: "draft", triggerId: "c", data: null, allowRecursive: true }, withLocal());
+    await new Promise((r) => setTimeout(r, 20));
+    expect(handled).toEqual([]);
+    scheduler.stop();
+  });
+});
+
 describe("блок Run Flow в настоящем процессе-раннере", () => {
   const f = (flowId: string, data?: Json) =>
     flow([node("s", "source", { json: { v: 1 } }), node("c", "run_flow", { flowId, triggerId: "t", ...(data !== undefined ? { data } : {}) }), node("r", "result")], [edge("s", "c"), edge("c", "r")]);
