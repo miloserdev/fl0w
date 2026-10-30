@@ -160,14 +160,15 @@
     "pinHint": "Format: an object of port: value, for example out0 with your data. Applies to manual runs only; scheduled runs of a published flow use real data. An event trigger with pinned data starts in a manual run.",
     "flowDraft": "not published",
     "noFlows": "No flows saved on the server — type the id manually",
-    "noTriggers": "The flow has no triggers — type the id manually",
+    "noTriggers": "The copy of this flow saved on the server has no triggers — add one (for example, “Called by Flow”) and save/publish the flow",
     "pickFlowFirst": "Pick a flow first",
     "pickFlow": "Pick a flow",
     "pickTrigger": "Pick a trigger",
     "flowUnknown": "No such flow on the server yet — you can create it later, but it must be published by the time of the call",
     "flowNotPublished": "The flow is saved but not published — publish it before the call runs",
     "triggerUnknown": "This flow has no such trigger yet — add it and re-publish the flow",
-    "pickerFree": "Pick from the list or type an id: the target flow can be created later"
+    "pickerFree": "Pick from the list or type an id: the target flow can be created later",
+    "flowUnknownForTrigger": "No such flow on the server — you can type the trigger id manually, but the flow must be saved and published by the time of the call"
   },
   "params": {
     "source": {

@@ -51,5 +51,12 @@ class Runtime {
 const g = globalThis as { __fl0wRuntime?: Runtime };
 
 export function getRuntime(): Runtime {
+  const current = g.__fl0wRuntime;
+  // В dev после правки движка модуль пересобран, а в globalThis остался экземпляр СТАРОГО класса (без новых методов планировщика —
+  // «scheduler.fireFrom is not a function»). Такой экземпляр останавливаем и создаём заново из актуального кода.
+  if (current && current.constructor !== Runtime) {
+    current.scheduler.stop();
+    g.__fl0wRuntime = undefined;
+  }
   return (g.__fl0wRuntime ??= new Runtime());
 }

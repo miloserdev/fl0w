@@ -94,7 +94,7 @@
 
 - pnpm-монорепо: `apps/web` (Next.js 16), `packages/{schema,blocks,engine}`. Node 26. Тесты — vitest.
 - `pnpm check` (быстро) · `pnpm verify` (полный) · `pnpm dev` → http://localhost:3001 (порт 3000 занят). Серверный рантайм
-  (планировщик) — синглтон в `globalThis`: **после правок engine/blocks dev-сервер перезапустить** (`TaskStop` + `pnpm dev`).
+  (планировщик) — синглтон в `globalThis`; в dev `getRuntime()` сам пересоздаёт его, если модуль пересобран (иначе «X is not a function» от старого класса), но **после правок engine/blocks надёжнее перезапустить dev-сервер** (`TaskStop` + `pnpm dev`).
 - Сеть: `curl` работает, `npx shadcn` — нет → `node scripts/shadcn-add.mjs <компонент>`.
 - Проверка UI: `node scripts/ui-check.mjs --flow examples/<x>.json --steps '[…]'` (headless Chromium, скриншоты в `--out`).
 - Скрипты и временные файлы — в scratchpad сессии, не в репозитории и не в `/tmp` напрямую.

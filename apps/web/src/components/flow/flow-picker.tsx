@@ -14,8 +14,9 @@ export type ServerFlow = {
 };
 
 /** Серверные флоу для выбора цели блока Run Flow; null — список ещё грузится или недоступен. */
-function useServerFlows(): ServerFlow[] | null {
+function useServerFlows(): [ServerFlow[] | null, () => void] {
   const [flows, setFlows] = useState<ServerFlow[] | null>(null);
+  const [tick, setTick] = useState(0);
   useEffect(() => {
     const ac = new AbortController();
     fetch("/api/flows", { signal: ac.signal })
@@ -23,8 +24,9 @@ function useServerFlows(): ServerFlow[] | null {
       .then((body) => setFlows(body?.flows ?? []))
       .catch(() => {});
     return () => ac.abort();
-  }, []);
-  return flows;
+  }, [tick]);
+  // список перечитывается при фокусе в поле: целевой флоу могли сохранить или опубликовать, пока форма была открыта
+  return [flows, () => setTick((n) => n + 1)];
 }
 
 /**
@@ -49,7 +51,7 @@ export function FlowPicker({
   onChange: (value: string) => void;
 }) {
   const t = useTranslations("inspector");
-  const flows = useServerFlows();
+  const [flows, refresh] = useServerFlows();
 
   const target = (flows ?? []).find((f) => f.id === flowId);
   const options =
@@ -66,6 +68,9 @@ export function FlowPicker({
       else if (f.status !== "published") hint = t("flowNotPublished");
     } else if (target && !target.triggers.some((x) => x.id === value)) hint = t("triggerUnknown");
   }
+  // у выбранного флоу на сервере нет триггеров вообще: список пуст не из-за ошибки — объясняем, что сделать
+  if (!hint && kind === "flow-trigger" && flows && target && target.triggers.length === 0) hint = t("noTriggers");
+  if (!hint && kind === "flow-trigger" && flows && flowId !== "" && !target) hint = t("flowUnknownForTrigger");
 
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
@@ -91,7 +96,10 @@ export function FlowPicker({
             autoComplete="off"
             placeholder={kind === "flow" ? t("pickFlow") : t("pickTrigger")}
             className="font-mono text-xs"
-            onFocus={() => setOpen(true)}
+            onFocus={() => {
+              refresh();
+              setOpen(true);
+            }}
             onChange={(e) => {
               onChange(e.target.value);
               setActive(0);
