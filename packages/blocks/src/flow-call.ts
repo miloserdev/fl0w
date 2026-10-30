@@ -2,14 +2,14 @@ import type { Json, ParamSchema, PortsDef } from "@fl0w/schema";
 import { Block, type RunContext } from "./block";
 
 /**
- * Phone-пара — вызов одного флоу из другого по каналу `channelId` (связь строго 1:1). Сам вызов исполняется внутри запуска
+ * Пара вызовов — вызов одного флоу из другого по каналу `channelId` (связь строго 1:1). Сам вызов исполняется внутри запуска
  * вызывающего (как вложенный запуск вызванного флоу), поэтому в один процесс-раннер попадают оба флоу.
  */
 
-/** Phone-incoming: вход вызванного флоу. Поднимается только парным phone-outgoing с тем же `channelId`. */
+/** Incoming call: вход вызванного флоу. Поднимается только парным outgoing call с тем же `channelId`. */
 export class CallTrigger extends Block {
   static type = "call_trigger";
-  static label = "Phone Incoming";
+  static label = "Incoming Call";
   static icon = "phone-incoming";
   static category = "trigger";
   static ports = { inputs: [], outputs: [{ id: "out0" }] };
@@ -29,7 +29,7 @@ const OUT_PORTS: PortsDef = { inputs: [{ id: "in0" }], outputs: [{ id: "out0" }]
 const OUT_PORTS_AWAIT: PortsDef = { inputs: [{ id: "in0" }], outputs: [{ id: "out0" }, { id: "err", label: "error" }] };
 
 /**
- * Phone-outgoing: вызывает phone-incoming с тем же `channelId`.
+ * Outgoing call: вызывает incoming call с тем же `channelId`.
  *  - `await` (с подтверждением): ждёт вызванный флоу; `out0` — его результат (значение Result), `err` — ошибка, если он упал
  *    (порт виден только в этом режиме; если к `err` ничего не подключено, ошибка роняет ноду, чтобы не потеряться).
  *  - `shoot` (выстрелил и забыл): не ждёт; `out0` = `{ ok: true }` — факт отправки. Вызванный флоу идёт в фоне и обрывается, если
@@ -37,7 +37,7 @@ const OUT_PORTS_AWAIT: PortsDef = { inputs: [{ id: "in0" }], outputs: [{ id: "ou
  */
 export class RunFlow extends Block {
   static type = "run_flow";
-  static label = "Phone Outgoing";
+  static label = "Outgoing Call";
   static icon = "phone-outgoing";
   static category = "flow";
   static ports = OUT_PORTS;

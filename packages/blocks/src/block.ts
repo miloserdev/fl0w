@@ -52,7 +52,7 @@ export type MemoryHandle = {
   clear(): Promise<void>;
 };
 
-/** Просьба phone-outgoing вызвать флоу с входящим телефоном на канале `channelId` (см. `RunContext.call`). */
+/** Просьба outgoing call вызвать флоу с входящим телефоном на канале `channelId` (см. `RunContext.call`). */
 export type CallRequest = {
   channelId: string;
   data: Json;
@@ -74,7 +74,7 @@ export interface RunContext {
   tools?: ToolHandle[];
   memory?: MemoryHandle[];
   /**
-   * Вызвать флоу по каналу (phone-outgoing). await: возвращает результат вызванного флоу или ошибку; shoot: возвращается сразу,
+   * Вызвать флоу по каналу (outgoing call). await: возвращает результат вызванного флоу или ошибку; shoot: возвращается сразу,
    * вызванный флоу идёт «в фоне» внутри этого же запуска и обрывается, если запуск закончится раньше (это логируется).
    */
   call?: (req: CallRequest) => Promise<CallOutcome>;
@@ -125,7 +125,7 @@ export abstract class Block {
    */
   static eventDriven = false;
   /**
-   * Триггер, который поднимается ТОЛЬКО вызовом (phone-incoming ← phone-outgoing): ни ручной запуск (даже с закреплёнными
+   * Триггер, который поднимается ТОЛЬКО вызовом (incoming call ← outgoing call): ни ручной запуск (даже с закреплёнными
    * данными), ни события, ни расписание его не стартуют.
    */
   static callOnly = false;

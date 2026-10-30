@@ -3,7 +3,7 @@ import type { Flow, Json, RunnerEvent } from "@fl0w/schema";
 import type { RunHub } from "./hub";
 import type { FlowStore } from "./store";
 import { participatingNodes } from "./participants";
-import { findIncoming } from "./phone";
+import { findIncoming } from "./call-channel";
 import { validateFlow, type Registry } from "./validate";
 
 export type SchedulerRun = (
@@ -260,7 +260,7 @@ export class Scheduler {
   }
 
   /**
-   * Флоу и триггер для вызова по каналу (phone-outgoing): ровно один phone-incoming среди ОПУБЛИКОВАННЫХ флоу. Раннер
+   * Флоу и триггер для вызова по каналу (outgoing call): ровно один incoming call среди ОПУБЛИКОВАННЫХ флоу. Раннер
    * исполняет вызванный флоу вложенным запуском в своём процессе, поэтому возвращается само определение флоу.
    */
   resolveCall(channelId: string): Promise<{ flow: Flow; triggerId: string }> {
@@ -389,7 +389,7 @@ export class Scheduler {
       }
     };
     try {
-      // вызовы по каналу (phone-outgoing): рабочий запуск находит только опубликованные флоу
+      // вызовы по каналу (outgoing call): рабочий запуск находит только опубликованные флоу
       await this.deps.run(flow, emit, { trigger: nodeId, triggerData, onResolveCall: (ch) => this.resolveCall(ch) });
     } catch (e) {
       // run не должен бросать, но если бросил — запуск обязан закрыться событием

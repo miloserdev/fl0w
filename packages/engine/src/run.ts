@@ -32,8 +32,8 @@ export type RunOptions = {
   from?: string;
   seeds?: Record<string, Record<string, Json>>;
   /**
-   * Найти флоу с phone-incoming на канале (его даёт хост: опубликованные копии или сохранённые в песочнице). Нет канала или он
-   * неоднозначен — бросает с причиной. Без опции блок phone-outgoing отвечает ошибкой.
+   * Найти флоу с incoming call на канале (его даёт хост: опубликованные копии или сохранённые в песочнице). Нет канала или он
+   * неоднозначен — бросает с причиной. Без опции блок outgoing call отвечает ошибкой.
    */
   resolveCall?: (channelId: string) => Promise<{ flow: unknown; triggerId: string }>;
   /** Флоу, уже стоящие в цепочке вызовов (без текущего) — по ней отсекается рекурсия. Служебное: заполняет вложенный запуск. */
@@ -104,7 +104,7 @@ export async function runFlow(
   opts: RunOptions = {},
 ): Promise<void> {
   const registry = opts.registry ?? defaultRegistry;
-  // shoot-вызовы (phone-outgoing): запуск их не ждёт; если он закончился раньше — они обрываются, и это видно в ленте
+  // shoot-вызовы (outgoing call): запуск их не ждёт; если он закончился раньше — они обрываются, и это видно в ленте
   type Shot = { nodeId: string; abort: AbortController; done: Promise<void>; settled: boolean };
   const shots = new Set<Shot>();
   const killShots = async () => {
@@ -128,9 +128,9 @@ export async function runFlow(
   }
   const flow: Flow = validation.flow;
 
-  // --- вызовы phone-outgoing: вызванный флоу исполняется вложенным запуском в этом же процессе ---
-  // Цепочка — пары «флоу#триггер»: рекурсия это повторный вход в ТОТ ЖЕ phone-incoming, а не в тот же флоу. Вызов другого графа
-  // того же флоу (отдельный phone-incoming, не связанный с вызывающим) рекурсией не считается.
+  // --- вызовы outgoing call: вызванный флоу исполняется вложенным запуском в этом же процессе ---
+  // Цепочка — пары «флоу#триггер»: рекурсия это повторный вход в ТОТ ЖЕ incoming call, а не в тот же флоу. Вызов другого графа
+  // того же флоу (отдельный incoming call, не связанный с вызывающим) рекурсией не считается.
   const callChain = [...(opts.callChain ?? []), `${flow.id}#${opts.trigger ?? "*"}`];
   const failed = (error: string): CallOutcome => ({ ok: false, error });
   /** Один вызов: найти флоу по каналу, проверить рекурсию и глубину, исполнить как вложенный запуск и вернуть его результат. */
@@ -149,7 +149,7 @@ export async function runFlow(
     }
     const limit = Math.min(req.maxDepth ?? DEFAULT_CALL_DEPTH, MAX_CALL_DEPTH);
     if (callChain.length >= limit) return failed(`Call chain is too deep (limit ${limit} flows; raise maxDepth, at most ${MAX_CALL_DEPTH})`);
-    // Вложенный запуск ТОГО ЖЕ флоу (отдельный граф со своим phone-incoming) показывает свои ноды на том же холсте — его события идут
+    // Вложенный запуск ТОГО ЖЕ флоу (отдельный граф со своим incoming call) показывает свои ноды на том же холсте — его события идут
     // наружу, чтобы было видно, что incoming отработал. События ДРУГОГО флоу не пересылаются (id нод двух флоу могут совпасть): нужен лишь итог.
     const sameFlow = calleeId === flow.id;
     let done: { result?: Json; error?: string } = { error: "The called flow ended without a result" };

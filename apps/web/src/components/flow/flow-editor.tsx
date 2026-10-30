@@ -209,7 +209,7 @@ function Editor() {
 
   const updateNodeData = useCallback(
     (id: string, patch: Partial<BlockNodeData>) => {
-      // порты могут зависеть от параметров (порт err у phone-outgoing только в режиме await): рёбра к исчезнувшим портам снимаются
+      // порты могут зависеть от параметров (порт err у outgoing call только в режиме await): рёбра к исчезнувшим портам снимаются
       if (patch.params) {
         const cur = (getNodes() as BlockNodeType[]).find((n) => n.id === id);
         if (cur) {

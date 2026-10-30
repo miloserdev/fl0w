@@ -13,7 +13,7 @@ function send(event: RunnerEvent | CallResolveRequest): Promise<void> {
   });
 }
 
-// запросы «найти флоу по каналу» (phone-outgoing) ждут ответа родителя: сопоставляем по id
+// запросы «найти флоу по каналу» (outgoing call) ждут ответа родителя: сопоставляем по id
 const pendingResolves = new Map<string, { resolve: (v: { flow: unknown; triggerId: string }) => void; reject: (e: Error) => void }>();
 let resolveSeq = 0;
 const resolveCall = (channelId: string): Promise<{ flow: unknown; triggerId: string }> =>

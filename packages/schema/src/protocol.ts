@@ -38,7 +38,7 @@ export const runnerEventSchema = z.discriminatedUnion("event", [
   }),
   z.object({ event: z.literal("node:error"), nodeId: z.string(), error: z.string() }),
   /**
-   * Нода (phone-outgoing в режиме shoot) оборвана: вызванный флоу не успел завершиться, пока вызывающий дошёл до конца, и был
+   * Нода (outgoing call в режиме shoot) оборвана: вызванный флоу не успел завершиться, пока вызывающий дошёл до конца, и был
    * остановлен. Вызывающему это не сообщается — но в ленте видно.
    */
   z.object({ event: z.literal("node:killed"), nodeId: z.string(), reason: z.string() }),
@@ -51,7 +51,7 @@ export const runnerEventSchema = z.discriminatedUnion("event", [
 export type RunnerEvent = z.infer<typeof runnerEventSchema>;
 
 /**
- * runner → web: раннер просит найти флоу с входящим телефоном (phone-incoming) на канале `channelId` и прислать его определение.
+ * runner → web: раннер просит найти флоу с входящим телефоном (incoming call) на канале `channelId` и прислать его определение.
  * Вызванный флоу исполняется В ТОМ ЖЕ процессе, что и вызывающий (как вложенный запуск), поэтому раннеру нужен сам флоу.
  */
 export const callResolveRequestSchema = z.object({
@@ -60,7 +60,7 @@ export const callResolveRequestSchema = z.object({
   channelId: z.string(),
 });
 export type CallResolveRequest = z.infer<typeof callResolveRequestSchema>;
-/** web → runner: ответ на `call:resolve` — флоу и id его phone-incoming либо причина отказа (нет такого канала, неоднозначно…). */
+/** web → runner: ответ на `call:resolve` — флоу и id его incoming call либо причина отказа (нет такого канала, неоднозначно…). */
 export type CallResolveReply = { cmd: "call:resolved"; id: string; flow?: unknown; triggerId?: string; error?: string };
 
 /**

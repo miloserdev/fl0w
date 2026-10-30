@@ -51,7 +51,7 @@ export async function POST(req: Request) {
         timeoutMs: RUN_TIMEOUT_MS,
         // «Запустить» — песочница: отдельная память, вызовы других флоу не затрагивают рабочие (опубликованные) копии
         sandbox: true,
-        // phone-outgoing в песочнице находит phone-incoming среди СОХРАНЁННЫХ копий (публикация не нужна); этот флоу — по версии
+        // outgoing call в песочнице находит incoming call среди СОХРАНЁННЫХ копий (публикация не нужна); этот флоу — по версии
         // из редактора, а не сохранённой. Рабочие (опубликованные) запуски не затрагиваются.
         onResolveCall: async (channelId) => {
           const saved = await getRuntime().store.list();

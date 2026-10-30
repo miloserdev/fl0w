@@ -8,7 +8,7 @@ export const portKind = (p: PortDef | undefined): PortKind => p?.kind ?? "data";
 export const isDataPort = (p: PortDef): boolean => portKind(p) === "data";
 
 /**
- * Порты инстанса: дефолтные из класса (или зависящие от параметров — `portsFor`, например порт `err` у phone-outgoing
+ * Порты инстанса: дефолтные из класса (или зависящие от параметров — `portsFor`, например порт `err` у outgoing call
  * только в режиме await) + добавленные через portsOverride.
  */
 export function getNodePorts(

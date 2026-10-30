@@ -121,7 +121,7 @@ describe("отпечаток флоу и оформление", () => {
   });
 });
 
-describe("порты, зависящие от параметров (phone-outgoing)", () => {
+describe("порты, зависящие от параметров (outgoing call)", () => {
   it("порт err есть только в режиме await; вид порта и класс ребра учитывают параметры", async () => {
     const { getPorts, nodePortKind } = await import("./flow-convert");
     const ids = (params: Record<string, unknown>) => getPorts("run_flow", null, params as never).outputs.map((p) => p.id);

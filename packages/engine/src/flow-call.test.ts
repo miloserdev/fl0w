@@ -1,7 +1,7 @@
 import { registry } from "@fl0w/blocks";
 import type { Flow, Json, RunnerEvent } from "@fl0w/schema";
 import { describe, expect, it } from "vitest";
-import { channelsOf, findIncoming, validatePhoneChannels } from "./phone";
+import { channelsOf, findIncoming, validateCallChannels } from "./call-channel";
 import { RunHub } from "./hub";
 import { Scheduler } from "./scheduler";
 import { runFlowInProcess, sandboxEnv } from "./spawn";
@@ -9,7 +9,7 @@ import { FlowStore } from "./store";
 import { collect, edge, flow, node, testRegistry } from "./test-helpers";
 import { validateFlow } from "./validate";
 
-/** Вызванный флоу: Phone Incoming(channel) → [шаги] → Result. */
+/** Вызванный флоу: Incoming Call(channel) → [шаги] → Result. */
 const callee = (id: string, channel: string, middle: ReturnType<typeof node>[] = [], edges: ReturnType<typeof edge>[] = []): Flow => ({
   ...flow(
     [node("in", "call_trigger", { channelId: channel }), ...middle, node("res", "result")],
@@ -17,7 +17,7 @@ const callee = (id: string, channel: string, middle: ReturnType<typeof node>[] =
   ),
   id,
 });
-/** Вызывающий: Source → Phone Outgoing → (out0 → Result, err → Result2 по желанию). */
+/** Вызывающий: Source → Outgoing Call → (out0 → Result, err → Result2 по желанию). */
 const caller = (params: Record<string, Json>, opts: { errPort?: boolean; id?: string } = {}): Flow => ({
   ...flow(
     [node("s", "source", { json: { v: 1 } }), node("p", "run_flow", params), node("r", "result"), ...(opts.errPort ? [node("er", "result")] : [])],
@@ -30,7 +30,7 @@ const resolverFor = (...flows: Flow[]) => async (ch: string) => findIncoming(flo
 const run = (f: Flow, flows: Flow[], extra: Record<string, unknown> = {}) => collect(f, { registry, resolveCall: resolverFor(f, ...flows), ...extra });
 const ev = (events: RunnerEvent[], kind: string) => events.filter((e) => e.event === kind);
 
-describe("phone-пара: каналы, порты, валидация", () => {
+describe("пара вызовов: каналы, порты, валидация", () => {
   it("порт err есть только в режиме await", () => {
     const await_ = validateFlow(caller({ channelId: "c", mode: "await" }, { errPort: true }), registry);
     expect(await_.ok).toBe(true);
@@ -44,23 +44,23 @@ describe("phone-пара: каналы, порты, валидация", () => {
   it("связь 1:1: два входящих (или два исходящих) на одном канале — ошибка и внутри флоу, и между флоу", () => {
     const dupIn: Flow = { ...flow([node("a", "call_trigger", { channelId: "x" }), node("b", "call_trigger", { channelId: "x" }), node("r", "result")], [edge("a", "r")]), id: "d" };
     const r = validateFlow(dupIn, registry);
-    expect(!r.ok && r.issues.map((i) => i.code)).toContain("phone_channel");
+    expect(!r.ok && r.issues.map((i) => i.code)).toContain("call_channel");
     const other = callee("other", "chan");
-    expect(validatePhoneChannels(callee("mine", "chan"), [other]).map((i) => i.code)).toEqual(["phone_channel"]);
-    expect(validatePhoneChannels(callee("mine", "chan"), [callee("mine", "chan")])).toEqual([]); // тот же флоу — своя прежняя копия
-    expect(validatePhoneChannels(callee("mine", "chan"), [caller({ channelId: "chan" })])).toEqual([]); // другая сторона — это пара
-    expect(validatePhoneChannels(caller({ channelId: "chan" }), [caller({ channelId: "chan" }, { id: "c2" })]).length).toBe(1);
-    expect(validatePhoneChannels(caller({ channelId: "unpaired" }), [])).toEqual([]); // пары может ещё не быть
+    expect(validateCallChannels(callee("mine", "chan"), [other]).map((i) => i.code)).toEqual(["call_channel"]);
+    expect(validateCallChannels(callee("mine", "chan"), [callee("mine", "chan")])).toEqual([]); // тот же флоу — своя прежняя копия
+    expect(validateCallChannels(callee("mine", "chan"), [caller({ channelId: "chan" })])).toEqual([]); // другая сторона — это пара
+    expect(validateCallChannels(caller({ channelId: "chan" }), [caller({ channelId: "chan" }, { id: "c2" })]).length).toBe(1);
+    expect(validateCallChannels(caller({ channelId: "unpaired" }), [])).toEqual([]); // пары может ещё не быть
   });
 
   it("findIncoming: ровно один; нет или несколько — понятная ошибка; пробелы по краям не значимы", () => {
     expect(findIncoming([callee("a", " c1 ")], "c1").triggerId).toBe("in");
-    expect(() => findIncoming([callee("a", "c1")], "zzz")).toThrow(/No phone-incoming with channel "zzz"/);
+    expect(() => findIncoming([callee("a", "c1")], "zzz")).toThrow(/No incoming call with channel "zzz"/);
     expect(() => findIncoming([callee("a", "c1"), callee("b", "c1")], "c1")).toThrow(/ambiguous/);
     expect(channelsOf(caller({ channelId: "k" }))).toEqual({ incoming: [], outgoing: [{ nodeId: "p", channelId: "k" }] });
   });
 
-  it("phone-incoming не входит в стартовые: ручной запуск его не поднимает, даже с закреплёнными данными", async () => {
+  it("incoming call не входит в стартовые: ручной запуск его не поднимает, даже с закреплёнными данными", async () => {
     const f: Flow = { ...flow([{ ...node("in", "call_trigger", { channelId: "c" }), pinData: { out0: { x: 1 } } }, node("r", "result")], [edge("in", "r")]), id: "solo" };
     const r = await collect(f, { registry });
     expect(r.started).toEqual([]);
@@ -69,7 +69,7 @@ describe("phone-пара: каналы, порты, валидация", () => {
 });
 
 describe("await: с подтверждением", () => {
-  it("out0 — результат вызванного флоу (значение его Result), данные вызова приходят в phone-incoming", async () => {
+  it("out0 — результат вызванного флоу (значение его Result), данные вызова приходят в incoming call", async () => {
     const c = callee("c", "ch", [code("m", "return { out0: { got: inputs.in0, doubled: inputs.in0.v * 2 } }")]);
     const r = await run(caller({ channelId: "ch" }), [c]);
     expect(r.done?.error).toBeUndefined();
@@ -100,13 +100,13 @@ describe("await: с подтверждением", () => {
 
   it("нет канала / неоднозначный канал / нет резолвера — в err (или падение ноды)", async () => {
     const r = await run(caller({ channelId: "nope" }, { errPort: true }), []);
-    expect(r.done?.result).toMatchObject({ message: expect.stringMatching(/No phone-incoming with channel "nope"/) });
+    expect(r.done?.result).toMatchObject({ message: expect.stringMatching(/No incoming call with channel "nope"/) });
     const r2 = await collect(caller({ channelId: "x" }), { registry });
     expect(r2.done?.error).toMatch(/not available/);
   });
 
   it("рекурсия: вызов флоу из своей цепочки запрещён (ошибка в err), allowRecursive разрешает; глубина ограничена maxDepth", async () => {
-    // флоу сам себя: Source → Phone Out (await) ; Phone In → тот же Phone Out
+    // флоу сам себя: Source → Outgoing Call (await) ; Incoming Call → тот же Outgoing Call
     const self: Flow = {
       ...flow(
         [node("s", "source", { json: { n: 1 } }), node("in", "call_trigger", { channelId: "loop" }), node("p", "run_flow", { channelId: "loop" }), node("r", "result"), node("er", "result")],
@@ -133,8 +133,8 @@ describe("await: с подтверждением", () => {
 });
 
 describe("await: два графа одного флоу", () => {
-  it("вызов отдельного phone-incoming ТОГО ЖЕ флоу (не связанного с вызывающим графом) — не рекурсия", async () => {
-    // граф 1: Manual → Phone Out(norm0) → Result; граф 2 (не соединён): Phone In(norm0) → Code → Result
+  it("вызов отдельного incoming call ТОГО ЖЕ флоу (не связанного с вызывающим графом) — не рекурсия", async () => {
+    // граф 1: Manual → Outgoing Call(norm0) → Result; граф 2 (не соединён): Incoming Call(norm0) → Code → Result
     const one: Flow = {
       ...flow(
         [node("m0", "manual"), node("p", "run_flow", { channelId: "norm0", data: { v: 5 } }), node("r", "result"), node("in", "call_trigger", { channelId: "norm0" }), code("m", "return { out0: { doubled: inputs.in0.v * 2 } }"), node("r2", "result")],
@@ -147,8 +147,8 @@ describe("await: два графа одного флоу", () => {
     expect(r.done?.result).toEqual({ doubled: 10 });
   });
 
-  it("а если из вызванного графа тот же канал вызывается снова — это уже рекурсия (повторный вход в тот же phone-incoming)", async () => {
-    // Manual и Phone In сходятся (Merge any) в один и тот же Phone Out(norm0): вызванный граф зовёт тот же канал снова
+  it("а если из вызванного графа тот же канал вызывается снова — это уже рекурсия (повторный вход в тот же incoming call)", async () => {
+    // Manual и Incoming Call сходятся (Merge any) в один и тот же Outgoing Call(norm0): вызванный граф зовёт тот же канал снова
     const one: Flow = {
       ...flow(
         [node("m0", "manual"), node("in", "call_trigger", { channelId: "norm0" }), node("mg", "merge", { mode: "array", wait: "any" }), node("p", "run_flow", { channelId: "norm0" }), node("r", "result")],
@@ -215,7 +215,7 @@ describe("shoot: выстрелил и забыл", () => {
     };
     const r = await run(caller2, []);
     expect(r.done?.result).toEqual({ ok: true });
-    expect(ev(r.events, "node:error")[0]).toMatchObject({ nodeId: "p", error: expect.stringMatching(/No phone-incoming/) });
+    expect(ev(r.events, "node:error")[0]).toMatchObject({ nodeId: "p", error: expect.stringMatching(/No incoming call/) });
   });
 });
 
@@ -226,15 +226,15 @@ describe("Scheduler.resolveCall: рабочие запуски находят т
     return s;
   };
 
-  it("находит phone-incoming опубликованного флоу и отдаёт его определение; черновик не виден", async () => {
+  it("находит incoming call опубликованного флоу и отдаёт его определение; черновик не виден", async () => {
     const s = scheduler(callee("pubd", "ch"));
     expect((await s.resolveCall("ch")).flow.id).toBe("pubd");
-    await expect(scheduler().resolveCall("ch")).rejects.toThrow(/No phone-incoming/);
+    await expect(scheduler().resolveCall("ch")).rejects.toThrow(/No incoming call/);
     s.stop();
   });
 });
 
-describe("phone-пара в настоящем процессе-раннере (IPC)", () => {
+describe("пара вызовов в настоящем процессе-раннере (IPC)", () => {
   const exec = async (f: Flow, flows: Flow[]) => {
     const events: RunnerEvent[] = [];
     await runFlowInProcess(f, (e) => events.push(e), { timeoutMs: 20000, onResolveCall: async (ch) => findIncoming(flows, ch) });
@@ -249,7 +249,7 @@ describe("phone-пара в настоящем процессе-раннере (
 
   it("отказ хозяина (нет канала) — ошибка ноды с его текстом; без onResolveCall — понятная ошибка", async () => {
     const r = await exec(caller({ channelId: "zzz" }), []);
-    expect(r.done?.error).toMatch(/No phone-incoming with channel "zzz"/);
+    expect(r.done?.error).toMatch(/No incoming call with channel "zzz"/);
     const events: RunnerEvent[] = [];
     await runFlowInProcess(caller({ channelId: "zzz" }), (e) => events.push(e), { timeoutMs: 20000 });
     expect((events.at(-1) as { error?: string }).error).toMatch(/not available/);

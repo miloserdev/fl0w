@@ -40,7 +40,7 @@ export function startNodes(flow: Flow, registry: Registry, trigger?: string): st
   return triggers.filter((id) => {
     const n = flow.nodes.find((x) => x.id === id)!;
     const cls = registry[n.type];
-    if (cls?.callOnly) return false; // phone-incoming поднимается только вызовом — даже закреплённые данные его не запускают
+    if (cls?.callOnly) return false; // incoming call поднимается только вызовом — даже закреплённые данные его не запускают
     return !cls?.eventDriven || !!n.pinData;
   });
 }

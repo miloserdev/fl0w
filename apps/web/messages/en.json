@@ -96,8 +96,8 @@
     "memory_bank": "Memory Bank",
     "note": "Sticky Note",
     "group": "Group",
-    "call_trigger": "Phone Incoming",
-    "run_flow": "Phone Outgoing",
+    "call_trigger": "Incoming Call",
+    "run_flow": "Outgoing Call",
     "counter": "Counter",
     "log": "Log"
   },
@@ -162,10 +162,10 @@
     "pinSave": "Save",
     "pinHint": "Format: an object of port: value, for example out0 with your data. Applies to manual runs only; scheduled runs of a published flow use real data. An event trigger with pinned data starts in a manual run.",
     "channelPlaceholder": "channel id, e.g. orders-sync",
-    "channelHint": "An outgoing and an incoming phone on the same channel form a pair (1:1). The pair can be created later, but the incoming one must be saved (for Run) or published (for production runs) when the call happens",
-    "channelTakenIn": "This channel already has an incoming phone in flow “{flow}” — a channel connects exactly one pair",
-    "channelTakenOut": "This channel already has an outgoing phone in flow “{flow}” — a channel connects exactly one pair",
-    "channelNoPeer": "No incoming phone on this channel yet — create it in another flow"
+    "channelHint": "An outgoing and an incoming call on the same channel form a pair (1:1). The pair can be created later, but the incoming one must be saved (for Run) or published (for production runs) when the call happens",
+    "channelTakenIn": "This channel already has an incoming call in flow “{flow}” — a channel connects exactly one pair",
+    "channelTakenOut": "This channel already has an outgoing call in flow “{flow}” — a channel connects exactly one pair",
+    "channelNoPeer": "No incoming call on this channel yet — create it in another flow"
   },
   "params": {
     "source": {
@@ -718,7 +718,7 @@
     "param_enum": "Block “{node}”: invalid value for parameter “{param}”",
     "param_range": "Block “{node}”: parameter “{param}” is out of range",
     "port_kind": "Ports of different kinds cannot be connected (data, tool, memory)",
-    "phone_channel": "A phone channel connects exactly one pair — this channel has more than one phone on the same side"
+    "call_channel": "A call channel connects exactly one pair — this channel has more than one call on the same side"
   },
   "addBlock": {
     "title": "Add block",
