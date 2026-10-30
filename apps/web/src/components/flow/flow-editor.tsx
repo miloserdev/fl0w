@@ -5,6 +5,7 @@ import "@xyflow/react/dist/style.css";
 import {
   addEdge,
   Background,
+  ControlButton,
   Controls,
   MiniMap,
   ReactFlow,
@@ -18,7 +19,7 @@ import {
 import { registry } from "@fl0w/blocks";
 import { validateFlow } from "@fl0w/engine";
 import { flowSchema } from "@fl0w/schema";
-import { X } from "lucide-react";
+import { Grid3x3, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import {
@@ -61,6 +62,10 @@ const nodeTypes = { block: BlockNode };
 
 const noopSubscribe = () => () => {};
 
+/** Шаг сетки привязки (совпадает с шагом фона). */
+const GRID = 20;
+/** Ключ настройки «привязка к сетке» в localStorage. */
+const SNAP_KEY = "fl0w:snap-to-grid";
 /** Ключ автосохранения в localStorage (формат — тот же JSON-флоу, что и в файле). */
 const STORAGE_KEY = "fl0w:flow:v1";
 const AUTOSAVE_DELAY_MS = 400;
@@ -91,6 +96,25 @@ function Editor() {
   const [nodes, setNodes, onNodesChange] = useNodesState<BlockNodeType>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [meta, setMeta] = useState<FlowMeta>(() => ({ id: newFlowId(), name: "flow" }));
+  // привязка к сетке при перетаскивании; настройка запоминается в браузере (читается после гидратации)
+  const [snap, setSnap] = useState(false);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(SNAP_KEY) === "1") setSnap(true);
+    } catch {
+      // localStorage недоступен — работаем без запоминания
+    }
+  }, []);
+  const toggleSnap = () => {
+    setSnap((v) => {
+      try {
+        localStorage.setItem(SNAP_KEY, v ? "0" : "1");
+      } catch {
+        // не критично
+      }
+      return !v;
+    });
+  };
   const [error, setError] = useState<{ title: string; items: string[] } | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [restored, setRestored] = useState(false);
@@ -305,6 +329,8 @@ function Editor() {
             onConnect={onConnect}
             isValidConnection={isValidConnection}
             colorMode={hydrated && resolvedTheme === "dark" ? "dark" : "light"}
+            snapToGrid={snap}
+            snapGrid={[GRID, GRID]}
             deleteKeyCode={["Backspace", "Delete"]}
             // Space по умолчанию — «панорамирование»: React Flow глушит его и в Monaco (его ввод идёт через
             // native-edit-context, который React Flow не считает полем ввода). Панорамируем перетаскиванием.
@@ -313,8 +339,18 @@ function Editor() {
             maxZoom={2}
             fitView
           >
-            <Background gap={20} />
-            <Controls position="bottom-center" orientation="horizontal" showInteractive={false} />
+            <Background gap={GRID} />
+            <Controls position="bottom-center" orientation="horizontal" showInteractive={false}>
+              <ControlButton
+                onClick={toggleSnap}
+                aria-pressed={snap}
+                aria-label={t("canvas.snapToGrid")}
+                title={t("canvas.snapToGrid")}
+                className={snap ? "bg-accent" : undefined}
+              >
+                <Grid3x3 />
+              </ControlButton>
+            </Controls>
             <MiniMap pannable zoomable position="bottom-right" />
           </ReactFlow>
         </RunStatusProvider>

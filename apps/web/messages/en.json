@@ -38,7 +38,8 @@
     "en": "English"
   },
   "canvas": {
-    "empty": "The canvas is empty. Press “Add” to place your first block"
+    "empty": "The canvas is empty. Press “Add” to place your first block",
+    "snapToGrid": "Snap to grid"
   },
   "categories": {
     "io": "Input / output",
