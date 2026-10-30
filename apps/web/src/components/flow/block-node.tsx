@@ -123,7 +123,7 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNodeType>) {
         // как у триггеров в n8n: кнопка запуска слева от ноды — стартует именно этот триггер, остальные молчат.
         // Пока идёт пробный запуск, вместо неё — пауза/продолжение и остановка.
         <div className="nodrag nopan absolute top-1/2 right-full mr-2 flex -translate-y-1/2 gap-1">
-          {triggerRun.running ? (
+          {triggerRun.running && (triggerRun.startedBy === null || triggerRun.startedBy === id) ? (
             <>
               <Button
                 type="button"

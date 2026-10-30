@@ -356,6 +356,8 @@ function Editor() {
     [setEdges, getNodes],
   );
 
+  // какой триггер запустили кнопкой на ноде (null — запуск всего флоу): пауза и стоп показываются только на нём
+  const [startedBy, setStartedBy] = useState<string | null>(null);
   const onRun = (from?: string, trigger?: string) => {
     const checked = validateFlow(fromReactFlow(nodes, edges, meta), registry);
     if (!checked.ok) {
@@ -363,6 +365,7 @@ function Editor() {
       return;
     }
     setError(null);
+    setStartedBy(trigger ?? null);
     // перезапуск с ноды: предшественники берут выходы из последнего запуска
     void run(checked.flow, { ...(from ? { from: { nodeId: from, seeds: collectSeeds(runState.nodeDetails) } } : {}), ...(trigger ? { trigger } : {}) });
   };
@@ -372,6 +375,7 @@ function Editor() {
     run: (nodeId) => onRun(undefined, nodeId),
     disabled: runState.status === "running" || watching,
     running: runState.status === "running" && !watching,
+    startedBy,
     paused: runState.paused === true,
     pause,
     resume,

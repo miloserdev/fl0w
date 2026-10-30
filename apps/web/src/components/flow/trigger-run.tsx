@@ -8,6 +8,8 @@ export type TriggerRunApi = {
   disabled: boolean;
   /** Идёт пробный запуск (кнопка запуска заменяется паузой и остановкой). */
   running: boolean;
+  /** Триггер, запущенный кнопкой на ноде; null — запущен весь флоу (управление на всех Manual). */
+  startedBy: string | null;
   paused: boolean;
   pause: () => void;
   resume: () => void;
@@ -15,7 +17,7 @@ export type TriggerRunApi = {
 };
 
 const noop = () => {};
-const TriggerRunContext = createContext<TriggerRunApi>({ run: noop, disabled: true, running: false, paused: false, pause: noop, resume: noop, stop: noop });
+const TriggerRunContext = createContext<TriggerRunApi>({ run: noop, disabled: true, running: false, startedBy: null, paused: false, pause: noop, resume: noop, stop: noop });
 
 export const TriggerRunProvider = TriggerRunContext.Provider;
 
