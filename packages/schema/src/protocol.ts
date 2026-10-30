@@ -44,6 +44,21 @@ export const runnerEventSchema = z.discriminatedUnion("event", [
 export type RunnerEvent = z.infer<typeof runnerEventSchema>;
 
 /**
+ * runner → web: просьба запустить триггер другого флоу (блок «Run Flow»). Это не событие запуска: хозяин проверяет
+ * цель и защиту от рекурсии и отвечает `FireReply`. Запуск fire-and-forget — ответ приходит, как только цель принята.
+ */
+export const fireRequestSchema = z.object({
+  event: z.literal("fire"),
+  id: z.string(),
+  flowId: z.string(),
+  triggerId: z.string(),
+  data: jsonSchema,
+});
+export type FireRequest = z.infer<typeof fireRequestSchema>;
+/** web → runner: ответ на `fire`; `error` — причина отказа (цель не опубликована, рекурсия, занято…). */
+export type FireReply = { cmd: "fire:result"; id: string; error?: string };
+
+/**
  * Живая лента запусков опубликованного флоу (Watch): сервер → UI.
  * `runId` связывает события одного запуска; триггер `null` — запуск без триггера.
  */

@@ -5,7 +5,7 @@
 import { fork, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { runnerEventSchema, type Flow, type Json, type RunnerCommand, type RunnerEvent } from "@fl0w/schema";
+import { fireRequestSchema, runnerEventSchema, type FireReply, type Flow, type Json, type RunnerCommand, type RunnerEvent } from "@fl0w/schema";
 import type { SchedulerRun } from "./scheduler";
 
 export type ProcessRunOptions = {
@@ -27,6 +27,8 @@ export type ProcessRunOptions = {
   /** Перезапуск с ноды и данные прошлого запуска для её предшественников (см. RunOptions.from). */
   from?: string;
   seeds?: Record<string, Record<string, Json>>;
+  /** Запуск триггера другого флоу по просьбе блока Run Flow; отказ — исключение (его текст увидит блок). Без него блок падает с понятной ошибкой. */
+  onFire?: (req: { flowId: string; triggerId: string; data: Json }) => Promise<void>;
   /** Отмена: убивает процесс и завершает запуск событием `flow:done` с ошибкой. */
   signal?: AbortSignal;
   /** stderr процесса (лог блоков, падения). */
@@ -112,6 +114,20 @@ export function runFlowInProcess(
 
     proc.on("message", (raw) => {
       if (finished) return;
+      const fireReq = fireRequestSchema.safeParse(raw);
+      if (fireReq.success) {
+        const { id, flowId, triggerId, data } = fireReq.data;
+        const reply = (error?: string) => {
+          if (!finished && proc.connected) proc.send({ cmd: "fire:result", id, ...(error !== undefined ? { error } : {}) } satisfies FireReply);
+        };
+        if (!opts.onFire) reply("Calling other flows is not available here");
+        else {
+          void Promise.resolve()
+            .then(() => opts.onFire!({ flowId, triggerId, data }))
+            .then(() => reply(), (e: unknown) => reply(e instanceof Error ? e.message : String(e)));
+        }
+        return;
+      }
       const parsed = runnerEventSchema.safeParse(raw);
       if (!parsed.success) {
         child?.kill("SIGKILL");
@@ -146,5 +162,5 @@ export function runFlowInProcess(
  * Передаёт триггер И его данные целиком — планировщик и раннер не должны расходиться в наборе полей.
  */
 export function processSchedulerRun(base: Pick<ProcessRunOptions, "engineDir" | "timeoutMs" | "execArgv"> = {}): SchedulerRun {
-  return (flow, onEvent, { trigger, triggerData }) => runFlowInProcess(flow, onEvent, { ...base, trigger, triggerData });
+  return (flow, onEvent, { trigger, triggerData, onFire }) => runFlowInProcess(flow, onEvent, { ...base, trigger, triggerData, onFire });
 }

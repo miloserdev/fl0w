@@ -1,5 +1,6 @@
 "use client";
 
+import { isLayoutBlock } from "@/lib/layout";
 import { runnerEventSchema, type Flow, type Json, type RunnerEvent } from "@fl0w/schema";
 import { useCallback, useRef, useState } from "react";
 import type { NodeRunStatus } from "./run-status";
@@ -95,7 +96,7 @@ export function useRun() {
     controller.current?.abort();
     const ac = new AbortController();
     controller.current = ac;
-    const ids = flow.nodes.map((n) => n.id);
+    const ids = flow.nodes.filter((n) => !isLayoutBlock(n.type)).map((n) => n.id);
     setState((s) => ({ ...IDLE_RUN, status: "running", nodeDetails: s.nodeDetails }));
 
     const fail = (error: string) =>

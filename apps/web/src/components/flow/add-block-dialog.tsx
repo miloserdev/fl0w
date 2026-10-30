@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import { BlockIcon } from "./block-icon";
 import { useBlockLabel } from "./use-block-label";
 
-const CATEGORY_ORDER = ["trigger", "io", "data", "flow", "app", "tool", "memory"];
+const CATEGORY_ORDER = ["trigger", "io", "data", "flow", "app", "tool", "memory", "layout"];
 const categoryRank = (c: string) => {
   const i = CATEGORY_ORDER.indexOf(c);
   return i === -1 ? CATEGORY_ORDER.length : i;

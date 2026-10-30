@@ -19,7 +19,7 @@ export function closure(from: Iterable<string>, next: (id: string) => string[]):
 export function isDataSource(flow: Flow, registry: Registry, nodeId: string): boolean {
   const node = flow.nodes.find((n) => n.id === nodeId);
   const cls = node && registry[node.type];
-  return !!cls && !cls.resource && !cls.isTrigger && getNodePorts(cls, node.portsOverride).inputs.length === 0;
+  return !!cls && !cls.resource && !cls.layout && !cls.isTrigger && getNodePorts(cls, node.portsOverride).inputs.length === 0;
 }
 
 /**

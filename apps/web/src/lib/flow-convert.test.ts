@@ -81,3 +81,41 @@ describe("pin data и перезапуск", () => {
     for (const bad of ["[1]", "5", "null", "{oops", ""]) expect(parsePin(bad).ok, bad).toBe(false);
   });
 });
+
+describe("блоки оформления", () => {
+  const mk = (type: string, params: Record<string, number | string>) => ({
+    version: 1 as const,
+    id: "f",
+    name: "f",
+    nodes: [{ id: "n1", type, position: { x: 10, y: 20 }, params, portsOverride: null, cssOverride: null }],
+    edges: [],
+  });
+
+  it("размер из params попадает в ноду и возвращается обратно после растяжения", () => {
+    const rf = toReactFlow(mk("note", { text: "hi", color: "pink", width: 300, height: 100 }));
+    const node = rf.nodes[0]!;
+    expect(node.type).toBe("layout-note");
+    expect([node.width, node.height]).toEqual([300, 100]);
+    // пользователь растянул ноду
+    const back = fromReactFlow([{ ...node, width: 410.4, height: 222 }], [], { id: "f", name: "f" });
+    expect(back.nodes[0]!.params).toEqual({ text: "hi", color: "pink", width: 410, height: 222 });
+  });
+  it("группа получает отрицательный zIndex и свой тип; у блока размера в params не появляется", () => {
+    expect(toReactFlow(mk("group", { title: "A" })).nodes[0]).toMatchObject({ type: "layout-group", zIndex: -1, width: 420, height: 260 });
+    const block = toReactFlow(mk("noop", {})).nodes[0]!;
+    expect(block.type).toBe("block");
+    expect(fromReactFlow([block], [], { id: "f", name: "f" }).nodes[0]!.params).toEqual({});
+  });
+});
+
+describe("отпечаток флоу и оформление", () => {
+  it("правка заметки или группы не меняет отпечаток, правка блока — меняет", () => {
+    const base = { version: 1 as const, id: "f", name: "n", edges: [] };
+    const block = { id: "a", type: "source", position: { x: 0, y: 0 }, params: {}, portsOverride: null, cssOverride: null };
+    const note = { id: "n1", type: "note", position: { x: 0, y: 0 }, params: { text: "a", width: 220, height: 140 }, portsOverride: null, cssOverride: null };
+    const one = flowFingerprint({ ...base, nodes: [block, note] });
+    expect(flowFingerprint({ ...base, nodes: [block, { ...note, params: { text: "b", width: 300, height: 200 } }] })).toBe(one);
+    expect(flowFingerprint({ ...base, nodes: [block] })).toBe(one);
+    expect(flowFingerprint({ ...base, nodes: [{ ...block, params: { json: 1 } }, note] })).not.toBe(one);
+  });
+});

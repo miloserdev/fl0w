@@ -138,3 +138,7 @@
 .react-flow__handle.fl-diamond.valid {
   box-shadow: 0 0 0 4px oklch(0.72 0.17 150 / 0.55);
 }
+/* Группа: тело не ловит мышь (клики идут к блокам внутри и к холсту), но рамка изменения размера и заголовок — ловят. */
+.react-flow__node-layout-group .react-flow__resize-control {
+  pointer-events: auto;
+}

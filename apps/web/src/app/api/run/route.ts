@@ -3,7 +3,7 @@ import { formatIssues, validateFlow } from "@fl0w/engine";
 import { runFlowInProcess } from "@fl0w/engine/process";
 import type { Json, RunnerEvent } from "@fl0w/schema";
 import { engineDir } from "@/server/engine-dir";
-import { RUN_TIMEOUT_MS } from "@/server/runtime";
+import { getRuntime, RUN_TIMEOUT_MS } from "@/server/runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,6 +49,8 @@ export async function POST(req: Request) {
         engineDir: engineDir(),
         signal: abort.signal,
         timeoutMs: RUN_TIMEOUT_MS,
+        // блок Run Flow в ручном запуске вызывает настоящие опубликованные флоу; цепочка начинается с этого флоу
+        onFire: (req) => getRuntime().scheduler.fireFrom([checked.flow.id], req),
         from: from as string | undefined,
         seeds: seeds as Record<string, Record<string, Json>> | undefined,
         onStderr: (chunk) => process.stderr.write(chunk),

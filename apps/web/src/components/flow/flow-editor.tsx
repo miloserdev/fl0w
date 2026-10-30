@@ -42,6 +42,7 @@ import {
   nodePortKind,
   newFlowId,
   newNodeId,
+  nodeTypeFor,
   toReactFlow,
   type BlockNodeData,
   collectSeeds,
@@ -50,11 +51,13 @@ import {
   type FlowMeta,
 } from "@/lib/flow-convert";
 import { canConnect } from "@/lib/connection";
+import { isLayoutBlock, layoutNodeProps, layoutPalette, layoutSize, nodeBox, nodesInsideGroup } from "@/lib/layout";
 import { FLOATING } from "@/lib/floating";
 import { issueNodeIds, useIssueText } from "@/lib/issue-text";
 import { cn } from "@/lib/utils";
 import { AddBlockDialog } from "./add-block-dialog";
 import { BlockNode } from "./block-node";
+import { GroupNode, NoteNode } from "./layout-nodes";
 import { Inspector } from "./inspector";
 import { NodeIssuesProvider } from "./node-issues";
 import { RunPanel } from "./run-panel";
@@ -63,7 +66,7 @@ import { usePublish } from "./use-publish";
 import { useRun } from "./use-run";
 import { useWatch } from "./use-watch";
 
-const nodeTypes = { block: BlockNode };
+const nodeTypes = { block: BlockNode, "layout-note": NoteNode, "layout-group": GroupNode };
 
 const noopSubscribe = () => () => {};
 
@@ -76,6 +79,12 @@ const STORAGE_KEY = "fl0w:flow:v1";
 const AUTOSAVE_DELAY_MS = 400;
 /** Примерный размер ноды: чтобы новый блок встал центром, а не углом в центр экрана. */
 const NODE_HALF = { x: 90, y: 40 };
+
+/** Цвет ноды на миникарте: заметки и группы — своим цветом, остальные — стандартным. */
+function miniMapColor(n: { data: unknown }): string {
+  const d = n.data as BlockNodeData;
+  return isLayoutBlock(d.blockType) ? layoutPalette(d.params.color).mini : "";
+}
 
 function Editor() {
   const t = useTranslations();
@@ -169,16 +178,22 @@ function Editor() {
     const center = r
       ? screenToFlowPosition({ x: r.left + r.width / 2 + jitter, y: r.top + r.height / 2 + jitter })
       : { x: jitter, y: jitter };
+    const params = defaultParams(blockType);
+    // блоки оформления центрируются по своему размеру, обычные — по примерному
+    const half = isLayoutBlock(blockType)
+      ? { x: layoutSize(blockType, params).width / 2, y: layoutSize(blockType, params).height / 2 }
+      : NODE_HALF;
     setNodes((ns) => [
       ...ns.map((n) => ({ ...n, selected: false })),
       {
         id: newNodeId(blockType),
-        type: "block",
-        position: { x: center.x - NODE_HALF.x, y: center.y - NODE_HALF.y },
+        type: nodeTypeFor(blockType),
+        position: { x: center.x - half.x, y: center.y - half.y },
         selected: true,
+        ...layoutNodeProps(blockType, params),
         data: {
           blockType,
-          params: defaultParams(blockType),
+          params,
           portsOverride: null,
           cssOverride: null,
         },
@@ -189,7 +204,16 @@ function Editor() {
 
   const updateNodeData = useCallback(
     (id: string, patch: Partial<BlockNodeData>) =>
-      setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n))),
+      setNodes((ns) =>
+        ns.map((n) => {
+          if (n.id !== id) return n;
+          const next = { ...n, data: { ...n.data, ...patch } };
+          // размер блока оформления из окна параметров → в саму ноду (хранится в params, рисуется по node.width/height)
+          return patch.params && isLayoutBlock(n.data.blockType)
+            ? { ...next, ...layoutSize(n.data.blockType, patch.params) }
+            : next;
+        }),
+      ),
     [setNodes],
   );
 
@@ -251,6 +275,42 @@ function Editor() {
     setNodes((ns) => ns.map((n) => ({ ...n, selected: n.id === id })));
     if (id) void fitView({ nodes: [{ id }], duration: 300, maxZoom: 1 });
   };
+
+  // Перенос группы: блоки, чьи центры лежали в рамке на момент начала, сдвигаются на ту же дельту.
+  // То, что React Flow тащит сам (выделенное вместе с группой), — их не трогаем, иначе сдвиг удвоится.
+  const groupDrag = useRef<{ id: string; origin: { x: number; y: number }; children: Map<string, { x: number; y: number }> } | null>(null);
+  const onNodeDragStart = useCallback(
+    (_: unknown, node: BlockNodeType, dragged: BlockNodeType[]) => {
+      groupDrag.current = null;
+      if (node.data.blockType !== "group") return;
+      const all = getNodes() as BlockNodeType[];
+      const ids = new Set(nodesInsideGroup(nodeBox(node), all.map(nodeBox)));
+      const children = new Map<string, { x: number; y: number }>();
+      // dragged — то, что React Flow тащит сам (группа и выделенное вместе с ней)
+      const own = new Set(dragged.map((d) => d.id));
+      for (const n of all) if (ids.has(n.id) && !own.has(n.id)) children.set(n.id, { ...n.position });
+      groupDrag.current = { id: node.id, origin: { ...node.position }, children };
+    },
+    [getNodes],
+  );
+  const onNodeDrag = useCallback(
+    (_: unknown, node: BlockNodeType) => {
+      const g = groupDrag.current;
+      if (!g || g.id !== node.id || g.children.size === 0) return;
+      const dx = node.position.x - g.origin.x;
+      const dy = node.position.y - g.origin.y;
+      setNodes((ns) =>
+        ns.map((n) => {
+          const start = g.children.get(n.id);
+          return start ? { ...n, position: { x: start.x + dx, y: start.y + dy } } : n;
+        }),
+      );
+    },
+    [setNodes],
+  );
+  const onNodeDragStop = useCallback(() => {
+    groupDrag.current = null;
+  }, []);
 
   const selectedNodes = nodes.filter((n) => n.selected);
   const selectedNode = selectedNodes.length === 1 ? selectedNodes[0]! : null;
@@ -322,6 +382,11 @@ function Editor() {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onNodeDragStart={onNodeDragStart}
+            onNodeDrag={onNodeDrag}
+            onNodeDragStop={onNodeDragStop}
+            // выделенная группа не должна всплывать над блоками (у неё zIndex ниже нуля)
+            elevateNodesOnSelect={false}
             isValidConnection={isValidConnection}
             colorMode={hydrated && resolvedTheme === "dark" ? "dark" : "light"}
             // выделение рамкой левой кнопкой по пустому месту (частично попавшие ноды тоже), группа переносится целиком;
@@ -352,7 +417,7 @@ function Editor() {
                 <Grid3x3 />
               </ControlButton>
             </Controls>
-            <MiniMap pannable zoomable position="bottom-right" />
+            <MiniMap pannable zoomable position="bottom-right" nodeColor={miniMapColor} />
           </ReactFlow>
         </RunStatusProvider>
       </NodeIssuesProvider>

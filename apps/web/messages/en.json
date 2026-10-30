@@ -48,7 +48,8 @@
     "trigger": "Triggers",
     "app": "Apps",
     "tool": "Tools",
-    "memory": "Memory"
+    "memory": "Memory",
+    "layout": "Layout"
   },
   "blocks": {
     "source": "Source",
@@ -92,7 +93,11 @@
     "tool_calculator": "Tool: calculator",
     "tool_random": "Tool: random values",
     "tool_code": "Tool: custom code",
-    "memory_bank": "Memory Bank"
+    "memory_bank": "Memory Bank",
+    "note": "Sticky Note",
+    "group": "Group",
+    "call_trigger": "Called by Flow",
+    "run_flow": "Run Flow"
   },
   "node": {
     "unknown": "Unknown block: {type}",
@@ -102,7 +107,11 @@
       "error": "error",
       "skipped": "skipped"
     },
-    "pinned": "Output pinned"
+    "pinned": "Output pinned",
+    "noteText": "Note text",
+    "notePlaceholder": "Double-click to type",
+    "groupTitle": "Group title",
+    "groupPlaceholder": "Group (double-click to name)"
   },
   "errors": {
     "invalidFlow": "The flow has errors and cannot run:",
@@ -148,7 +157,13 @@
     "pinManual": "Set data manually…",
     "pinManualTitle": "Manual data (pin)",
     "pinSave": "Save",
-    "pinHint": "Format: an object of port: value, for example out0 with your data. Applies to manual runs only; scheduled runs of a published flow use real data. An event trigger with pinned data starts in a manual run."
+    "pinHint": "Format: an object of port: value, for example out0 with your data. Applies to manual runs only; scheduled runs of a published flow use real data. An event trigger with pinned data starts in a manual run.",
+    "flowDraft": "not published",
+    "noFlows": "No flows saved on the server — type the id manually",
+    "noTriggers": "The flow has no triggers — type the id manually",
+    "pickFlowFirst": "Pick a flow first",
+    "pickFlow": "Pick a flow",
+    "pickTrigger": "Pick a trigger"
   },
   "params": {
     "source": {
@@ -394,6 +409,23 @@
     "memory_bank": {
       "driver": "Storage driver",
       "name": "Bank name"
+    },
+    "note": {
+      "text": "Text",
+      "color": "Color",
+      "width": "Width, px",
+      "height": "Height, px"
+    },
+    "group": {
+      "title": "Title",
+      "color": "Color",
+      "width": "Width, px",
+      "height": "Height, px"
+    },
+    "run_flow": {
+      "flowId": "Flow (published)",
+      "triggerId": "Trigger",
+      "data": "Data (empty — whole input)"
     }
   },
   "run": {
@@ -631,6 +663,14 @@
     },
     "driver": {
       "json": "json — file on disk"
+    },
+    "color": {
+      "yellow": "Yellow",
+      "blue": "Blue",
+      "green": "Green",
+      "pink": "Pink",
+      "purple": "Purple",
+      "gray": "Gray"
     }
   },
   "issues": {

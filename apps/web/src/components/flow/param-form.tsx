@@ -1,6 +1,6 @@
 "use client";
 
-import { isParamVisible, resolveParams } from "@fl0w/blocks";
+import { isParamVisible, registry, resolveParams } from "@fl0w/blocks";
 import type { Json, ParamSchema } from "@fl0w/schema";
 import { useTranslations } from "next-intl";
 import { Braces } from "lucide-react";
@@ -16,8 +16,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { layoutPalette } from "@/lib/layout";
+import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { ExpressionField } from "./expression-field";
+import { FlowPicker } from "./flow-picker";
 import { hasTemplate, insertTemplate } from "./expression-segments";
 
 type Props = {
@@ -95,6 +98,8 @@ export function ParamForm({ blockType, schema, values, onChange }: Props) {
   const jsonInsert = useRef<Record<string, () => void>>({});
 
   // параметры с editor: "code" правятся во вкладке кода, а не в форме
+  // блоки оформления (заметки, группы) не вычисляют выражений
+  const plainOnly = registry[blockType]?.layout === true;
   const resolved = resolveParams(schema, values);
   const fields = schema.filter((p) => p.editor !== "code" && isParamVisible(p, resolved));
 
@@ -117,7 +122,7 @@ export function ParamForm({ blockType, schema, values, onChange }: Props) {
         const label = t.has(key) ? t(key) : (p.label ?? p.name);
         const value = values[p.name] ?? p.default;
         const missing = p.required && isEmpty(value);
-        const toggleable = TOGGLEABLE.includes(p.type) && p.expressions !== false;
+        const toggleable = TOGGLEABLE.includes(p.type) && p.expressions !== false && !plainOnly;
         const expr = toggleable && (exprMode[p.name] ?? hasTemplate(value));
         const highlighted =
           p.expressions !== false && (expr || hasTemplate(value) || (p.type === "json" && hasTemplate(JSON.stringify(value))));
@@ -197,7 +202,18 @@ export function ParamForm({ blockType, schema, values, onChange }: Props) {
               />
             )}
 
-            {p.type === "string" && (
+            {p.type === "string" && p.picker && (
+              <FlowPicker
+                id={id}
+                kind={p.picker}
+                value={typeof value === "string" ? value : ""}
+                flowId={String(values["flowId"] ?? "")}
+                invalid={missing}
+                onChange={(v) => set(p.name, v)}
+              />
+            )}
+
+            {p.type === "string" && !p.picker && (
               <ExpressionField
                 id={id}
                 multiline={p.multiline}
@@ -230,7 +246,28 @@ export function ParamForm({ blockType, schema, values, onChange }: Props) {
               />
             )}
 
-            {p.type === "enum" && !expr && (
+            {p.type === "enum" && !expr && plainOnly && p.name === "color" && (
+              <div id={id} role="radiogroup" aria-label={label} className="flex flex-wrap gap-2">
+                {p.options.map((o) => (
+                  <button
+                    key={o.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={value === o.value}
+                    aria-label={optionLabel(o)}
+                    title={optionLabel(o)}
+                    onClick={() => set(p.name, o.value)}
+                    className={cn(
+                      "focus-visible:ring-ring size-7 rounded-full border-2 border-transparent outline-none focus-visible:ring-2",
+                      layoutPalette(o.value).swatch,
+                      value === o.value && "ring-foreground ring-offset-background ring-2 ring-offset-2",
+                    )}
+                  />
+                ))}
+              </div>
+            )}
+
+            {p.type === "enum" && !expr && !(plainOnly && p.name === "color") && (
               <Select
                 value={typeof value === "string" ? value : ""}
                 onValueChange={(v) => set(p.name, v)}
@@ -277,7 +314,7 @@ export function ParamForm({ blockType, schema, values, onChange }: Props) {
           </div>
         );
       })}
-      <p className="text-muted-foreground text-xs">{t("inspector.expressionsHint")}</p>
+      {!plainOnly && <p className="text-muted-foreground text-xs">{t("inspector.expressionsHint")}</p>}
     </div>
   );
 }

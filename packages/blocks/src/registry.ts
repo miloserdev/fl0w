@@ -34,6 +34,8 @@ import { Merge } from "./merge";
 import { ResultBlock } from "./result";
 import { Source } from "./source";
 import { Transform } from "./transform";
+import { GroupFrame, StickyNote } from "./layout";
+import { CallTrigger, RunFlow } from "./flow-call";
 import { CodeAgent } from "./code-agent";
 import { MemoryBank } from "./memory";
 import { CalculatorTool, CodeTool, DateTimeTool, RandomTool } from "./tools";
@@ -50,6 +52,7 @@ export const registry: Record<string, BlockClass> = {
   error_trigger: ErrorTrigger,
   workflow_trigger: WorkflowTrigger,
   activation_trigger: ActivationTrigger,
+  call_trigger: CallTrigger,
   // ввод / вывод
   source: Source,
   http_request: HttpRequest,
@@ -75,6 +78,9 @@ export const registry: Record<string, BlockClass> = {
   jwt: Jwt,
   code: CodeBlock,
   code_agent: CodeAgent,
+  // оформление: заметки и группы (не участвуют в запуске)
+  note: StickyNote,
+  group: GroupFrame,
   // ресурсы: подключаются к ресурсным портам нод (инструменты, память)
   tool_datetime: DateTimeTool,
   tool_calculator: CalculatorTool,
@@ -88,5 +94,6 @@ export const registry: Record<string, BlockClass> = {
   compare_datasets: CompareDatasets,
   wait: Wait,
   stop_and_error: StopAndError,
+  run_flow: RunFlow,
   noop: NoOp,
 };

@@ -1,5 +1,6 @@
 import type { Edge, Node } from "@xyflow/react";
 import { getNodePorts, isDataPort, portKind, registry } from "@fl0w/blocks";
+import { isLayoutBlock, layoutNodeProps, layoutSize } from "./layout";
 import type { Flow, FlowNode, Json, PortDef, PortKind, PortsDef } from "@fl0w/schema";
 
 export type BlockNodeData = {
@@ -10,7 +11,8 @@ export type BlockNodeData = {
   /** Закреплённый выход ноды (pin data): в ручном запуске нода отдаёт его, не исполняясь. */
   pinData?: Record<string, Json> | null;
 };
-export type BlockNodeType = Node<BlockNodeData, "block">;
+/** Нода холста: обычный блок (`block`) или блок оформления (*/
+export type BlockNodeType = Node<BlockNodeData, "block" | "layout-note" | "layout-group">;
 
 export type FlowMeta = Pick<Flow, "id" | "name">;
 
@@ -73,12 +75,30 @@ export function newFlowId(): string {
   return `flow_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/** Тип ноды React Flow: у блоков оформления собственный отрисовщик, у остальных — `block`. */
+export function nodeTypeFor(blockType: string): "block" | "layout-note" | "layout-group" {
+  // имя `group` занято встроенным стилем React Flow (рамка, фон) — поэтому префикс
+  if (!isLayoutBlock(blockType)) return "block";
+  return blockType === "group" ? "layout-group" : "layout-note";
+}
+
+/** Параметры блока оформления с актуальным размером ноды (тянут за уголок — размер живёт в node.width/height). */
+function paramsOf(n: BlockNodeType): Record<string, Json> {
+  if (!isLayoutBlock(n.data.blockType)) return n.data.params;
+  const size = layoutSize(n.data.blockType, {
+    width: n.width ?? n.data.params.width,
+    height: n.height ?? n.data.params.height,
+  });
+  return { ...n.data.params, ...size };
+}
+
 export function toReactFlow(flow: Flow): { nodes: BlockNodeType[]; edges: Edge[] } {
   return {
     nodes: flow.nodes.map((n) => ({
       id: n.id,
-      type: "block",
+      type: nodeTypeFor(n.type),
       position: n.position,
+      ...layoutNodeProps(n.type, n.params),
       data: {
         blockType: n.type,
         params: n.params,
@@ -112,7 +132,7 @@ export function fromReactFlow(
         id: n.id,
         type: n.data.blockType,
         position: { x: n.position.x, y: n.position.y },
-        params: n.data.params,
+        params: paramsOf(n),
         portsOverride: n.data.portsOverride,
         cssOverride: n.data.cssOverride,
         ...(n.data.pinData ? { pinData: n.data.pinData } : {}),
@@ -152,7 +172,9 @@ function stableStringify(value: unknown): string {
  */
 export function flowFingerprint(flow: Flow): string {
   return stableStringify({
+    // заметки и группы — оформление: их правка не делает опубликованный флоу «изменённым»
     nodes: flow.nodes
+      .filter((n) => !registry[n.type]?.layout)
       .map((n) => ({ id: n.id, type: n.type, params: n.params, portsOverride: n.portsOverride, cssOverride: n.cssOverride }))
       .sort((a, b) => a.id.localeCompare(b.id)),
     edges: [...flow.edges].sort((a, b) => a.id.localeCompare(b.id)),

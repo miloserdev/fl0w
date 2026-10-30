@@ -45,6 +45,8 @@ export function Inspector({
   const cls = registry[node.data.blockType];
   if (!cls) return null;
   const codeParam = cls.params.find((p) => p.editor === "code");
+  // заметки и группы: только параметры — ни запусков, ни кода, ни стилей блока
+  const layout = cls.layout;
 
   return (
     // `nokey` — штатный способ React Flow: внутри этого окна он не обрабатывает клавиши (Backspace/Delete удаляли бы
@@ -62,6 +64,16 @@ export function Inspector({
         </Button>
       </div>
       {/* key: при смене блока вкладка сбрасывается (у другого блока может не быть вкладки «Код») */}
+      {layout ? (
+        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+          <ParamForm
+            blockType={node.data.blockType}
+            schema={cls.params}
+            values={node.data.params}
+            onChange={(params) => onChange(node.id, { params })}
+          />
+        </div>
+      ) : (
       <Tabs key={node.id} defaultValue="params" className="min-h-0 flex-1 gap-0">
         <TabsList className="m-3 mb-0 self-start">
           <TabsTrigger value="params">{t("tabParams")}</TabsTrigger>
@@ -165,6 +177,7 @@ export function Inspector({
           </div>
         </TabsContent>
       </Tabs>
+      )}
     </aside>
   );
 }

@@ -5,10 +5,13 @@ import type { FlowStore } from "./store";
 import { participatingNodes } from "./participants";
 import { validateFlow, type Registry } from "./validate";
 
+/** Сколько флоу может быть в цепочке вызовов (A вызвал B вызвал C …). */
+const MAX_CALL_DEPTH = 5;
+
 export type SchedulerRun = (
   flow: Flow,
   onEvent: (e: RunnerEvent) => void,
-  opts: { trigger: string; triggerData?: Json },
+  opts: { trigger: string; triggerData?: Json; onFire?: (req: { flowId: string; triggerId: string; data: Json }) => Promise<void> },
 ) => Promise<void>;
 
 /** Подписка на изменения файлов: возвращает функцию отписки. Реализация — `createFileWatcher` (file-watch.ts). */
@@ -247,7 +250,7 @@ export class Scheduler {
     nodeId: string,
     triggerData: Json,
     onEvent?: (e: RunnerEvent) => void,
-    opts?: { errorRun?: boolean },
+    opts?: { errorRun?: boolean; chain?: string[] },
   ): Promise<void> {
     const flow = this.flows.get(flowId);
     if (!flow) throw new Error(`Flow "${flowId}" is not published`);
@@ -256,6 +259,30 @@ export class Scheduler {
     return this.execute(flow, nodeId, triggerData, onEvent, opts).finally(() => {
       this.hookRuns--;
     });
+  }
+
+  /**
+   * Запуск триггера другого флоу по просьбе блока Run Flow (fire-and-forget). `chain` — флоу, уже участвующие в цепочке
+   * вызовов (последний — вызывающий). Бросает с понятной причиной: цель не опубликована, нет такого триггера, рекурсия,
+   * слишком длинная цепочка, цель занята.
+   */
+  fireFrom(chain: string[], req: { flowId: string; triggerId: string; data: Json }): Promise<void> {
+    const target = this.flows.get(req.flowId);
+    if (!target) return Promise.reject(new Error(`Flow "${req.flowId}" is not published`));
+    if (chain.includes(req.flowId)) {
+      return Promise.reject(new Error(`Recursive call: flow "${req.flowId}" is already in the call chain (${[...chain, req.flowId].join(" → ")})`));
+    }
+    if (chain.length >= MAX_CALL_DEPTH) return Promise.reject(new Error(`Call chain is too deep (more than ${MAX_CALL_DEPTH} flows)`));
+    const node = target.nodes.find((n) => n.id === req.triggerId);
+    if (!node || !this.deps.registry[node.type]?.isTrigger) {
+      return Promise.reject(new Error(`Flow "${req.flowId}" has no trigger "${req.triggerId}"`));
+    }
+    try {
+      void this.trigger(req.flowId, req.triggerId, req.data, undefined, { chain });
+    } catch (e) {
+      return Promise.reject(e instanceof SchedulerBusyError ? new Error(`Flow "${req.flowId}" is busy (too many concurrent runs)`) : e);
+    }
+    return Promise.resolve();
   }
 
   stop(): void {
@@ -355,7 +382,7 @@ export class Scheduler {
     nodeId: string,
     triggerData?: Json,
     extra?: (e: RunnerEvent) => void,
-    opts?: { errorRun?: boolean },
+    opts?: { errorRun?: boolean; chain?: string[] },
   ): Promise<void> {
     const { hub } = this.deps;
     const runId = hub.startRun(flow.id, nodeId, [...participatingNodes(flow, this.deps.registry, nodeId)]);
@@ -376,7 +403,9 @@ export class Scheduler {
       }
     };
     try {
-      await this.deps.run(flow, emit, { trigger: nodeId, triggerData });
+      // цепочка вызовов: флоу, из которых нас вызвали, плюс мы сами — по ней Run Flow отсекает рекурсию
+      const chain = [...(opts?.chain ?? []), flow.id];
+      await this.deps.run(flow, emit, { trigger: nodeId, triggerData, onFire: (req) => this.fireFrom(chain, req) });
     } catch (e) {
       // run не должен бросать, но если бросил — запуск обязан закрыться событием
       emit({

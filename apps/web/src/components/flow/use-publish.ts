@@ -1,5 +1,6 @@
 "use client";
 
+import { isLayoutBlock } from "@/lib/layout";
 import type { Flow, FlowStatus } from "@fl0w/schema";
 import { useCallback, useEffect, useState } from "react";
 import { flowFingerprint } from "@/lib/flow-convert";
@@ -21,7 +22,7 @@ const toServerFlow = (flow: Flow): ServerFlow => ({
   id: flow.id,
   status: flow.status ?? "draft",
   fingerprint: flowFingerprint(flow),
-  nodeIds: flow.nodes.map((n) => n.id),
+  nodeIds: flow.nodes.filter((n) => !isLayoutBlock(n.type)).map((n) => n.id),
 });
 
 /** Публикация флоу на сервере: включает/выключает расписание его триггеров. */

@@ -29,6 +29,8 @@ export type RunOptions = {
    */
   from?: string;
   seeds?: Record<string, Record<string, Json>>;
+  /** Запуск триггера другого флоу (блок Run Flow); без него блок отвечает ошибкой. */
+  fire?: (req: { flowId: string; triggerId: string; data: Json }) => Promise<void>;
 };
 
 // защита от потока логов из пользовательского кода: IPC и UI не должны захлебнуться
@@ -158,7 +160,7 @@ export async function runFlow(
     }
 
     if (!(needed ? needed.has(id) : participants.has(id))) continue; // нет связи со стартовой нодой / не нужна перезапуску
-    if (registry[nodes.get(id)!.type]?.resource) continue; // sub-node: её вызывает хозяин
+    if (registry[nodes.get(id)!.type]?.resource || registry[nodes.get(id)!.type]?.layout) continue; // sub-node вызывает хозяин; заметки и группы — только оформление
     const node = nodes.get(id)!;
 
     // Данные вместо исполнения: закрепление (pin) или выход прошлого запуска для нод до точки перезапуска
@@ -208,6 +210,7 @@ export async function runFlow(
       const ctx: RunContext = {
         signal,
         triggerData: id === opts.trigger ? opts.triggerData : undefined,
+        fire: opts.fire,
         log: (msg) => {
           if (!live || ++logged > MAX_LOGS_PER_NODE + 1) return;
           const message =

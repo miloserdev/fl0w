@@ -29,11 +29,15 @@ import {
   OctagonAlert,
   OctagonX,
   Pencil,
+  PhoneIncoming,
+  PhoneOutgoing,
   Power,
   Replace,
   Send,
   Sigma,
   Split,
+  SquareDashed,
+  StickyNote,
   Terminal,
   Timer,
   UnfoldVertical,
@@ -81,8 +85,12 @@ const icons: Record<string, LucideIcon> = {
   power: Power,
   terminal: Terminal,
   bot: Bot,
+  "phone-incoming": PhoneIncoming,
+  "phone-outgoing": PhoneOutgoing,
   calculator: Calculator,
   dices: Dices,
+  "sticky-note": StickyNote,
+  "square-dashed": SquareDashed,
 };
 
 export function BlockIcon({ name, className }: { name: string; className?: string }) {
