@@ -127,7 +127,9 @@ export async function runFlow(
   const flow: Flow = validation.flow;
 
   // --- вызовы phone-outgoing: вызванный флоу исполняется вложенным запуском в этом же процессе ---
-  const callChain = [...(opts.callChain ?? []), flow.id];
+  // Цепочка — пары «флоу#триггер»: рекурсия это повторный вход в ТОТ ЖЕ phone-incoming, а не в тот же флоу. Вызов другого графа
+  // того же флоу (отдельный phone-incoming, не связанный с вызывающим) рекурсией не считается.
+  const callChain = [...(opts.callChain ?? []), `${flow.id}#${opts.trigger ?? "*"}`];
   const failed = (error: string): CallOutcome => ({ ok: false, error });
   /** Один вызов: найти флоу по каналу, проверить рекурсию и глубину, исполнить как вложенный запуск и вернуть его результат. */
   const nestedCall = async (req: CallRequest, abort: AbortController): Promise<CallOutcome> => {
@@ -139,8 +141,9 @@ export async function runFlow(
       return failed(message(e));
     }
     const calleeId = String((target.flow as { id?: unknown } | null)?.id ?? "");
-    if (callChain.includes(calleeId) && !req.allowRecursive) {
-      return failed(`Recursive call: channel "${req.channelId}" leads to flow "${calleeId}", which is already in the call chain (${[...callChain, calleeId].join(" → ")})`);
+    const calleeKey = `${calleeId}#${target.triggerId}`;
+    if (callChain.includes(calleeKey) && !req.allowRecursive) {
+      return failed(`Recursive call: channel "${req.channelId}" leads to "${calleeKey}", which is already in the call chain (${[...callChain, calleeKey].join(" → ")}). Enable allowRecursive if this is intended`);
     }
     const limit = Math.min(req.maxDepth ?? DEFAULT_CALL_DEPTH, MAX_CALL_DEPTH);
     if (callChain.length >= limit) return failed(`Call chain is too deep (limit ${limit} flows; raise maxDepth, at most ${MAX_CALL_DEPTH})`);

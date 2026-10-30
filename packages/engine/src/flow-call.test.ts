@@ -132,6 +132,38 @@ describe("await: с подтверждением", () => {
   });
 });
 
+describe("await: два графа одного флоу", () => {
+  it("вызов отдельного phone-incoming ТОГО ЖЕ флоу (не связанного с вызывающим графом) — не рекурсия", async () => {
+    // граф 1: Manual → Phone Out(norm0) → Result; граф 2 (не соединён): Phone In(norm0) → Code → Result
+    const one: Flow = {
+      ...flow(
+        [node("m0", "manual"), node("p", "run_flow", { channelId: "norm0", data: { v: 5 } }), node("r", "result"), node("in", "call_trigger", { channelId: "norm0" }), code("m", "return { out0: { doubled: inputs.in0.v * 2 } }"), node("r2", "result")],
+        [edge("m0", "p"), edge("p", "r"), edge("in", "m"), edge("m", "r2")],
+      ),
+      id: "same",
+    };
+    const r = await collect(one, { registry, resolveCall: resolverFor(one) });
+    expect(r.done?.error).toBeUndefined();
+    expect(r.done?.result).toEqual({ doubled: 10 });
+  });
+
+  it("а если из вызванного графа тот же канал вызывается снова — это уже рекурсия (повторный вход в тот же phone-incoming)", async () => {
+    // Manual и Phone In сходятся (Merge any) в один и тот же Phone Out(norm0): вызванный граф зовёт тот же канал снова
+    const one: Flow = {
+      ...flow(
+        [node("m0", "manual"), node("in", "call_trigger", { channelId: "norm0" }), node("mg", "merge", { mode: "array", wait: "any" }), node("p", "run_flow", { channelId: "norm0" }), node("r", "result")],
+        [edge("m0", "mg", "out0", "in0", "e0"), edge("in", "mg", "out0", "in1", "e1"), edge("mg", "p"), edge("p", "r")],
+      ),
+      id: "same",
+    };
+    const r = await collect(one, { registry, resolveCall: resolverFor(one) });
+    expect(r.done?.error).toMatch(/Recursive call: channel "norm0" leads to "same#in", which is already in the call chain/);
+    // allowRecursive разрешает, но глубину всё равно ограничивает maxDepth
+    const allowed: Flow = { ...one, nodes: one.nodes.map((n) => (n.id === "p" ? { ...n, params: { channelId: "norm0", allowRecursive: true, maxDepth: 3 } } : n)) };
+    expect((await collect(allowed, { registry, resolveCall: resolverFor(allowed) })).done?.error).toMatch(/too deep \(limit 3/);
+  });
+});
+
 describe("shoot: выстрелил и забыл", () => {
   const slowCallee = (id = "slow", ch = "ch") => callee(id, ch, [node("w", "wait", { amount: 3, unit: "seconds" })]);
 
