@@ -41,6 +41,8 @@ export type RunOptions = {
 };
 
 /** Глубина вложенных вызовов по умолчанию и потолок: вызовы идут в одном процессе, поэтому без ограничения нельзя. */
+/** Сколько нод одного запуска исполняется одновременно. */
+const MAX_PARALLEL = 16;
 const DEFAULT_CALL_DEPTH = 5;
 const MAX_CALL_DEPTH = 20;
 
@@ -164,12 +166,12 @@ export async function runFlow(
   const performCall = async (nodeId: string, req: CallRequest): Promise<CallOutcome> => {
     const abort = new AbortController();
     const onAbort = () => abort.abort();
-    signal.addEventListener("abort", onAbort, { once: true });
+    runSignal.addEventListener("abort", onAbort, { once: true });
     if (req.mode === "await") {
       try {
         return await nestedCall(req, abort);
       } finally {
-        signal.removeEventListener("abort", onAbort);
+        runSignal.removeEventListener("abort", onAbort);
       }
     }
     // shoot: стартуем и сразу возвращаемся; судьба вызванного флоу вызывающего не касается, но падение/обрыв пишутся в ленту
@@ -183,7 +185,7 @@ export async function runFlow(
       })
       .finally(() => {
         shot.settled = true;
-        signal.removeEventListener("abort", onAbort);
+        runSignal.removeEventListener("abort", onAbort);
       });
     shots.add(shot);
     return { ok: true, result: { ok: true } };
@@ -242,24 +244,57 @@ export async function runFlow(
     needed = closure(rerun, (id) => inn.get(id) ?? []);
   }
 
-  for (const id of topo.order) {
-    if (signal.aborted) {
-      await finish({ error: "Aborted" });
-      return;
+  // --- Параллельное исполнение: нода запускается, как только готовы ЕЁ входы; независимые ветки и графы идут одновременно,
+  // долгая нода (Wait, HTTP…) задерживает только то, что от неё зависит. Порядок запуска одновременно готовых нод — топологический.
+  const order = new Map(topo.order.map((id, i) => [id, i]));
+  const unresolved = new Set(topo.order); // ещё не запущены и не пропущены
+  const resolved = new Set<string>(); // отработали или пропущены: их выходные рёбра окончательны (значение или «пусто»)
+  const running = new Set<Promise<void>>();
+  const inner = new AbortController(); // обрывает остальные ноды, когда одна упала
+  const onOuterAbort = () => inner.abort();
+  signal.addEventListener("abort", onOuterAbort, { once: true });
+  const runSignal = inner.signal;
+  let failure: string | undefined;
+  const fail = (msg: string) => {
+    if (failure === undefined) {
+      failure = msg;
+      inner.abort();
     }
+  };
 
-    if (!(needed ? needed.has(id) : participants.has(id))) continue; // нет связи со стартовой нодой / не нужна перезапуску
-    if (registry[nodes.get(id)!.type]?.resource || registry[nodes.get(id)!.type]?.layout) continue; // sub-node вызывает хозяин; заметки и группы — только оформление
+  /** Решение по ноде, когда ВСЕ её источники определились: пропустить, запустить или ждать. */
+  const decide = (id: string): "wait" | "skip" | "run" | "error" => {
     const node = nodes.get(id)!;
+    const cls = registry[node.type]!;
+    if (!(needed ? needed.has(id) : participants.has(id))) return "skip"; // нет связи со стартовой нодой / не нужна перезапуску
+    if (cls.resource || cls.layout) return "skip"; // sub-node вызывает хозяин; заметки и группы — только оформление
+    // данные вместо исполнения: закрепление (pin) или выход прошлого запуска для нод до точки перезапуска
+    const pinned = manual ? (node.pinData ?? undefined) : undefined;
+    const frozen = rerun && !rerun.has(id);
+    if (pinned ?? (frozen ? opts.seeds?.[id] : undefined)) return "run";
+    if (frozen) return "error"; // нужны данные прошлого запуска, а их нет
+    // другие триггеры в этом запуске молчат: он начат от выбранного
+    if (cls.isTrigger && (opts.trigger !== undefined ? id !== opts.trigger : cls.eventDriven)) return "skip";
+    const edges = incoming.get(id) ?? [];
+    // нода со входными портами, у которой ничего не подключено, сама не стартует (стартуют триггеры и источники)
+    const entry = cls.isTrigger || getNodePorts(cls, node.portsOverride, node.params).inputs.length === 0;
+    if (edges.length === 0 && !entry) return "skip";
+    if (edges.some((e) => !resolved.has(e.source))) return "wait"; // есть вход, который ещё не определился
+    // готовность входов: по умолчанию ждём ВСЕ подключённые; блок может разрешить запуск по любому пришедшему (Merge, wait: any)
+    const waitAny = cls.waitMode(resolveParams(cls.params, node.params)) === "any";
+    const arrived = edges.filter((e) => edgeValues.has(e.id)).length;
+    if (waitAny ? arrived === 0 && edges.length > 0 : arrived < edges.length) return "skip"; // вход не пришёл — ветка не пошла
+    return "run";
+  };
 
-    // Данные вместо исполнения: закрепление (pin) или выход прошлого запуска для нод до точки перезапуска
+  /** Исполнение одной ноды; сбой фиксируется в `failure` (остальные ноды обрываются). */
+  const execNode = async (id: string): Promise<void> => {
+    const node = nodes.get(id)!;
+    const cls = registry[node.type]!;
     const pinned = manual ? (node.pinData ?? undefined) : undefined;
     const frozen = rerun && !rerun.has(id);
     const fixed = pinned ?? (frozen ? opts.seeds?.[id] : undefined);
-    if (frozen && fixed === undefined) {
-      await finish({ error: `No saved data for node "${id}": run the whole flow once, then re-run from a node` });
-      return;
-    }
+    const edges = incoming.get(id) ?? [];
     if (fixed !== undefined) {
       await onEvent({ event: "node:start", nodeId: id, input: {}, params: {} });
       await onEvent({ event: "node:log", nodeId: id, message: pinned ? "pinned data used (node not executed)" : "data from the previous run used (node not executed)" });
@@ -269,22 +304,10 @@ export async function runFlow(
       }
       if (node.type === RESULT_TYPE) results.push([id, fixed["in0"] ?? null]);
       await onEvent({ event: "node:done", nodeId: id, output: capRecord(fixed) });
-      continue;
+      return;
     }
-    // другие триггеры в этом запуске молчат: он начат от выбранного
-    if (registry[node.type]!.isTrigger && (opts.trigger !== undefined ? id !== opts.trigger : registry[node.type]!.eventDriven)) continue;
-    const edges = incoming.get(id) ?? [];
-    // нода со входными портами, у которой ничего не подключено, сама не стартует (стартуют триггеры и источники)
-    const cls = registry[node.type]!;
-    const entry = cls.isTrigger || getNodePorts(cls, node.portsOverride, node.params).inputs.length === 0;
-    if (edges.length === 0 && !entry) continue;
-    // готовность входов: по умолчанию ждём ВСЕ подключённые; блок может разрешить запуск по любому пришедшему (Merge, wait: any)
-    const waitAny = cls.waitMode(resolveParams(cls.params, node.params)) === "any";
-    const arrived = edges.filter((e) => edgeValues.has(e.id));
-    if (waitAny ? arrived.length === 0 && edges.length > 0 : arrived.length < edges.length) continue; // вход не готов — ветка не пошла
-
     const inputs: Record<string, Json> = {};
-    for (const e of arrived) inputs[e.targetPort] = edgeValues.get(e.id)!;
+    for (const e of edges) if (edgeValues.has(e.id)) inputs[e.targetPort] = edgeValues.get(e.id)!;
 
     // выражения `{{ inputs.inN.путь }}` подставляются во ВСЕ параметры (кроме expressions: false) до запуска блока
     let params: Record<string, Json> = {};
@@ -301,7 +324,7 @@ export async function runFlow(
     let displayText: string | undefined;
     try {
       const ctx: RunContext = {
-        signal,
+        signal: runSignal,
         triggerData: id === opts.trigger ? opts.triggerData : undefined,
         call: (req) => performCall(id, req),
         connected: [...new Set((outgoing.get(id) ?? []).map((e) => e.sourcePort))],
@@ -326,7 +349,7 @@ export async function runFlow(
       const issues = validateParams(cls.params, params);
       if (issues.length > 0) throw new Error(`Invalid parameters after resolving expressions: ${issues.map((i) => i.message).join("; ")}`);
       const raw = await new cls().run(inputs, params, ctx);
-      if (signal.aborted) throw new Error("Aborted");
+      if (runSignal.aborted) throw new Error("Aborted");
 
       const parsed = outputsSchema.safeParse(raw);
       if (!parsed.success) throw new Error("Block returned a non-JSON output");
@@ -340,13 +363,59 @@ export async function runFlow(
       await onEvent({ event: "node:done", nodeId: id, output: maskHeaders(output) as typeof output, ...(displayText !== undefined ? { display: displayText } : {}) });
     } catch (e) {
       live = false;
+      // уже упала другая нода (или запуск оборван) — эта оборвана ею, лишних сообщений не пишем
+      if (failure !== undefined && !signal.aborted) return;
       await onEvent({ event: "node:error", nodeId: id, error: message(e) });
-      await finish({ error: `Node "${id}" failed: ${message(e)}` });
-      return;
+      fail(`Node "${id}" failed: ${message(e)}`);
     } finally {
       live = false;
     }
+  };
+
+  try {
+    for (;;) {
+      if (signal.aborted) fail("Aborted");
+      // запускаем всё, что готово; пропущенные ноды сразу определяют свои выходы («пусто») — это может открыть следующие
+      let progress = true;
+      while (progress && failure === undefined) {
+        progress = false;
+        for (const id of topo.order) {
+          if (!unresolved.has(id)) continue;
+          const d = decide(id);
+          if (d === "wait") continue;
+          if (d === "error") {
+            fail(`No saved data for node "${id}": run the whole flow once, then re-run from a node`);
+            break;
+          }
+          if (d === "skip") {
+            unresolved.delete(id);
+            resolved.add(id);
+            progress = true;
+            continue;
+          }
+          if (running.size >= MAX_PARALLEL) break;
+          unresolved.delete(id);
+          const p: Promise<void> = execNode(id).finally(() => {
+            resolved.add(id);
+            running.delete(p);
+          });
+          running.add(p);
+          progress = true;
+        }
+      }
+      if (failure !== undefined || running.size === 0) break;
+      await Promise.race(running);
+    }
+    // после сбоя даём оборванным нодам мгновение остановиться, но не зависаем на них
+    if (failure !== undefined && running.size > 0) await Promise.race([Promise.allSettled([...running]), new Promise((r) => setTimeout(r, 2000))]);
+  } finally {
+    signal.removeEventListener("abort", onOuterAbort);
   }
+  if (failure !== undefined) {
+    await finish({ error: failure });
+    return;
+  }
+  results.sort((x, y) => (order.get(x[0]) ?? 0) - (order.get(y[0]) ?? 0)); // детерминированный порядок ключей, как при последовательном исполнении
 
   // один Result → его вход как есть; несколько → объект { nodeId: значение }
   const result: Json | undefined =
