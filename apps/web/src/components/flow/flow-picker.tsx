@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -11,9 +11,14 @@ export type ServerFlow = {
   name: string;
   status: "draft" | "published";
   triggers: { id: string; type: string }[];
+  channels: { incoming: string[]; outgoing: string[] };
 };
 
-/** Серверные флоу для выбора цели блока Run Flow; null — список ещё грузится или недоступен. */
+/** id флоу, который сейчас открыт в редакторе: его сохранённая копия не считается «чужой» при проверке занятости канала. */
+const CurrentFlowContext = createContext<string>("");
+export const CurrentFlowProvider = CurrentFlowContext.Provider;
+
+/** Серверные флоу для подсказок о каналах; null — список ещё грузится или недоступен. */
 function useServerFlows(): [ServerFlow[] | null, () => void] {
   const [flows, setFlows] = useState<ServerFlow[] | null>(null);
   const [tick, setTick] = useState(0);
@@ -25,56 +30,51 @@ function useServerFlows(): [ServerFlow[] | null, () => void] {
       .catch(() => {});
     return () => ac.abort();
   }, [tick]);
-  // список перечитывается при фокусе в поле: целевой флоу могли сохранить или опубликовать, пока форма была открыта
+  // список перечитывается при фокусе в поле: парный флоу могли сохранить, пока форма была открыта
   return [flows, () => setTick((n) => n + 1)];
 }
 
 /**
- * Поле id флоу или его триггера с подсказками из серверных копий (параметры `picker: "flow" | "flow-trigger"`). Ввод свободный:
- * целевой флоу можно создать и опубликовать после вызывающего — публикация нужна к моменту самого вызова (иначе ошибка ноды).
- * Для неизвестного или неопубликованного флоу показывается неблокирующая подсказка.
+ * Поле `channelId` у phone-блоков с подсказками из серверных флоу. Для исходящего телефона предлагаются каналы, на которых
+ * уже есть входящий; для входящего — каналы, которых ждёт исходящий и на которых входящего ещё нет. Ввод свободный: пару можно
+ * создать позже. Занятый канал (второй входящий/исходящий на той же стороне) — предупреждение, а при сохранении — отказ сервера.
  */
-export function FlowPicker({
+export function ChannelPicker({
   id,
   kind,
   value,
-  flowId,
   invalid,
   onChange,
 }: {
   id: string;
-  kind: "flow" | "flow-trigger";
+  kind: "channel-in" | "channel-out";
   value: string;
-  /** Для `flow-trigger`: выбранный флоу — из его триггеров предлагается выбор. */
-  flowId: string;
   invalid?: boolean;
   onChange: (value: string) => void;
 }) {
   const t = useTranslations("inspector");
   const [flows, refresh] = useServerFlows();
-
-  const target = (flows ?? []).find((f) => f.id === flowId);
-  const options =
-    kind === "flow"
-      ? (flows ?? []).map((f) => ({ value: f.id, label: `${f.name}${f.status === "published" ? "" : ` — ${t("flowDraft")}`}` }))
-      : (target?.triggers ?? []).map((tr) => ({ value: tr.id, label: tr.type }));
-
-  // Подсказка не запрещает ввод: целевой флоу можно создать и опубликовать позже — важно, чтобы он был опубликован к моменту вызова
-  let hint: string | null = null;
-  if (flows && value !== "") {
-    if (kind === "flow") {
-      const f = flows.find((x) => x.id === value);
-      if (!f) hint = t("flowUnknown");
-      else if (f.status !== "published") hint = t("flowNotPublished");
-    } else if (target && !target.triggers.some((x) => x.id === value)) hint = t("triggerUnknown");
-  }
-  // у выбранного флоу на сервере нет триггеров вообще: список пуст не из-за ошибки — объясняем, что сделать
-  if (!hint && kind === "flow-trigger" && flows && target && target.triggers.length === 0) hint = t("noTriggers");
-  if (!hint && kind === "flow-trigger" && flows && flowId !== "" && !target) hint = t("flowUnknownForTrigger");
-
+  const current = useContext(CurrentFlowContext);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
-  const query = value.trim().toLowerCase();
+
+  const others = (flows ?? []).filter((f) => f.id !== current);
+  const incomingOwner = (ch: string) => others.find((f) => f.channels.incoming.includes(ch));
+  const outgoingOwner = (ch: string) => others.find((f) => f.channels.outgoing.includes(ch));
+  const options =
+    kind === "channel-out"
+      ? others.flatMap((f) => f.channels.incoming.map((ch) => ({ value: ch, label: f.name || f.id })))
+      : others.flatMap((f) => f.channels.outgoing.filter((ch) => !incomingOwner(ch)).map((ch) => ({ value: ch, label: f.name || f.id })));
+
+  const ch = value.trim();
+  let hint: string | null = null;
+  if (flows && ch !== "") {
+    if (kind === "channel-in" && incomingOwner(ch)) hint = t("channelTakenIn", { flow: incomingOwner(ch)!.name || incomingOwner(ch)!.id });
+    else if (kind === "channel-out" && outgoingOwner(ch)) hint = t("channelTakenOut", { flow: outgoingOwner(ch)!.name || outgoingOwner(ch)!.id });
+    else if (kind === "channel-out" && !incomingOwner(ch)) hint = t("channelNoPeer");
+  }
+
+  const query = ch.toLowerCase();
   const shown = options.filter((o) => query === "" || o.value.toLowerCase().includes(query) || o.label.toLowerCase().includes(query));
   const pick = (v: string) => {
     onChange(v);
@@ -94,7 +94,7 @@ export function FlowPicker({
             aria-invalid={invalid}
             spellCheck={false}
             autoComplete="off"
-            placeholder={kind === "flow" ? t("pickFlow") : t("pickTrigger")}
+            placeholder={t("channelPlaceholder")}
             className="font-mono text-xs"
             onFocus={() => {
               refresh();
@@ -129,7 +129,7 @@ export function FlowPicker({
         >
           <ul role="listbox" className="flex flex-col gap-0.5">
             {shown.map((o, i) => (
-              <li key={o.value} role="option" aria-selected={i === active}>
+              <li key={`${o.value}-${o.label}`} role="option" aria-selected={i === active}>
                 <button
                   type="button"
                   // mousedown, а не click: поле не успевает потерять фокус и закрыть список
@@ -151,7 +151,7 @@ export function FlowPicker({
           </ul>
         </PopoverContent>
       </Popover>
-      {hint ? <p className="text-muted-foreground text-xs">{hint}</p> : <p className="text-muted-foreground text-xs">{t("pickerFree")}</p>}
+      <p className="text-muted-foreground text-xs">{hint ?? t("channelHint")}</p>
     </div>
   );
 }

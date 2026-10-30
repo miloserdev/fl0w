@@ -37,6 +37,11 @@ export const runnerEventSchema = z.discriminatedUnion("event", [
     output: z.record(z.string(), jsonSchema),
   }),
   z.object({ event: z.literal("node:error"), nodeId: z.string(), error: z.string() }),
+  /**
+   * Нода (phone-outgoing в режиме shoot) оборвана: вызванный флоу не успел завершиться, пока вызывающий дошёл до конца, и был
+   * остановлен. Вызывающему это не сообщается — но в ленте видно.
+   */
+  z.object({ event: z.literal("node:killed"), nodeId: z.string(), reason: z.string() }),
   z.object({
     event: z.literal("flow:done"),
     result: jsonSchema.optional(),
@@ -46,23 +51,17 @@ export const runnerEventSchema = z.discriminatedUnion("event", [
 export type RunnerEvent = z.infer<typeof runnerEventSchema>;
 
 /**
- * runner → web: просьба запустить триггер другого флоу (блок «Run Flow»). Это не событие запуска: хозяин проверяет
- * цель и защиту от рекурсии и отвечает `FireReply`. Запуск fire-and-forget — ответ приходит, как только цель принята.
+ * runner → web: раннер просит найти флоу с входящим телефоном (phone-incoming) на канале `channelId` и прислать его определение.
+ * Вызванный флоу исполняется В ТОМ ЖЕ процессе, что и вызывающий (как вложенный запуск), поэтому раннеру нужен сам флоу.
  */
-export const fireRequestSchema = z.object({
-  event: z.literal("fire"),
+export const callResolveRequestSchema = z.object({
+  event: z.literal("call:resolve"),
   id: z.string(),
-  flowId: z.string(),
-  triggerId: z.string(),
-  data: jsonSchema,
-  /** Разрешить вызов флоу, уже стоящего в цепочке вызовов (в том числе самого себя); глубину по-прежнему ограничивает `maxDepth`. */
-  allowRecursive: z.boolean().optional(),
-  /** Предел длины цепочки вызовов; по умолчанию 5, не больше 20; 0 — без ограничения. */
-  maxDepth: z.number().int().min(0).optional(),
+  channelId: z.string(),
 });
-export type FireRequest = z.infer<typeof fireRequestSchema>;
-/** web → runner: ответ на `fire`; `error` — причина отказа (цель не опубликована, рекурсия, занято…). */
-export type FireReply = { cmd: "fire:result"; id: string; error?: string };
+export type CallResolveRequest = z.infer<typeof callResolveRequestSchema>;
+/** web → runner: ответ на `call:resolve` — флоу и id его phone-incoming либо причина отказа (нет такого канала, неоднозначно…). */
+export type CallResolveReply = { cmd: "call:resolved"; id: string; flow?: unknown; triggerId?: string; error?: string };
 
 /**
  * Живая лента запусков опубликованного флоу (Watch): сервер → UI.

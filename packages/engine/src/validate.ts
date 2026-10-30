@@ -1,5 +1,6 @@
 import { getNodePorts, portKind, validateParams, type BlockClass } from "@fl0w/blocks";
 import { flowSchema, type Flow } from "@fl0w/schema";
+import { validatePhoneChannels } from "./phone";
 import { dataView } from "./resources";
 import { toposort } from "./toposort";
 
@@ -12,6 +13,7 @@ export type FlowIssueCode =
   | "unknown_port"
   | "port_occupied"
   | "port_kind"
+  | "phone_channel"
   | "cycle"
   | "param_required"
   | "param_type"
@@ -88,7 +90,7 @@ export function validateFlow(input: unknown, registry: Registry): ValidationResu
   const portsOf = (nodeId: string) => {
     const node = nodes.get(nodeId);
     const cls = node && registry[node.type];
-    return node && cls ? getNodePorts(cls, node.portsOverride) : null;
+    return node && cls ? getNodePorts(cls, node.portsOverride, node.params) : null;
   };
 
   const seenEdges = new Set<string>();
@@ -160,6 +162,9 @@ export function validateFlow(input: unknown, registry: Registry): ValidationResu
     }
     usedInputs.add(key);
   }
+
+  // phone-пара: один входящий и один исходящий на канал (проверка между флоу — при сохранении на сервере)
+  for (const p of validatePhoneChannels(flow)) issues.push({ code: "phone_channel", nodeId: p.nodeId, message: p.message });
 
   const topo = toposort(dataView(flow, registry));
   if (!topo.ok) {

@@ -19,7 +19,7 @@ export function closure(from: Iterable<string>, next: (id: string) => string[]):
 export function isDataSource(flow: Flow, registry: Registry, nodeId: string): boolean {
   const node = flow.nodes.find((n) => n.id === nodeId);
   const cls = node && registry[node.type];
-  return !!cls && !cls.resource && !cls.layout && !cls.isTrigger && getNodePorts(cls, node.portsOverride).inputs.length === 0;
+  return !!cls && !cls.resource && !cls.layout && !cls.isTrigger && getNodePorts(cls, node.portsOverride, node.params).inputs.length === 0;
 }
 
 /**
@@ -39,7 +39,9 @@ export function startNodes(flow: Flow, registry: Registry, trigger?: string): st
   // триггер события с закреплёнными данными (pin) стартует: закреплённый «запрос» заменяет настоящее событие
   return triggers.filter((id) => {
     const n = flow.nodes.find((x) => x.id === id)!;
-    return !registry[n.type]?.eventDriven || !!n.pinData;
+    const cls = registry[n.type];
+    if (cls?.callOnly) return false; // phone-incoming поднимается только вызовом — даже закреплённые данные его не запускают
+    return !cls?.eventDriven || !!n.pinData;
   });
 }
 

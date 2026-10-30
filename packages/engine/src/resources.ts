@@ -8,7 +8,7 @@ export function edgeKind(flow: Pick<Flow, "nodes">, registry: Registry, e: FlowE
   const node = flow.nodes.find((n) => n.id === e.source);
   const cls = node && registry[node.type];
   if (!node || !cls) return "data";
-  const port = getNodePorts(cls, node.portsOverride).outputs.find((p) => p.id === e.sourcePort);
+  const port = getNodePorts(cls, node.portsOverride, node.params).outputs.find((p) => p.id === e.sourcePort);
   return portKind(port);
 }
 

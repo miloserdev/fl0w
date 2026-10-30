@@ -3,32 +3,32 @@
  * Протокол по IPC: web → runner `{ cmd: "run", flow }`, runner → web события `RunnerEvent`.
  * Запускается через `fork`; сам ничего не слушает, кроме одной команды, и завершается после `flow:done`.
  */
-import type { FireReply, FireRequest, Json, RunnerEvent } from "@fl0w/schema";
+import type { CallResolveReply, CallResolveRequest, Json, RunnerEvent } from "@fl0w/schema";
 import { runFlow } from "./run";
 
-function send(event: RunnerEvent | FireRequest): Promise<void> {
+function send(event: RunnerEvent | CallResolveRequest): Promise<void> {
   return new Promise((resolve) => {
     if (!process.connected) return resolve();
     process.send!(event, () => resolve());
   });
 }
 
-// запросы «запустить другой флоу» ждут ответа родителя: сопоставляем по id
-const pendingFires = new Map<string, { resolve: () => void; reject: (e: Error) => void }>();
-let fireSeq = 0;
-const fire = (req: Omit<FireRequest, "event" | "id">): Promise<void> =>
+// запросы «найти флоу по каналу» (phone-outgoing) ждут ответа родителя: сопоставляем по id
+const pendingResolves = new Map<string, { resolve: (v: { flow: unknown; triggerId: string }) => void; reject: (e: Error) => void }>();
+let resolveSeq = 0;
+const resolveCall = (channelId: string): Promise<{ flow: unknown; triggerId: string }> =>
   new Promise((resolve, reject) => {
-    const id = String(++fireSeq);
-    pendingFires.set(id, { resolve, reject });
-    void send({ event: "fire", id, ...req });
+    const id = String(++resolveSeq);
+    pendingResolves.set(id, { resolve, reject });
+    void send({ event: "call:resolve", id, channelId });
   });
 process.on("message", (raw: unknown) => {
-  const reply = raw as Partial<FireReply> | null;
-  if (reply?.cmd !== "fire:result" || typeof reply.id !== "string") return;
-  const p = pendingFires.get(reply.id);
-  pendingFires.delete(reply.id);
+  const reply = raw as Partial<CallResolveReply> | null;
+  if (reply?.cmd !== "call:resolved" || typeof reply.id !== "string") return;
+  const p = pendingResolves.get(reply.id);
+  pendingResolves.delete(reply.id);
   if (reply.error !== undefined) p?.reject(new Error(reply.error));
-  else p?.resolve();
+  else p?.resolve({ flow: reply.flow, triggerId: String(reply.triggerId ?? "") });
 });
 
 process.once("message", async (raw: unknown) => {
@@ -51,7 +51,7 @@ process.once("message", async (raw: unknown) => {
       triggerData: cmd.triggerData as Json | undefined,
       from: typeof cmd.from === "string" ? cmd.from : undefined,
       seeds: cmd.seeds as Record<string, Record<string, Json>> | undefined,
-      fire,
+      resolveCall,
     });
   }
 

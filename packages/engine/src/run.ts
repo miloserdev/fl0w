@@ -4,7 +4,8 @@ import {
   resolveParamExpressions,
   resolveParams,
   validateParams,
-  type FireCall,
+  type CallOutcome,
+  type CallRequest,
   type RunContext,
 } from "@fl0w/blocks";
 import { jsonSchema, type Flow, type Json, type RunnerEvent } from "@fl0w/schema";
@@ -30,9 +31,18 @@ export type RunOptions = {
    */
   from?: string;
   seeds?: Record<string, Record<string, Json>>;
-  /** Запуск триггера другого флоу (блок Run Flow); без него блок отвечает ошибкой. */
-  fire?: (req: FireCall) => Promise<void>;
+  /**
+   * Найти флоу с phone-incoming на канале (его даёт хост: опубликованные копии или сохранённые в песочнице). Нет канала или он
+   * неоднозначен — бросает с причиной. Без опции блок phone-outgoing отвечает ошибкой.
+   */
+  resolveCall?: (channelId: string) => Promise<{ flow: unknown; triggerId: string }>;
+  /** Флоу, уже стоящие в цепочке вызовов (без текущего) — по ней отсекается рекурсия. Служебное: заполняет вложенный запуск. */
+  callChain?: string[];
 };
+
+/** Глубина вложенных вызовов по умолчанию и потолок: вызовы идут в одном процессе, поэтому без ограничения нельзя. */
+const DEFAULT_CALL_DEPTH = 5;
+const MAX_CALL_DEPTH = 20;
 
 // защита от потока логов из пользовательского кода: IPC и UI не должны захлебнуться
 const MAX_LOGS_PER_NODE = 1000;
@@ -92,20 +102,92 @@ export async function runFlow(
   opts: RunOptions = {},
 ): Promise<void> {
   const registry = opts.registry ?? defaultRegistry;
-  const finish = (e: { result?: Json; error?: string }) => onEvent({ event: "flow:done", ...e });
+  // shoot-вызовы (phone-outgoing): запуск их не ждёт; если он закончился раньше — они обрываются, и это видно в ленте
+  type Shot = { nodeId: string; abort: AbortController; done: Promise<void>; settled: boolean };
+  const shots = new Set<Shot>();
+  const killShots = async () => {
+    const live = [...shots].filter((x) => !x.settled);
+    for (const x of live) {
+      x.abort.abort();
+      await onEvent({ event: "node:killed", nodeId: x.nodeId, reason: "the caller flow finished before the shoot call completed; the called flow was stopped" });
+    }
+    // оборванным даём мгновение остановиться, но не зависаем на них
+    if (live.length > 0) await Promise.race([Promise.allSettled(live.map((x) => x.done)), new Promise((r) => setTimeout(r, 2000))]);
+  };
+  const finish = async (e: { result?: Json; error?: string }) => {
+    await killShots();
+    await onEvent({ event: "flow:done", ...e });
+  };
 
   const validation = validateFlow(input, registry);
   if (!validation.ok) {
-    finish({ error: `Invalid flow: ${formatIssues(validation.issues)}` });
+    await finish({ error: `Invalid flow: ${formatIssues(validation.issues)}` });
     return;
   }
   const flow: Flow = validation.flow;
+
+  // --- вызовы phone-outgoing: вызванный флоу исполняется вложенным запуском в этом же процессе ---
+  const callChain = [...(opts.callChain ?? []), flow.id];
+  const failed = (error: string): CallOutcome => ({ ok: false, error });
+  /** Один вызов: найти флоу по каналу, проверить рекурсию и глубину, исполнить как вложенный запуск и вернуть его результат. */
+  const nestedCall = async (req: CallRequest, abort: AbortController): Promise<CallOutcome> => {
+    if (!opts.resolveCall) return failed("Calling other flows is not available in this environment");
+    let target: { flow: unknown; triggerId: string };
+    try {
+      target = await opts.resolveCall(req.channelId);
+    } catch (e) {
+      return failed(message(e));
+    }
+    const calleeId = String((target.flow as { id?: unknown } | null)?.id ?? "");
+    if (callChain.includes(calleeId) && !req.allowRecursive) {
+      return failed(`Recursive call: channel "${req.channelId}" leads to flow "${calleeId}", which is already in the call chain (${[...callChain, calleeId].join(" → ")})`);
+    }
+    const limit = Math.min(req.maxDepth ?? DEFAULT_CALL_DEPTH, MAX_CALL_DEPTH);
+    if (callChain.length >= limit) return failed(`Call chain is too deep (limit ${limit} flows; raise maxDepth, at most ${MAX_CALL_DEPTH})`);
+    // события вложенного запуска наружу не идут (id нод двух флоу могут совпадать) — нужен только итог
+    let done: { result?: Json; error?: string } = { error: "The called flow ended without a result" };
+    await runFlow(
+      target.flow,
+      (e) => {
+        if (e.event === "flow:done") done = e;
+      },
+      { registry, signal: abort.signal, trigger: target.triggerId, triggerData: req.data, callChain, resolveCall: opts.resolveCall },
+    );
+    return done.error !== undefined ? failed(done.error) : { ok: true, result: done.result ?? null };
+  };
+  const performCall = async (nodeId: string, req: CallRequest): Promise<CallOutcome> => {
+    const abort = new AbortController();
+    const onAbort = () => abort.abort();
+    signal.addEventListener("abort", onAbort, { once: true });
+    if (req.mode === "await") {
+      try {
+        return await nestedCall(req, abort);
+      } finally {
+        signal.removeEventListener("abort", onAbort);
+      }
+    }
+    // shoot: стартуем и сразу возвращаемся; судьба вызванного флоу вызывающего не касается, но падение/обрыв пишутся в ленту
+    const shot: Shot = { nodeId, abort, settled: false, done: Promise.resolve() };
+    shot.done = nestedCall(req, abort)
+      .then(async (outcome) => {
+        // обрыв по окончании запуска уже отмечен node:killed; остальное (отказ канала, рекурсия, падение) — node:error
+        if (!outcome.ok && !abort.signal.aborted) {
+          await onEvent({ event: "node:error", nodeId, error: `shoot call to channel "${req.channelId}" failed: ${outcome.error}` });
+        }
+      })
+      .finally(() => {
+        shot.settled = true;
+        signal.removeEventListener("abort", onAbort);
+      });
+    shots.add(shot);
+    return { ok: true, result: { ok: true } };
+  };
 
   // порядок и ожидание входов — только по рёбрам данных; ресурсные рёбра (инструменты, память) читает хозяин
   const dataFlow = dataView(flow, registry);
   const topo = toposort(dataFlow);
   if (!topo.ok) {
-    finish({ error: "Invalid flow: cycle" });
+    await finish({ error: "Invalid flow: cycle" });
     return;
   }
 
@@ -114,7 +196,7 @@ export async function runFlow(
   if (opts.trigger !== undefined) {
     const t = nodes.get(opts.trigger);
     if (!t || !registry[t.type]?.isTrigger) {
-      finish({ error: `Unknown trigger "${opts.trigger}"` });
+      await finish({ error: `Unknown trigger "${opts.trigger}"` });
       return;
     }
   }
@@ -128,7 +210,7 @@ export async function runFlow(
   // Запускаются только ноды, связанные со стартовыми (триггеры / источники данных), — не любая «без входов».
   const participants = participatingNodes(flow, registry, opts.trigger);
   if (opts.from === undefined && flow.nodes.some((n) => registry[n.type]?.isTrigger) && startNodes(flow, registry, opts.trigger).length === 0) {
-    finish({ error: "Nothing to start manually: this flow begins with event triggers (webhook, file, Telegram, …). Publish it and send an event, or add a Manual trigger for testing" });
+    await finish({ error: "Nothing to start manually: this flow begins with event triggers (webhook, file, Telegram, …). Publish it and send an event, or add a Manual trigger for testing" });
     return;
   }
 
@@ -141,7 +223,7 @@ export async function runFlow(
   let needed: Set<string> | undefined;
   if (opts.from !== undefined) {
     if (!nodes.has(opts.from)) {
-      finish({ error: `Unknown node "${opts.from}"` });
+      await finish({ error: `Unknown node "${opts.from}"` });
       return;
     }
     const out = new Map<string, string[]>();
@@ -156,7 +238,7 @@ export async function runFlow(
 
   for (const id of topo.order) {
     if (signal.aborted) {
-      finish({ error: "Aborted" });
+      await finish({ error: "Aborted" });
       return;
     }
 
@@ -169,7 +251,7 @@ export async function runFlow(
     const frozen = rerun && !rerun.has(id);
     const fixed = pinned ?? (frozen ? opts.seeds?.[id] : undefined);
     if (frozen && fixed === undefined) {
-      finish({ error: `No saved data for node "${id}": run the whole flow once, then re-run from a node` });
+      await finish({ error: `No saved data for node "${id}": run the whole flow once, then re-run from a node` });
       return;
     }
     if (fixed !== undefined) {
@@ -188,7 +270,7 @@ export async function runFlow(
     const edges = incoming.get(id) ?? [];
     // нода со входными портами, у которой ничего не подключено, сама не стартует (стартуют триггеры и источники)
     const cls = registry[node.type]!;
-    const entry = cls.isTrigger || getNodePorts(cls, node.portsOverride).inputs.length === 0;
+    const entry = cls.isTrigger || getNodePorts(cls, node.portsOverride, node.params).inputs.length === 0;
     if (edges.length === 0 && !entry) continue;
     // готовность входов: по умолчанию ждём ВСЕ подключённые; блок может разрешить запуск по любому пришедшему (Merge, wait: any)
     const waitAny = cls.waitMode(resolveParams(cls.params, node.params)) === "any";
@@ -215,7 +297,8 @@ export async function runFlow(
       const ctx: RunContext = {
         signal,
         triggerData: id === opts.trigger ? opts.triggerData : undefined,
-        fire: opts.fire,
+        call: (req) => performCall(id, req),
+        connected: [...new Set((outgoing.get(id) ?? []).map((e) => e.sourcePort))],
         flowId: flow.id,
         nodeId: id,
         display: (text) => {
@@ -252,7 +335,7 @@ export async function runFlow(
     } catch (e) {
       live = false;
       await onEvent({ event: "node:error", nodeId: id, error: message(e) });
-      finish({ error: `Node "${id}" failed: ${message(e)}` });
+      await finish({ error: `Node "${id}" failed: ${message(e)}` });
       return;
     } finally {
       live = false;
@@ -266,5 +349,5 @@ export async function runFlow(
       : results.length === 1
         ? results[0]![1]
         : Object.fromEntries(results);
-  finish(result === undefined ? {} : { result });
+  await finish(result === undefined ? {} : { result });
 }

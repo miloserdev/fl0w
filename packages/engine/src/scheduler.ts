@@ -1,32 +1,15 @@
-import type { FileWatchSpec, FireCall, LifecycleReason, TelegramSpec } from "@fl0w/blocks";
+import type { FileWatchSpec, LifecycleReason, TelegramSpec } from "@fl0w/blocks";
 import type { Flow, Json, RunnerEvent } from "@fl0w/schema";
 import type { RunHub } from "./hub";
 import type { FlowStore } from "./store";
 import { participatingNodes } from "./participants";
+import { findIncoming } from "./phone";
 import { validateFlow, type Registry } from "./validate";
-
-/**
- * Флоу, запущенный из редактора: вызовы на его собственные триггеры идут локально, без публикации (см. `fireFrom`).
- * `onEvent` получает события вложенного запуска — вызывающий решает, что с ними делать (редактор показывает их в ленте).
- */
-export type LocalFlow = {
-  flow: Flow;
-  /** Другие флоу песочницы по id — сохранённые копии (черновик или опубликованный), а не рабочие запущенные; нет — null. */
-  resolve?: (flowId: string) => Promise<Flow | null>;
-  onEvent?: (e: RunnerEvent) => void;
-  /** Отмена пробного запуска (клиент закрыл ленту / нажал «Стоп»): вложенные запуски тоже останавливаются. */
-  signal?: AbortSignal;
-};
-
-/** Сколько флоу может быть в цепочке вызовов (A вызвал B вызвал C …). */
-const MAX_CALL_DEPTH = 5;
-/** Жёсткий потолок, даже если блок просит больше (`maxDepth`; 0 — без ограничения, в логе предупреждение). */
-const MAX_CALL_DEPTH_HARD = 20;
 
 export type SchedulerRun = (
   flow: Flow,
   onEvent: (e: RunnerEvent) => void,
-  opts: { trigger: string; triggerData?: Json; onFire?: (req: FireCall) => Promise<void>; sandbox?: boolean; signal?: AbortSignal },
+  opts: { trigger: string; triggerData?: Json; onResolveCall?: (channelId: string) => Promise<{ flow: Flow; triggerId: string }> },
 ) => Promise<void>;
 
 /** Подписка на изменения файлов: возвращает функцию отписки. Реализация — `createFileWatcher` (file-watch.ts). */
@@ -265,7 +248,7 @@ export class Scheduler {
     nodeId: string,
     triggerData: Json,
     onEvent?: (e: RunnerEvent) => void,
-    opts?: { errorRun?: boolean; chain?: string[] },
+    opts?: { errorRun?: boolean },
   ): Promise<void> {
     const flow = this.flows.get(flowId);
     if (!flow) throw new Error(`Flow "${flowId}" is not published`);
@@ -277,64 +260,15 @@ export class Scheduler {
   }
 
   /**
-   * Запуск триггера другого флоу по просьбе блока Run Flow (fire-and-forget). `chain` — флоу, уже участвующие в цепочке
-   * вызовов (последний — вызывающий). Бросает с понятной причиной: цель не опубликована, нет такого триггера, рекурсия (если не `allowRecursive`),
-   * слишком длинная цепочка, цель занята.
+   * Флоу и триггер для вызова по каналу (phone-outgoing): ровно один phone-incoming среди ОПУБЛИКОВАННЫХ флоу. Раннер
+   * исполняет вызванный флоу вложенным запуском в своём процессе, поэтому возвращается само определение флоу.
    */
-  fireFrom(chain: string[], req: FireCall, local?: LocalFlow): Promise<void> {
-    // Песочница («Запустить» в редакторе): вызовы НЕ касаются рабочих (опубликованных) запусков — цель берётся из сохранённых копий
-    // и исполняется изолированно (без хаба/Watch, без обработчиков ошибок, с отдельной памятью), публикация не нужна.
-    if (local) return this.fireSandbox(chain, req, local);
-    const target = this.flows.get(req.flowId);
-    if (!target) return Promise.reject(new Error(`Flow "${req.flowId}" is not published`));
-    const refused = this.checkChain(chain, req);
-    if (refused) return Promise.reject(new Error(refused));
-    const node = target.nodes.find((n) => n.id === req.triggerId);
-    if (!node || !this.deps.registry[node.type]?.isTrigger) {
-      return Promise.reject(new Error(`Flow "${req.flowId}" has no trigger "${req.triggerId}"`));
-    }
+  resolveCall(channelId: string): Promise<{ flow: Flow; triggerId: string }> {
     try {
-      void this.trigger(req.flowId, req.triggerId, req.data, undefined, { chain });
+      return Promise.resolve(findIncoming([...this.flows.values()], channelId));
     } catch (e) {
-      return Promise.reject(e instanceof SchedulerBusyError ? new Error(`Flow "${req.flowId}" is busy (too many concurrent runs)`) : e);
+      return Promise.reject(e instanceof Error ? e : new Error(String(e)));
     }
-    return Promise.resolve();
-  }
-
-  /** Рекурсия и глубина цепочки вызовов; возвращает причину отказа или null. */
-  private checkChain(chain: string[], req: FireCall, sandbox = false): string | null {
-    if (chain.includes(req.flowId) && !req.allowRecursive) {
-      return `Recursive call: flow "${req.flowId}" is already in the call chain (${[...chain, req.flowId].join(" → ")})`;
-    }
-    // maxDepth 0 — без ограничения (выбор автора флоу); иначе предел, но не выше жёсткого потолка
-    // в песочнице вложенные запуски ДОЖИДАЮТСЯ — каждое звено держит процесс, поэтому «без ограничения» там не действует (потолок)
-    const unlimited = req.maxDepth === 0 && !sandbox;
-    const limit = unlimited ? Infinity : Math.min(req.maxDepth === 0 ? MAX_CALL_DEPTH_HARD : (req.maxDepth ?? MAX_CALL_DEPTH), MAX_CALL_DEPTH_HARD);
-    if (unlimited && chain.length >= MAX_CALL_DEPTH_HARD && chain.length % MAX_CALL_DEPTH_HARD === 0) {
-      this.log(`flow ${chain[0]}: call chain has reached ${chain.length} flows with maxDepth 0 (unlimited) — unpublish the flow to stop it`);
-    }
-    if (chain.length >= limit) {
-      return sandbox
-        ? `Call chain is too deep (limit ${limit} flows). The sandbox (Run) awaits nested runs, so maxDepth 0 does not remove the limit here — a published flow can run an unlimited chain`
-        : `Call chain is too deep (limit ${limit} flows; raise maxDepth up to ${MAX_CALL_DEPTH_HARD}, or set 0 for unlimited, if intended)`;
-    }
-    return null;
-  }
-
-  /**
-   * Вызов триггера в песочнице: свой флоу из редактора (может быть не сохранён и не опубликован) или другой флоу — его
-   * сохранённая копия. Исполняется и ДОЖИДАЕТСЯ; события вложенного запуска идут вызывающему (`onEvent`), чтобы автор
-   * видел, что произошло. Рабочие запуски не затрагиваются: ни хаб/Watch, ни Error Trigger, ни лимиты вебхуков.
-   */
-  private async fireSandbox(chain: string[], req: FireCall, local: LocalFlow): Promise<void> {
-    const target = req.flowId === local.flow.id ? local.flow : await local.resolve?.(req.flowId);
-    if (!target) throw new Error(`Flow "${req.flowId}" is not saved on the server (the sandbox runs saved copies — save it first; publishing is not required)`);
-    if (local.signal?.aborted) throw new Error("Aborted");
-    const refused = this.checkChain(chain, req, true);
-    if (refused) throw new Error(refused);
-    const node = target.nodes.find((n) => n.id === req.triggerId);
-    if (!node || !this.deps.registry[node.type]?.isTrigger) throw new Error(`Flow "${req.flowId}" has no trigger "${req.triggerId}"`);
-    await this.execute(target, req.triggerId, req.data, local.onEvent, { chain, local });
   }
 
   stop(): void {
@@ -434,12 +368,10 @@ export class Scheduler {
     nodeId: string,
     triggerData?: Json,
     extra?: (e: RunnerEvent) => void,
-    opts?: { errorRun?: boolean; chain?: string[]; local?: LocalFlow },
+    opts?: { errorRun?: boolean },
   ): Promise<void> {
     const { hub } = this.deps;
-    // песочница: без записи в хаб — Watch рабочего флоу не должен видеть пробные запуски
-    const sandbox = opts?.local !== undefined;
-    const runId = sandbox ? `sandbox_${Date.now().toString(36)}` : hub.startRun(flow.id, nodeId, [...participatingNodes(flow, this.deps.registry, nodeId)]);
+    const runId = hub.startRun(flow.id, nodeId, [...participatingNodes(flow, this.deps.registry, nodeId)]);
     const started = Date.now();
     let failedNode: string | null = null;
     let nodeMessage: string | undefined;
@@ -449,7 +381,7 @@ export class Scheduler {
         failedNode = e.nodeId;
         nodeMessage = e.error;
       } else if (e.event === "flow:done" && e.error !== undefined) failure = e.error;
-      if (!sandbox) hub.publish(flow.id, runId, e);
+      hub.publish(flow.id, runId, e);
       try {
         extra?.(e);
       } catch {
@@ -457,9 +389,8 @@ export class Scheduler {
       }
     };
     try {
-      // цепочка вызовов: флоу, из которых нас вызвали, плюс мы сами — по ней Run Flow отсекает рекурсию
-      const chain = [...(opts?.chain ?? []), flow.id];
-      await this.deps.run(flow, emit, { trigger: nodeId, triggerData, sandbox, signal: opts?.local?.signal, onFire: (req) => this.fireFrom(chain, req, opts?.local) });
+      // вызовы по каналу (phone-outgoing): рабочий запуск находит только опубликованные флоу
+      await this.deps.run(flow, emit, { trigger: nodeId, triggerData, onResolveCall: (ch) => this.resolveCall(ch) });
     } catch (e) {
       // run не должен бросать, но если бросил — запуск обязан закрыться событием
       emit({
@@ -467,11 +398,11 @@ export class Scheduler {
         error: `Scheduler failure: ${e instanceof Error ? e.message : String(e)}`,
       });
     } finally {
-      const last = sandbox ? undefined : hub.lastRun(flow.id);
-      this.log(`flow ${flow.id}: ${sandbox ? "sandbox " : ""}run ${runId} ${sandbox ? "finished" : (last?.status ?? "?")} in ${Date.now() - started} ms`);
+      const last = hub.lastRun(flow.id);
+      this.log(`flow ${flow.id}: run ${runId} ${last?.status ?? "?"} in ${Date.now() - started} ms`);
       // обработчику — собственное сообщение упавшей ноды, а не обёртка итога («Node "x" failed: …»);
       // если нода не называлась (невалидный флоу, падение процесса) — сообщение итога запуска
-      if (failure !== undefined && !opts?.errorRun && !sandbox) {
+      if (failure !== undefined && !opts?.errorRun) {
         this.dispatchError(flow, runId, nodeId, nodeMessage ?? failure, failedNode);
       }
     }

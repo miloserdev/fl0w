@@ -1,59 +1,74 @@
-import type { Json, ParamSchema } from "@fl0w/schema";
+import type { Json, ParamSchema, PortsDef } from "@fl0w/schema";
 import { Block, type RunContext } from "./block";
 
 /**
- * Вход «Вызов из флоу»: триггер, который запускается другим флоу (блоком Run Flow) с переданными данными.
- * В ручном запуске не стартует (как все триггеры событий) — только с закреплёнными данными.
+ * Phone-пара — вызов одного флоу из другого по каналу `channelId` (связь строго 1:1). Сам вызов исполняется внутри запуска
+ * вызывающего (как вложенный запуск вызванного флоу), поэтому в один процесс-раннер попадают оба флоу.
  */
+
+/** Phone-incoming: вход вызванного флоу. Поднимается только парным phone-outgoing с тем же `channelId`. */
 export class CallTrigger extends Block {
   static type = "call_trigger";
-  static label = "Called by Flow";
+  static label = "Phone Incoming";
   static icon = "phone-incoming";
   static category = "trigger";
   static ports = { inputs: [], outputs: [{ id: "out0" }] };
-  static params: ParamSchema[] = [];
+  static params: ParamSchema[] = [{ name: "channelId", type: "string", required: true, expressions: false, picker: "channel-in" }];
   static isTrigger = true;
-  static autoTrigger = true;
+  static autoTrigger = true; // публикация флоу с одним лишь входящим телефоном допустима: он живёт ради вызовов
   static eventDriven = true;
+  static callOnly = true;
 
   async run(_inputs: Record<string, Json>, _params: Record<string, Json>, ctx: RunContext) {
-    return { out0: ctx.triggerData ?? { from: { flow: "flow_example" }, data: null } };
+    // данные вызова; без них (не должно случаться — старт только вызовом) — пустой объект
+    return { out0: ctx.triggerData ?? {} };
   }
 }
 
+const OUT_PORTS: PortsDef = { inputs: [{ id: "in0" }], outputs: [{ id: "out0" }] };
+const OUT_PORTS_AWAIT: PortsDef = { inputs: [{ id: "in0" }], outputs: [{ id: "out0" }, { id: "err", label: "error" }] };
+
 /**
- * Выход «Запустить флоу»: в конце флоу дёргает триггер другого ОПУБЛИКОВАННОГО флоу, отдавая ему данные (`data`, по
- * умолчанию — весь вход). Не ждёт завершения вызванного флоу. Защита: флоу не может вызвать флоу из своей цепочки вызовов
- * (рекурсия, в том числе сам себя), если не включён `allowRecursive`; глубина цепочки ограничена `maxDepth` (по умолчанию 5; 0 — без ограничения).
+ * Phone-outgoing: вызывает phone-incoming с тем же `channelId`.
+ *  - `await` (с подтверждением): ждёт вызванный флоу; `out0` — его результат (значение Result), `err` — ошибка, если он упал
+ *    (порт виден только в этом режиме; если к `err` ничего не подключено, ошибка роняет ноду, чтобы не потеряться).
+ *  - `shoot` (выстрелил и забыл): не ждёт; `out0` = `{ ok: true }` — факт отправки. Вызванный флоу идёт в фоне и обрывается, если
+ *    запуск вызывающего закончится раньше; обрыв и падение пишутся в ленту событий, вызывающего они не касаются.
  */
 export class RunFlow extends Block {
   static type = "run_flow";
-  static label = "Run Flow";
+  static label = "Phone Outgoing";
   static icon = "phone-outgoing";
   static category = "flow";
-  static ports = { inputs: [{ id: "in0" }], outputs: [{ id: "out0" }] };
+  static ports = OUT_PORTS;
   static params: ParamSchema[] = [
-    { name: "flowId", type: "string", required: true, picker: "flow", expressions: false },
-    { name: "triggerId", type: "string", required: true, picker: "flow-trigger", expressions: false },
+    { name: "channelId", type: "string", required: true, expressions: false, picker: "channel-out" },
+    { name: "mode", type: "enum", default: "await", options: [{ value: "await" }, { value: "shoot" }] },
     // null — отдать весь вход; иначе JSON (в строках работают {{ inputs.in0.путь }})
     { name: "data", type: "json" },
     // по умолчанию флоу не может вызвать флоу из своей цепочки (в том числе себя): так он случайно не зациклится
     { name: "allowRecursive", type: "boolean", default: false },
-    // предел длины цепочки вызовов (защита от бесконечной рекурсии даже при allowRecursive)
-    // 0 — без ограничения (осознанная бесконечная цепочка: остановить можно, только сняв флоу с публикации)
-    { name: "maxDepth", type: "number", default: 5, min: 0 },
+    // предел длины цепочки вложенных вызовов (вызовы идут в одном процессе, поэтому он ограничен: 1–20)
+    { name: "maxDepth", type: "number", default: 5, min: 1, max: 20 },
   ];
 
-  async run(inputs: Record<string, Json>, params: Record<string, Json>, ctx: RunContext) {
-    if (!ctx.fire) throw new Error("Calling other flows is not available in this environment");
-    const flowId = String(params["flowId"] ?? "").trim();
-    const triggerId = String(params["triggerId"] ?? "").trim();
-    if (!flowId || !triggerId) throw new Error("Both flowId and triggerId are required");
+  static override portsFor(params: Record<string, Json>): PortsDef {
+    return params["mode"] === "shoot" ? OUT_PORTS : OUT_PORTS_AWAIT;
+  }
+
+  async run(inputs: Record<string, Json>, params: Record<string, Json>, ctx: RunContext): Promise<Record<string, Json>> {
+    if (!ctx.call) throw new Error("Calling other flows is not available in this environment");
+    const channelId = String(params["channelId"] ?? "").trim();
+    if (!channelId) throw new Error("channelId is required");
+    const mode = params["mode"] === "shoot" ? "shoot" : "await";
     const data = params["data"] === undefined || params["data"] === null ? (inputs["in0"] ?? null) : params["data"];
-    const allowRecursive = params["allowRecursive"] === true;
     const maxDepth = typeof params["maxDepth"] === "number" ? Math.trunc(params["maxDepth"]) : undefined;
-    await ctx.fire({ flowId, triggerId, data, allowRecursive, ...(maxDepth !== undefined ? { maxDepth } : {}) });
-    ctx.log(`fired trigger ${triggerId} of flow ${flowId}`);
-    return { out0: { fired: true, flowId, triggerId } };
+    const outcome = await ctx.call({ channelId, data, mode, allowRecursive: params["allowRecursive"] === true, ...(maxDepth !== undefined ? { maxDepth } : {}) });
+
+    if (mode === "shoot") return { out0: { ok: true } };
+    if (outcome.ok) return { out0: outcome.result };
+    // ошибка вызванного флоу: по порту err; если он ни к чему не подключён — падение ноды (тихой потери нет)
+    if (ctx.connected?.includes("err")) return { err: { message: outcome.error, channelId } };
+    throw new Error(outcome.error);
   }
 }

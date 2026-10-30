@@ -17,9 +17,9 @@ export type BlockNodeType = Node<BlockNodeData, "block" | "layout-note" | "layou
 export type FlowMeta = Pick<Flow, "id" | "name">;
 
 /** Порты инстанса: дефолтные из класса + добавленные через portsOverride. */
-export function getPorts(blockType: string, override: PortsDef | null): PortsDef {
+export function getPorts(blockType: string, override: PortsDef | null, params?: Record<string, Json>): PortsDef {
   const cls = registry[blockType];
-  return cls ? getNodePorts(cls, override) : { inputs: [], outputs: [] };
+  return cls ? getNodePorts(cls, override, params) : { inputs: [], outputs: [] };
 }
 
 /** Порты, разделённые на данные (по бокам) и ресурсные (снизу у хозяина, сверху у ресурса). */
@@ -43,8 +43,9 @@ export function nodePortKind(
   override: PortsDef | null,
   side: "inputs" | "outputs",
   portId: string | null | undefined,
+  params?: Record<string, Json>,
 ): PortKind | null {
-  const port = getPorts(blockType, override)[side].find((p) => p.id === portId);
+  const port = getPorts(blockType, override, params)[side].find((p) => p.id === portId);
   return port ? portKind(port) : null;
 }
 
@@ -56,7 +57,7 @@ export function edgeClassFor(kind: PortKind | null): string | undefined {
 /** Вид ребра по узлам флоу (для проставления className). */
 export function edgeClass(flow: Pick<Flow, "nodes">, source: string, sourcePort: string): string | undefined {
   const n = flow.nodes.find((x) => x.id === source);
-  return n ? edgeClassFor(nodePortKind(n.type, n.portsOverride, "outputs", sourcePort)) : undefined;
+  return n ? edgeClassFor(nodePortKind(n.type, n.portsOverride, "outputs", sourcePort, n.params)) : undefined;
 }
 
 export function defaultParams(blockType: string): Record<string, Json> {

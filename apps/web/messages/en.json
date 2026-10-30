@@ -96,8 +96,8 @@
     "memory_bank": "Memory Bank",
     "note": "Sticky Note",
     "group": "Group",
-    "call_trigger": "Called by Flow",
-    "run_flow": "Run Flow",
+    "call_trigger": "Phone Incoming",
+    "run_flow": "Phone Outgoing",
     "counter": "Counter",
     "log": "Log"
   },
@@ -161,17 +161,11 @@
     "pinManualTitle": "Manual data (pin)",
     "pinSave": "Save",
     "pinHint": "Format: an object of port: value, for example out0 with your data. Applies to manual runs only; scheduled runs of a published flow use real data. An event trigger with pinned data starts in a manual run.",
-    "flowDraft": "not published",
-    "noFlows": "No flows saved on the server — type the id manually",
-    "noTriggers": "The copy of this flow saved on the server has no triggers — add one (for example, “Called by Flow”) and save/publish the flow",
-    "pickFlowFirst": "Pick a flow first",
-    "pickFlow": "Pick a flow",
-    "pickTrigger": "Pick a trigger",
-    "flowUnknown": "No such flow on the server yet. “Run” (sandbox) calls saved copies of flows, a published (production) flow calls only published ones: save and publish the target",
-    "flowNotPublished": "The flow is saved but not published: “Run” will call this saved copy (sandbox), but a published flow needs the target to be published",
-    "triggerUnknown": "This flow has no such trigger yet — add it and re-publish the flow",
-    "pickerFree": "Pick from the list or type an id: the target flow can be created later",
-    "flowUnknownForTrigger": "No such flow on the server — you can type the trigger id manually, but the flow must be saved and published by the time of the call"
+    "channelPlaceholder": "channel id, e.g. orders-sync",
+    "channelHint": "An outgoing and an incoming phone on the same channel form a pair (1:1). The pair can be created later, but the incoming one must be saved (for Run) or published (for production runs) when the call happens",
+    "channelTakenIn": "This channel already has an incoming phone in flow “{flow}” — a channel connects exactly one pair",
+    "channelTakenOut": "This channel already has an outgoing phone in flow “{flow}” — a channel connects exactly one pair",
+    "channelNoPeer": "No incoming phone on this channel yet — create it in another flow"
   },
   "params": {
     "source": {
@@ -432,11 +426,11 @@
       "height": "Height, px"
     },
     "run_flow": {
-      "flowId": "Flow (published)",
-      "triggerId": "Trigger",
+      "channelId": "Channel (1:1 link)",
+      "mode": "Mode",
       "data": "Data (empty — whole input)",
       "allowRecursive": "Allow recursive call",
-      "maxDepth": "Max call chain depth (0 — unlimited)"
+      "maxDepth": "Max call chain depth (1–20)"
     },
     "counter": {
       "name": "Shared counter name (empty — count this node)",
@@ -447,6 +441,9 @@
       "level": "Level",
       "width": "Width, px",
       "height": "Height, px"
+    },
+    "call_trigger": {
+      "channelId": "Channel (1:1 link)"
     }
   },
   "run": {
@@ -483,7 +480,9 @@
       "all": "all",
       "first": "first — first match",
       "polling": "polling — fetch updates (default)",
-      "webhook": "webhook — Telegram pushes (needs FL0W_PUBLIC_URL)"
+      "webhook": "webhook — Telegram pushes (needs FL0W_PUBLIC_URL)",
+      "await": "await — wait for the result (out0), error on err",
+      "shoot": "shoot — fire and forget (out0 = ok)"
     },
     "operator": {
       "eq": "equals",
@@ -718,7 +717,8 @@
     "param_type": "Block “{node}”: parameter “{param}” has the wrong type",
     "param_enum": "Block “{node}”: invalid value for parameter “{param}”",
     "param_range": "Block “{node}”: parameter “{param}” is out of range",
-    "port_kind": "Ports of different kinds cannot be connected (data, tool, memory)"
+    "port_kind": "Ports of different kinds cannot be connected (data, tool, memory)",
+    "phone_channel": "A phone channel connects exactly one pair — this channel has more than one phone on the same side"
   },
   "addBlock": {
     "title": "Add block",
@@ -753,6 +753,9 @@
     "code_agent": {
       "tools": "Tools",
       "memory": "Memory"
+    },
+    "run_flow": {
+      "err": "error"
     }
   }
 }

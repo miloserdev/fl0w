@@ -50,7 +50,7 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNodeType>) {
   const display = useNodeDisplay(id);
   const issues = useNodeIssues(id);
   const cls = registry[data.blockType];
-  const ports = getPorts(data.blockType, data.portsOverride);
+  const ports = getPorts(data.blockType, data.portsOverride, data.params);
   // порты данных — по бокам; ресурсные — ромбы снизу (у хозяина) или сверху (у самого ресурса)
   const { dataIn, dataOut, resourceIn, resourceOut } = splitPorts(ports);
   const isResource = Boolean(cls?.resource);

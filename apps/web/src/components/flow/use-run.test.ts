@@ -76,3 +76,14 @@ describe("Watch: сброс ветки запуска", () => {
     expect(next.nodeDetails["a"]).toBeDefined(); // данные нод не стираются
   });
 });
+
+describe("reduceRun: node:killed", () => {
+  it("оборванный shoot-вызов виден в ошибках и логе, статус ноды не меняется", () => {
+    let s = reduceRun(IDLE_RUN, { event: "node:start", nodeId: "p" }, ids);
+    s = reduceRun(s, { event: "node:done", nodeId: "p", output: { out0: { ok: true } } }, ids);
+    s = reduceRun(s, { event: "node:killed", nodeId: "p", reason: "caller finished" }, ids);
+    expect(s.nodes["p"]).toBe("done");
+    expect(s.nodeErrors["p"]).toBe("killed: caller finished");
+    expect(s.logs.at(-1)).toEqual({ nodeId: "p", message: "killed: caller finished" });
+  });
+});

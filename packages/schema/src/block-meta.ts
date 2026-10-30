@@ -36,8 +36,8 @@ const paramBase = {
    * там `{{` — часть языка, а подстановка в скрипт была бы внедрением команд). По умолчанию подставляет.
    */
   expressions: z.boolean().optional(),
-  /** Подсказка редактору: выбор из серверных данных — "flow" (опубликованный флоу) или "flow-trigger" (его триггер). */
-  picker: z.enum(["flow", "flow-trigger"]).optional(),
+  /** Подсказка редактору: подсказки из серверных данных — каналы phone-пар: "channel-in" (для входящего: занятые) / "channel-out" (для исходящего: доступные входящие). */
+  picker: z.enum(["channel-in", "channel-out"]).optional(),
   /** "code" — параметр редактируется во вкладке кода (Monaco, JS), а не в авто-форме. */
   editor: z.literal("code").optional(),
   /**

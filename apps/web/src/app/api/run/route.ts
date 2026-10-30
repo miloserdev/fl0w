@@ -1,5 +1,5 @@
 import { registry } from "@fl0w/blocks";
-import { formatIssues, validateFlow } from "@fl0w/engine";
+import { findIncoming, formatIssues, validateFlow } from "@fl0w/engine";
 import { runFlowInProcess } from "@fl0w/engine/process";
 import type { Json, RunnerEvent } from "@fl0w/schema";
 import { engineDir } from "@/server/engine-dir";
@@ -51,18 +51,12 @@ export async function POST(req: Request) {
         timeoutMs: RUN_TIMEOUT_MS,
         // «Запустить» — песочница: отдельная память, вызовы других флоу не затрагивают рабочие (опубликованные) копии
         sandbox: true,
-        // блок Run Flow в ручном запуске вызывает настоящие опубликованные флоу; цепочка начинается с этого флоу
-        // Вызовы в песочнице идут по СОХРАНЁННЫМ копиям (этот флоу — по версии из редактора), публикация не нужна; события
-        // вложенных запусков попадают в ленту (кроме flow:done — итог один, внешний). Рабочие запуски не затрагиваются.
-        onFire: (req) =>
-          getRuntime().scheduler.fireFrom([checked.flow.id], req, {
-            flow: checked.flow,
-            resolve: (id) => getRuntime().store.get(id),
-            signal: abort.signal,
-            onEvent: (e) => {
-              if (e.event !== "flow:done") emit(e);
-            },
-          }),
+        // phone-outgoing в песочнице находит phone-incoming среди СОХРАНЁННЫХ копий (публикация не нужна); этот флоу — по версии
+        // из редактора, а не сохранённой. Рабочие (опубликованные) запуски не затрагиваются.
+        onResolveCall: async (channelId) => {
+          const saved = await getRuntime().store.list();
+          return findIncoming([checked.flow, ...saved.filter((f) => f.id !== checked.flow.id)], channelId);
+        },
         from: from as string | undefined,
         seeds: seeds as Record<string, Record<string, Json>> | undefined,
         onStderr: (chunk) => process.stderr.write(chunk),

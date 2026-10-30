@@ -26,10 +26,10 @@ export function canConnect(nodes: Pick<BlockNodeType, "id" | "data">[], edges: E
   const src = nodes.find((n) => n.id === c.source);
   const dst = nodes.find((n) => n.id === c.target);
   if (!src || !dst) return false;
-  const from = nodePortKind(src.data.blockType, src.data.portsOverride, "outputs", c.sourceHandle);
-  const to = nodePortKind(dst.data.blockType, dst.data.portsOverride, "inputs", c.targetHandle);
+  const from = nodePortKind(src.data.blockType, src.data.portsOverride, "outputs", c.sourceHandle, src.data.params);
+  const to = nodePortKind(dst.data.blockType, dst.data.portsOverride, "inputs", c.targetHandle, dst.data.params);
   if (!from || from !== to) return false;
-  const port = getPorts(dst.data.blockType, dst.data.portsOverride).inputs.find((p) => p.id === c.targetHandle);
+  const port = getPorts(dst.data.blockType, dst.data.portsOverride, dst.data.params).inputs.find((p) => p.id === c.targetHandle);
   if (!port?.multiple && edges.some((e) => e.target === c.target && e.targetHandle === c.targetHandle)) return false;
   if (edges.some((e) => e.source === c.source && e.sourceHandle === c.sourceHandle && e.target === c.target && e.targetHandle === c.targetHandle)) return false;
   if (from !== "data") return true;
@@ -39,6 +39,6 @@ export function canConnect(nodes: Pick<BlockNodeType, "id" | "data">[], edges: E
 
 function nodePortKindOfEdge(nodes: Pick<BlockNodeType, "id" | "data">[], e: Edge) {
   const n = nodes.find((x) => x.id === e.source);
-  return n ? nodePortKind(n.data.blockType, n.data.portsOverride, "outputs", e.sourceHandle) : null;
+  return n ? nodePortKind(n.data.blockType, n.data.portsOverride, "outputs", e.sourceHandle, n.data.params) : null;
 }
 

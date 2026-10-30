@@ -5,8 +5,7 @@
 import { fork, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import type { FireCall } from "@fl0w/blocks";
-import { fireRequestSchema, runnerEventSchema, type FireReply, type Flow, type Json, type RunnerCommand, type RunnerEvent } from "@fl0w/schema";
+import { callResolveRequestSchema, runnerEventSchema, type CallResolveReply, type Flow, type Json, type RunnerCommand, type RunnerEvent } from "@fl0w/schema";
 import type { SchedulerRun } from "./scheduler";
 
 export type ProcessRunOptions = {
@@ -28,8 +27,11 @@ export type ProcessRunOptions = {
   /** Перезапуск с ноды и данные прошлого запуска для её предшественников (см. RunOptions.from). */
   from?: string;
   seeds?: Record<string, Record<string, Json>>;
-  /** Запуск триггера другого флоу по просьбе блока Run Flow; отказ — исключение (его текст увидит блок). Без него блок падает с понятной ошибкой. */
-  onFire?: (req: FireCall) => Promise<void>;
+  /**
+   * Найти флоу с phone-incoming на канале (по просьбе блока phone-outgoing): раннер исполняет его вложенным запуском в своём
+   * процессе, поэтому ему нужно само определение. Отказ — исключение (текст увидит блок). Без него phone-outgoing падает с понятной ошибкой.
+   */
+  onResolveCall?: (channelId: string) => Promise<{ flow: Flow; triggerId: string }>;
   /** Пробный запуск из редактора (песочница): отдельный каталог памяти. Плановые запуски опубликованных флоу — без флага. */
   sandbox?: boolean;
   /** Отмена: убивает процесс и завершает запуск событием `flow:done` с ошибкой. */
@@ -119,17 +121,17 @@ export function runFlowInProcess(
 
     proc.on("message", (raw) => {
       if (finished) return;
-      const fireReq = fireRequestSchema.safeParse(raw);
-      if (fireReq.success) {
-        const { id, event: _event, ...call } = fireReq.data;
-        const reply = (error?: string) => {
-          if (!finished && proc.connected) proc.send({ cmd: "fire:result", id, ...(error !== undefined ? { error } : {}) } satisfies FireReply);
+      const resolveReq = callResolveRequestSchema.safeParse(raw);
+      if (resolveReq.success) {
+        const { id, channelId } = resolveReq.data;
+        const reply = (r: Omit<CallResolveReply, "cmd" | "id">) => {
+          if (!finished && proc.connected) proc.send({ cmd: "call:resolved", id, ...r } satisfies CallResolveReply);
         };
-        if (!opts.onFire) reply("Calling other flows is not available here");
+        if (!opts.onResolveCall) reply({ error: "Calling other flows is not available here" });
         else {
           void Promise.resolve()
-            .then(() => opts.onFire!(call))
-            .then(() => reply(), (e: unknown) => reply(e instanceof Error ? e.message : String(e)));
+            .then(() => opts.onResolveCall!(channelId))
+            .then((t) => reply({ flow: t.flow, triggerId: t.triggerId }), (e: unknown) => reply({ error: e instanceof Error ? e.message : String(e) }));
         }
         return;
       }
@@ -173,5 +175,5 @@ export function sandboxEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.Proces
 }
 
 export function processSchedulerRun(base: Pick<ProcessRunOptions, "engineDir" | "timeoutMs" | "execArgv"> = {}): SchedulerRun {
-  return (flow, onEvent, { trigger, triggerData, onFire, sandbox, signal }) => runFlowInProcess(flow, onEvent, { ...base, trigger, triggerData, onFire, sandbox, signal });
+  return (flow, onEvent, { trigger, triggerData, onResolveCall }) => runFlowInProcess(flow, onEvent, { ...base, trigger, triggerData, onResolveCall });
 }

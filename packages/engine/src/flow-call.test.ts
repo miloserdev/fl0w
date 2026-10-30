@@ -1,224 +1,235 @@
 import { registry } from "@fl0w/blocks";
 import type { Flow, Json, RunnerEvent } from "@fl0w/schema";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
+import { channelsOf, findIncoming, validatePhoneChannels } from "./phone";
 import { RunHub } from "./hub";
-import { Scheduler, type SchedulerRun } from "./scheduler";
+import { Scheduler } from "./scheduler";
 import { runFlowInProcess, sandboxEnv } from "./spawn";
 import { FlowStore } from "./store";
 import { collect, edge, flow, node, testRegistry } from "./test-helpers";
+import { validateFlow } from "./validate";
 
-/** Опубликованный флоу: триггер `t` (Every, годится для теста: isTrigger) и `r`. */
-const pub = (id: string): Flow => ({ ...flow([node("t", "every", { interval: 1, unit: "hours" }), node("r", "result")], [edge("t", "r")]), id, status: "published" });
+/** Вызванный флоу: Phone Incoming(channel) → [шаги] → Result. */
+const callee = (id: string, channel: string, middle: ReturnType<typeof node>[] = [], edges: ReturnType<typeof edge>[] = []): Flow => ({
+  ...flow(
+    [node("in", "call_trigger", { channelId: channel }), ...middle, node("res", "result")],
+    middle.length ? [edge("in", middle[0]!.id), ...edges, edge(middle.at(-1)!.id, "res")] : [edge("in", "res")],
+  ),
+  id,
+});
+/** Вызывающий: Source → Phone Outgoing → (out0 → Result, err → Result2 по желанию). */
+const caller = (params: Record<string, Json>, opts: { errPort?: boolean; id?: string } = {}): Flow => ({
+  ...flow(
+    [node("s", "source", { json: { v: 1 } }), node("p", "run_flow", params), node("r", "result"), ...(opts.errPort ? [node("er", "result")] : [])],
+    [edge("s", "p"), edge("p", "r"), ...(opts.errPort ? [edge("p", "er", "err", "in0", "e-err")] : [])],
+  ),
+  id: opts.id ?? "caller",
+});
+const code = (id: string, body: string) => node(id, "code", { code: body });
+const resolverFor = (...flows: Flow[]) => async (ch: string) => findIncoming(flows, ch);
+const run = (f: Flow, flows: Flow[], extra: Record<string, unknown> = {}) => collect(f, { registry, resolveCall: resolverFor(f, ...flows), ...extra });
+const ev = (events: RunnerEvent[], kind: string) => events.filter((e) => e.event === kind);
 
-type Req = { flowId: string; triggerId: string; data: Json };
-function setup(run: SchedulerRun, max = 8) {
-  const logs: string[] = [];
-  const scheduler = new Scheduler({ store: new FlowStore("/nonexistent"), hub: new RunHub(), registry: testRegistry, run, log: (m) => logs.push(m), maxConcurrentHookRuns: max });
-  return { scheduler, logs };
-}
-const idle: SchedulerRun = async (_f, onEvent) => onEvent({ event: "flow:done", result: 1 });
-
-afterEach(() => vi.useRealTimers());
-
-describe("Scheduler.fireFrom (вызов триггера другого флоу)", () => {
-  it("запускает триггер опубликованного флоу с данными и не ждёт завершения", async () => {
-    const seen: { flow: string; trigger: string; data?: Json }[] = [];
-    let release!: () => void;
-    const gate = new Promise<void>((r) => (release = r));
-    const { scheduler } = setup(async (f, onEvent, o) => {
-      seen.push({ flow: f.id, trigger: o.trigger, data: o.triggerData });
-      await gate;
-      onEvent({ event: "flow:done", result: 1 });
-    });
-    scheduler.sync(pub("a"));
-    scheduler.sync(pub("b"));
-    await scheduler.fireFrom(["a"], { flowId: "b", triggerId: "t", data: { hi: 1 } }); // вернулся, хотя b ещё идёт
-    expect(seen).toEqual([{ flow: "b", trigger: "t", data: { hi: 1 } }]);
-    release();
-    scheduler.stop();
+describe("phone-пара: каналы, порты, валидация", () => {
+  it("порт err есть только в режиме await", () => {
+    const await_ = validateFlow(caller({ channelId: "c", mode: "await" }, { errPort: true }), registry);
+    expect(await_.ok).toBe(true);
+    const shoot = validateFlow(caller({ channelId: "c", mode: "shoot" }, { errPort: true }), registry);
+    expect(shoot.ok).toBe(false);
+    expect(!shoot.ok && shoot.issues.map((i) => i.code)).toContain("unknown_port");
+    // по умолчанию режим await
+    expect(validateFlow(caller({ channelId: "c" }, { errPort: true }), registry).ok).toBe(true);
   });
 
-  it("отказывает: цель не опубликована, нет такого триггера, не триггер", async () => {
-    const { scheduler } = setup(idle);
-    scheduler.sync(pub("a"));
-    await expect(scheduler.fireFrom(["a"], { flowId: "zzz", triggerId: "t", data: null })).rejects.toThrow(/not published/);
-    scheduler.sync(pub("b"));
-    await expect(scheduler.fireFrom(["a"], { flowId: "b", triggerId: "nope", data: null })).rejects.toThrow(/no trigger "nope"/);
-    await expect(scheduler.fireFrom(["a"], { flowId: "b", triggerId: "r", data: null })).rejects.toThrow(/no trigger "r"/);
-    scheduler.stop();
+  it("связь 1:1: два входящих (или два исходящих) на одном канале — ошибка и внутри флоу, и между флоу", () => {
+    const dupIn: Flow = { ...flow([node("a", "call_trigger", { channelId: "x" }), node("b", "call_trigger", { channelId: "x" }), node("r", "result")], [edge("a", "r")]), id: "d" };
+    const r = validateFlow(dupIn, registry);
+    expect(!r.ok && r.issues.map((i) => i.code)).toContain("phone_channel");
+    const other = callee("other", "chan");
+    expect(validatePhoneChannels(callee("mine", "chan"), [other]).map((i) => i.code)).toEqual(["phone_channel"]);
+    expect(validatePhoneChannels(callee("mine", "chan"), [callee("mine", "chan")])).toEqual([]); // тот же флоу — своя прежняя копия
+    expect(validatePhoneChannels(callee("mine", "chan"), [caller({ channelId: "chan" })])).toEqual([]); // другая сторона — это пара
+    expect(validatePhoneChannels(caller({ channelId: "chan" }), [caller({ channelId: "chan" }, { id: "c2" })]).length).toBe(1);
+    expect(validatePhoneChannels(caller({ channelId: "unpaired" }), [])).toEqual([]); // пары может ещё не быть
   });
 
-  it("рекурсия: флоу из цепочки (и сам себя) вызвать нельзя; глубина ограничена", async () => {
-    const { scheduler } = setup(idle);
-    for (const id of ["a", "b", "c", "d", "e", "f", "g"]) scheduler.sync(pub(id));
-    await expect(scheduler.fireFrom(["a"], { flowId: "a", triggerId: "t", data: null })).rejects.toThrow(/Recursive call.*a → a/);
-    await expect(scheduler.fireFrom(["a", "b"], { flowId: "a", triggerId: "t", data: null })).rejects.toThrow(/a → b → a/);
-    await expect(scheduler.fireFrom(["a", "b", "c", "d", "e"], { flowId: "f", triggerId: "t", data: null })).rejects.toThrow(/too deep/);
-    await expect(scheduler.fireFrom(["a", "b", "c", "d"], { flowId: "e", triggerId: "t", data: null })).resolves.toBeUndefined();
-    scheduler.stop();
+  it("findIncoming: ровно один; нет или несколько — понятная ошибка; пробелы по краям не значимы", () => {
+    expect(findIncoming([callee("a", " c1 ")], "c1").triggerId).toBe("in");
+    expect(() => findIncoming([callee("a", "c1")], "zzz")).toThrow(/No phone-incoming with channel "zzz"/);
+    expect(() => findIncoming([callee("a", "c1"), callee("b", "c1")], "c1")).toThrow(/ambiguous/);
+    expect(channelsOf(caller({ channelId: "k" }))).toEqual({ incoming: [], outgoing: [{ nodeId: "p", channelId: "k" }] });
   });
 
-  it("allowRecursive разрешает вызов флоу из цепочки (в том числе самого себя), но глубину ограничивает maxDepth", async () => {
-    const { scheduler, logs } = setup(idle);
-    scheduler.sync(pub("a"));
-    scheduler.sync(pub("b"));
-    const self = { flowId: "a", triggerId: "t", data: null, allowRecursive: true };
-    await expect(scheduler.fireFrom(["a"], self)).resolves.toBeUndefined();
-    await expect(scheduler.fireFrom(["a", "b", "a"], { ...self, flowId: "b" })).resolves.toBeUndefined();
-    // по умолчанию глубина 5; своя — через maxDepth, но не выше жёсткого потолка 20
-    await expect(scheduler.fireFrom(["a", "a", "a", "a", "a"], self)).rejects.toThrow(/too deep \(limit 5/);
-    await expect(scheduler.fireFrom(["a", "a", "a"], { ...self, maxDepth: 3 })).rejects.toThrow(/limit 3/);
-    await expect(scheduler.fireFrom(Array(10).fill("a"), { ...self, maxDepth: 12 })).resolves.toBeUndefined();
-    await expect(scheduler.fireFrom(Array(20).fill("a"), { ...self, maxDepth: 20 })).rejects.toThrow(/limit 20/);
-    await expect(scheduler.fireFrom(Array(25).fill("a"), { ...self, maxDepth: 99 })).rejects.toThrow(/limit 20/);
-    // maxDepth 0 — без ограничения (и сверх потолка 20), в логе предупреждение
-    await expect(scheduler.fireFrom(Array(100).fill("a"), { ...self, maxDepth: 0 })).resolves.toBeUndefined();
-    expect(logs.some((l) => /unlimited/.test(l))).toBe(true);
-    scheduler.stop();
-  });
-
-  it("занятый планировщик (лимит параллельных запусков) — отказ с понятным текстом", async () => {
-    let release!: () => void;
-    const gate = new Promise<void>((r) => (release = r));
-    const { scheduler } = setup(async (_f, onEvent) => {
-      await gate;
-      onEvent({ event: "flow:done", result: 1 });
-    }, 1);
-    scheduler.sync(pub("a"));
-    scheduler.sync(pub("b"));
-    await scheduler.fireFrom(["a"], { flowId: "b", triggerId: "t", data: null });
-    await expect(scheduler.fireFrom(["a"], { flowId: "b", triggerId: "t", data: null })).rejects.toThrow(/busy/);
-    release();
-    scheduler.stop();
-  });
-
-  it("цепочка A → B → A: запуск B получает цепочку и вторая попытка вернуться в A отклоняется", async () => {
-    const results: string[] = [];
-    const run: SchedulerRun = async (f, onEvent, o) => {
-      if (f.id === "a") await o.onFire!({ flowId: "b", triggerId: "t", data: 1 }).then(() => results.push("a→b ok"));
-      if (f.id === "b") await o.onFire!({ flowId: "a", triggerId: "t", data: 2 }).then(() => results.push("b→a ok"), (e: Error) => results.push(`b→a: ${e.message}`));
-      onEvent({ event: "flow:done", result: 1 });
-    };
-    const { scheduler } = setup(run);
-    scheduler.sync(pub("a"));
-    scheduler.sync(pub("b"));
-    await scheduler.trigger("a", "t", null);
-    await new Promise((r) => setTimeout(r, 20));
-    expect(results).toContain("a→b ok");
-    expect(results.some((r) => /^b→a: Recursive call.*a → b → a/.test(r))).toBe(true);
-    scheduler.stop();
+  it("phone-incoming не входит в стартовые: ручной запуск его не поднимает, даже с закреплёнными данными", async () => {
+    const f: Flow = { ...flow([{ ...node("in", "call_trigger", { channelId: "c" }), pinData: { out0: { x: 1 } } }, node("r", "result")], [edge("in", "r")]), id: "solo" };
+    const r = await collect(f, { registry });
+    expect(r.started).toEqual([]);
+    expect(r.done?.error).toMatch(/Nothing to start manually/);
   });
 });
 
-describe("Scheduler.fireFrom: песочница («Запустить» в редакторе) не пересекается с рабочими запусками", () => {
-  /** Локальный (НЕ опубликованный) флоу: Manual → Result и триггер вызова `c`. */
-  const localFlow = (id = "draft"): Flow => ({ ...flow([node("m", "manual"), node("c", "call_trigger"), node("r", "result")], [edge("m", "r"), edge("c", "r", "out0", "in0", "e2")]), id });
-  const sandbox = (over: Partial<import("./scheduler").LocalFlow> = {}) => ({ flow: localFlow(), ...over });
-
-  it("вызов триггера своего флоу не требует публикации; события вложенного запуска идут вызывающему, запуск дожидается", async () => {
-    const got: string[] = [];
-    const calls: { flow: string; trigger: string; data?: Json; sandbox?: boolean }[] = [];
-    const { scheduler } = setup(async (f, onEvent, o) => {
-      calls.push({ flow: f.id, trigger: o.trigger, data: o.triggerData, sandbox: o.sandbox });
-      onEvent({ event: "node:start", nodeId: o.trigger });
-      await new Promise((r) => setTimeout(r, 15));
-      onEvent({ event: "flow:done", result: 1 });
-    });
-    await scheduler.fireFrom(["draft"], { flowId: "draft", triggerId: "c", data: { x: 1 }, allowRecursive: true }, sandbox({ onEvent: (e) => got.push(e.event) }));
-    expect(calls).toEqual([{ flow: "draft", trigger: "c", data: { x: 1 }, sandbox: true }]);
-    expect(got).toEqual(["node:start", "flow:done"]);
-    scheduler.stop();
+describe("await: с подтверждением", () => {
+  it("out0 — результат вызванного флоу (значение его Result), данные вызова приходят в phone-incoming", async () => {
+    const c = callee("c", "ch", [code("m", "return { out0: { got: inputs.in0, doubled: inputs.in0.v * 2 } }")]);
+    const r = await run(caller({ channelId: "ch" }), [c]);
+    expect(r.done?.error).toBeUndefined();
+    expect(r.done?.result).toEqual({ got: { v: 1 }, doubled: 2 });
   });
 
-  it("другой флоу в песочнице — его СОХРАНЁННАЯ копия (черновик подходит), опубликованная рабочая не запускается", async () => {
-    const calls: { flow: string; sandbox?: boolean }[] = [];
-    const { scheduler } = setup(async (f, onEvent, o) => {
-      calls.push({ flow: f.id, sandbox: o.sandbox });
-      onEvent({ event: "flow:done", result: 1 });
-    });
-    // рабочая (опубликованная) копия того же флоу есть — но песочница обязана взять сохранённую и не трогать рабочую
-    scheduler.sync(pub("other"));
-    const draftCopy: Flow = { ...localFlow("other"), status: "draft" };
-    await scheduler.fireFrom(["draft"], { flowId: "other", triggerId: "c", data: null }, sandbox({ resolve: async (id) => (id === "other" ? draftCopy : null) }));
-    expect(calls).toEqual([{ flow: "other", sandbox: true }]);
-    scheduler.stop();
+  it("вызванный флоу без Result даёт null; data из параметров заменяет вход", async () => {
+    const noResult: Flow = { ...flow([node("in", "call_trigger", { channelId: "ch" })], []), id: "nr" };
+    expect((await run(caller({ channelId: "ch" }), [noResult])).done?.result).toBeNull();
+    const c = callee("c", "ch", [code("m", "return { out0: inputs.in0 }")]);
+    expect((await run(caller({ channelId: "ch", data: { fixed: true } }), [c])).done?.result).toEqual({ fixed: true });
   });
 
-  it("рабочий флоу не видит пробных запусков: хаб (Watch) пуст, Error Trigger не получает ошибок, лимит вебхуков не тратится", async () => {
-    const hub = new RunHub();
-    const handled: string[] = [];
-    const run: SchedulerRun = async (f, onEvent) => {
-      if (f.id === "handler") handled.push("handler ran");
-      else onEvent({ event: "flow:done", error: "boom" });
+  it("падение вызванного флоу уходит в порт err (с текстом ошибки), out0 не выходит", async () => {
+    const c = callee("c", "ch", [code("m", "throw new Error('callee boom')")]);
+    const r = await run(caller({ channelId: "ch" }, { errPort: true }), [c]);
+    expect(r.done?.error).toBeUndefined();
+    const res = r.done?.result as Record<string, Json>;
+    // по out0 ничего не вышло — единственный Result получил ошибку из err
+    expect(res).toMatchObject({ message: expect.stringContaining("callee boom"), channelId: "ch" });
+  });
+
+  it("порт err ни к чему не подключён — ошибка не теряется: падает сама нода", async () => {
+    const c = callee("c", "ch", [code("m", "throw new Error('lost?')")]);
+    const r = await run(caller({ channelId: "ch" }), [c]);
+    expect(r.done?.error).toMatch(/Node "p" failed:.*lost\?/);
+  });
+
+  it("нет канала / неоднозначный канал / нет резолвера — в err (или падение ноды)", async () => {
+    const r = await run(caller({ channelId: "nope" }, { errPort: true }), []);
+    expect(r.done?.result).toMatchObject({ message: expect.stringMatching(/No phone-incoming with channel "nope"/) });
+    const r2 = await collect(caller({ channelId: "x" }), { registry });
+    expect(r2.done?.error).toMatch(/not available/);
+  });
+
+  it("рекурсия: вызов флоу из своей цепочки запрещён (ошибка в err), allowRecursive разрешает; глубина ограничена maxDepth", async () => {
+    // флоу сам себя: Source → Phone Out (await) ; Phone In → тот же Phone Out
+    const self: Flow = {
+      ...flow(
+        [node("s", "source", { json: { n: 1 } }), node("in", "call_trigger", { channelId: "loop" }), node("p", "run_flow", { channelId: "loop" }), node("r", "result"), node("er", "result")],
+        [edge("s", "p"), edge("in", "p", "out0", "in0", "e2"), edge("p", "r"), edge("p", "er", "err", "in0", "e3")],
+      ),
+      id: "self",
     };
-    const scheduler = new Scheduler({ store: new FlowStore("/nonexistent"), hub, registry: testRegistry, run, maxConcurrentHookRuns: 1 });
-    scheduler.sync({ ...flow([node("et", "error_trigger"), node("r", "result")], [edge("et", "r")]), id: "handler", status: "published" } as Flow);
-    const seen: string[] = [];
-    hub.subscribe("draft", (m) => seen.push(m.type));
-    await scheduler.fireFrom(["draft"], { flowId: "draft", triggerId: "c", data: null, allowRecursive: true }, sandbox());
-    await new Promise((r) => setTimeout(r, 20));
-    expect(seen).toEqual([]);
-    expect(hub.lastRun("draft")).toBeUndefined();
-    expect(handled).toEqual([]);
-    scheduler.stop();
+    // вход ТОЖЕ вызывает p, поэтому у p два источника — ребро s→p убираем, стартуем из in... нужен другой старт: используем отдельный флоу-вызыватель
+    const looper: Flow = { ...flow([node("in", "call_trigger", { channelId: "loop" }), node("p", "run_flow", { channelId: "loop", allowRecursive: false }), node("r", "result"), node("er", "result")], [edge("in", "p"), edge("p", "r"), edge("p", "er", "err", "in0", "e3")]), id: "looper" };
+    const starter = caller({ channelId: "loop" }, { errPort: true, id: "starter" });
+    const r = await run(starter, [looper]);
+    // starter → looper (глубина 1) → looper снова: looper уже в цепочке → отказ уходит в err looper'а, а не обрушивает всё
+    expect(r.done?.error).toBeUndefined();
+    const res = r.done?.result as Record<string, Json>;
+    expect(JSON.stringify(res)).toMatch(/Recursive call/);
+    expect(self.id).toBe("self");
+
+    // с allowRecursive цепочка идёт, пока не упрётся в maxDepth, и тоже заканчивается ошибкой в err — не зависанием
+    const deep: Flow = { ...flow([node("in", "call_trigger", { channelId: "loop" }), node("p", "run_flow", { channelId: "loop", allowRecursive: true, maxDepth: 3 }), node("r", "result"), node("er", "result")], [edge("in", "p"), edge("p", "r"), edge("p", "er", "err", "in0", "e3")]), id: "deep" };
+    const r2 = await run(caller({ channelId: "loop", allowRecursive: true, maxDepth: 3 }, { errPort: true, id: "starter2" }), [deep]);
+    expect(r2.done?.error).toBeUndefined();
+    expect(JSON.stringify(r2.done?.result)).toMatch(/too deep \(limit 3/);
+  });
+});
+
+describe("shoot: выстрелил и забыл", () => {
+  const slowCallee = (id = "slow", ch = "ch") => callee(id, ch, [node("w", "wait", { amount: 3, unit: "seconds" })]);
+
+  it("out0 = { ok: true } сразу, не ждёт вызванный флоу; порта err нет", async () => {
+    const t0 = Date.now();
+    const r = await run(caller({ channelId: "ch", mode: "shoot" }), [slowCallee()]);
+    expect(Date.now() - t0).toBeLessThan(2500); // не ждали 3-секундный Wait
+    expect(r.done?.result).toEqual({ ok: true });
   });
 
-  it("правила рекурсии и глубины те же: вызов себя без allowRecursive запрещён", async () => {
-    const { scheduler } = setup(idle);
-    await expect(scheduler.fireFrom(["draft"], { flowId: "draft", triggerId: "c", data: null }, sandbox())).rejects.toThrow(/Recursive call/);
-    await expect(scheduler.fireFrom(["draft"], { flowId: "draft", triggerId: "c", data: null, allowRecursive: true, maxDepth: 1 }, sandbox())).rejects.toThrow(/too deep/);
-    scheduler.stop();
+  it("если запуск закончился раньше, незавершённый вызванный флоу обрывается и это пишется в ленту (node:killed)", async () => {
+    const r = await run(caller({ channelId: "ch", mode: "shoot" }), [slowCallee()]);
+    const killed = ev(r.events, "node:killed");
+    expect(killed).toHaveLength(1);
+    expect(killed[0]).toMatchObject({ nodeId: "p", reason: expect.stringMatching(/stopped/) });
+    expect(r.done?.error).toBeUndefined(); // вызывающего это не касается
+    // node:killed раньше flow:done
+    const order = r.events.map((e) => e.event);
+    expect(order.indexOf("node:killed")).toBeLessThan(order.indexOf("flow:done"));
   });
 
-  it("нет такого триггера или флоу не сохранён — понятные ошибки (про публикацию в песочнице речи нет)", async () => {
-    const { scheduler } = setup(idle);
-    await expect(scheduler.fireFrom(["draft"], { flowId: "draft", triggerId: "zzz", data: null, allowRecursive: true }, sandbox())).rejects.toThrow(/no trigger "zzz"/);
-    const e = await scheduler.fireFrom(["draft"], { flowId: "nope", triggerId: "c", data: null }, sandbox()).catch((x: Error) => x.message);
-    expect(e).toMatch(/not saved on the server/);
-    expect(e).not.toMatch(/not published/);
-    scheduler.stop();
-  });
-
-  it("в песочнице maxDepth 0 («без ограничения») не действует: вложенные запуски дожидаются и держат процессы — потолок 20", async () => {
-    const { scheduler, logs } = setup(idle);
-    const call = { flowId: "draft", triggerId: "c", data: null, allowRecursive: true, maxDepth: 0 };
-    await expect(scheduler.fireFrom(Array(19).fill("draft"), call, sandbox())).resolves.toBeUndefined();
-    await expect(scheduler.fireFrom(Array(20).fill("draft"), call, sandbox())).rejects.toThrow(/too deep \(limit 20 flows\)\. The sandbox/);
-    expect(logs.some((l) => /unlimited/.test(l))).toBe(false);
-    scheduler.stop();
-  });
-
-  it("отмена ленты (signal) доходит до вложенных запусков и не даёт стартовать новым", async () => {
-    const ac = new AbortController();
-    const signals: (AbortSignal | undefined)[] = [];
-    const { scheduler } = setup(async (_f, onEvent, o) => {
-      signals.push(o.signal);
-      onEvent({ event: "flow:done", result: 1 });
-    });
-    const call = { flowId: "draft", triggerId: "c", data: null, allowRecursive: true };
-    await scheduler.fireFrom(["draft"], call, sandbox({ signal: ac.signal }));
-    expect(signals).toEqual([ac.signal]);
-    ac.abort();
-    await expect(scheduler.fireFrom(["draft"], call, sandbox({ signal: ac.signal }))).rejects.toThrow(/Aborted/);
-    expect(signals).toHaveLength(1); // новый запуск не стартовал
-    scheduler.stop();
-  });
-
-  it("вложенный вызов остаётся в песочнице (цепочка продолжается без публикации)", async () => {
-    const depth: number[] = [];
-    const flags: (boolean | undefined)[] = [];
-    let level = 0;
-    const run: SchedulerRun = async (_f, onEvent, o) => {
-      depth.push(++level);
-      flags.push(o.sandbox);
-      if (level < 3) await o.onFire!({ flowId: "draft", triggerId: "c", data: level, allowRecursive: true, maxDepth: 10 });
-      onEvent({ event: "flow:done", result: 1 });
+  it("вызванный флоу успел завершиться — ни killed, ни error", async () => {
+    const quick = callee("q", "ch", [code("m", "return { out0: 1 }")]);
+    const caller2: Flow = {
+      ...flow([node("s", "source", { json: { v: 1 } }), node("p", "run_flow", { channelId: "ch", mode: "shoot" }), node("w", "wait", { amount: 1, unit: "seconds" }), node("r", "result")], [edge("s", "p"), edge("p", "w"), edge("w", "r")]),
+      id: "c2",
     };
-    const { scheduler } = setup(run);
-    await scheduler.fireFrom(["draft"], { flowId: "draft", triggerId: "c", data: 0, allowRecursive: true, maxDepth: 10 }, sandbox());
-    expect(depth).toEqual([1, 2, 3]);
-    expect(flags).toEqual([true, true, true]);
-    scheduler.stop();
+    const r = await run(caller2, [quick]);
+    expect(ev(r.events, "node:killed")).toHaveLength(0);
+    expect(ev(r.events, "node:error")).toHaveLength(0);
+    expect(r.done?.result).toEqual({ ok: true });
+  });
+
+  it("падение вызванного флоу пишется как node:error вызывающей ноды, но сам запуск успешен", async () => {
+    const bad = callee("bad", "ch", [code("m", "throw new Error('shoot boom')")]);
+    const caller2: Flow = {
+      ...flow([node("s", "source", { json: { v: 1 } }), node("p", "run_flow", { channelId: "ch", mode: "shoot" }), node("w", "wait", { amount: 1, unit: "seconds" }), node("r", "result")], [edge("s", "p"), edge("p", "w"), edge("w", "r")]),
+      id: "c3",
+    };
+    const r = await run(caller2, [bad]);
+    expect(r.done?.error).toBeUndefined();
+    expect(ev(r.events, "node:error")).toEqual([expect.objectContaining({ nodeId: "p", error: expect.stringMatching(/shoot call to channel "ch" failed:.*shoot boom/) })]);
+  });
+
+  it("нет канала, рекурсия, глубина — в shoot логируются (node:error) и гасятся, запуск идёт дальше", async () => {
+    const caller2: Flow = {
+      ...flow([node("s", "source", { json: { v: 1 } }), node("p", "run_flow", { channelId: "missing", mode: "shoot" }), node("w", "wait", { amount: 1, unit: "seconds" }), node("r", "result")], [edge("s", "p"), edge("p", "w"), edge("w", "r")]),
+      id: "c4",
+    };
+    const r = await run(caller2, []);
+    expect(r.done?.result).toEqual({ ok: true });
+    expect(ev(r.events, "node:error")[0]).toMatchObject({ nodeId: "p", error: expect.stringMatching(/No phone-incoming/) });
+  });
+});
+
+describe("Scheduler.resolveCall: рабочие запуски находят только опубликованные флоу", () => {
+  const scheduler = (...pub: Flow[]) => {
+    const s = new Scheduler({ store: new FlowStore("/nonexistent"), hub: new RunHub(), registry: testRegistry, run: async (_f, onEvent) => onEvent({ event: "flow:done", result: 1 }) });
+    for (const f of pub) s.sync({ ...f, status: "published" });
+    return s;
+  };
+
+  it("находит phone-incoming опубликованного флоу и отдаёт его определение; черновик не виден", async () => {
+    const s = scheduler(callee("pubd", "ch"));
+    expect((await s.resolveCall("ch")).flow.id).toBe("pubd");
+    await expect(scheduler().resolveCall("ch")).rejects.toThrow(/No phone-incoming/);
+    s.stop();
+  });
+});
+
+describe("phone-пара в настоящем процессе-раннере (IPC)", () => {
+  const exec = async (f: Flow, flows: Flow[]) => {
+    const events: RunnerEvent[] = [];
+    await runFlowInProcess(f, (e) => events.push(e), { timeoutMs: 20000, onResolveCall: async (ch) => findIncoming(flows, ch) });
+    const done = events.at(-1);
+    return { events, done: done?.event === "flow:done" ? done : undefined };
+  };
+
+  it("await: результат вызванного флоу приходит через IPC-определение флоу", async () => {
+    const c = callee("c", "ch", [code("m", "return { out0: { echoed: inputs.in0 } }")]);
+    expect((await exec(caller({ channelId: "ch" }), [c])).done?.result).toEqual({ echoed: { v: 1 } });
+  });
+
+  it("отказ хозяина (нет канала) — ошибка ноды с его текстом; без onResolveCall — понятная ошибка", async () => {
+    const r = await exec(caller({ channelId: "zzz" }), []);
+    expect(r.done?.error).toMatch(/No phone-incoming with channel "zzz"/);
+    const events: RunnerEvent[] = [];
+    await runFlowInProcess(caller({ channelId: "zzz" }), (e) => events.push(e), { timeoutMs: 20000 });
+    expect((events.at(-1) as { error?: string }).error).toMatch(/not available/);
+  });
+
+  it("shoot: вызывающий дошёл до Result — процесс завершается, незавершённый вызванный флоу оборван (node:killed)", async () => {
+    const slow = callee("slow", "ch", [node("w", "wait", { amount: 3, unit: "seconds" })]);
+    const t0 = Date.now();
+    const r = await exec(caller({ channelId: "ch", mode: "shoot" }), [slow]);
+    expect(Date.now() - t0).toBeLessThan(10000);
+    expect(r.done?.result).toEqual({ ok: true });
+    expect(ev(r.events, "node:killed")).toHaveLength(1);
   });
 });
 
@@ -227,79 +238,6 @@ describe("окружение песочницы", () => {
     expect(sandboxEnv({ FL0W_MEMORY_DIR: "/data/memory" })["FL0W_MEMORY_DIR"]).toBe("/data/memory/_sandbox");
     expect(sandboxEnv({ FL0W_MEMORY_DIR: "/data/memory/" })["FL0W_MEMORY_DIR"]).toBe("/data/memory/_sandbox");
     expect(sandboxEnv({ OTHER: "1" })).toEqual({ OTHER: "1" });
-  });
-});
-
-describe("блок Run Flow в настоящем процессе-раннере", () => {
-  const f = (flowId: string, data?: Json) =>
-    flow([node("s", "source", { json: { v: 1 } }), node("c", "run_flow", { flowId, triggerId: "t", ...(data !== undefined ? { data } : {}) }), node("r", "result")], [edge("s", "c"), edge("c", "r")]);
-  const run = async (fl: Flow, onFire?: (r: Req) => Promise<void>) => {
-    const events: RunnerEvent[] = [];
-    await runFlowInProcess(fl, (e) => events.push(e), { timeoutMs: 20000, onFire });
-    const done = events.at(-1);
-    return { events, done: done?.event === "flow:done" ? done : undefined };
-  };
-
-  it("по умолчанию отдаёт весь вход; ответ хозяина превращается в успех", async () => {
-    const reqs: Req[] = [];
-    const r = await run(f("other"), async (q) => void reqs.push(q));
-    expect(reqs).toEqual([{ flowId: "other", triggerId: "t", data: { v: 1 }, allowRecursive: false, maxDepth: 5 }]);
-    expect(r.done?.result).toEqual({ fired: true, flowId: "other", triggerId: "t" });
-  });
-
-  it("data из параметров (в том числе с выражением) заменяет вход", async () => {
-    const reqs: Req[] = [];
-    await run(f("other", { picked: "{{ inputs.in0.v }}" }), async (q) => void reqs.push(q));
-    expect(reqs[0]!.data).toEqual({ picked: 1 });
-  });
-
-  it("allowRecursive и maxDepth из параметров блока доходят до хозяина", async () => {
-    const reqs: (Req & { allowRecursive?: boolean; maxDepth?: number })[] = [];
-    const fl = flow(
-      [node("s", "source", { json: { v: 1 } }), node("c", "run_flow", { flowId: "x", triggerId: "t", allowRecursive: true, maxDepth: 7 }), node("r", "result")],
-      [edge("s", "c"), edge("c", "r")],
-    );
-    await run(fl, async (q) => void reqs.push(q));
-    expect(reqs[0]).toMatchObject({ flowId: "x", allowRecursive: true, maxDepth: 7 });
-    const plain = await (async () => {
-      const got: Record<string, unknown>[] = [];
-      await run(f("x"), async (q) => void got.push(q));
-      return got[0]!;
-    })();
-    expect(plain["allowRecursive"]).toBe(false); // по умолчанию рекурсия запрещена
-  });
-
-  it("отказ хозяина (рекурсия, не опубликован…) — ошибка ноды с его текстом", async () => {
-    const r = await run(f("other"), async () => {
-      throw new Error("Flow \"other\" is not published");
-    });
-    expect(r.done?.error).toMatch(/Node "c" failed: Flow "other" is not published/);
-  });
-
-  it("без onFire (например, окружение без сервера) — понятная ошибка, а не зависание", async () => {
-    const r = await run(f("other"));
-    expect(r.done?.error).toMatch(/not available/);
-  });
-});
-
-describe("блоки вызова (в памяти)", () => {
-  it("run_flow требует оба id и ctx.fire", async () => {
-    const empty = flow([node("s", "source", { json: { v: 1 } }), node("c", "run_flow", { flowId: "", triggerId: "t" }), node("r", "result")], [edge("s", "c"), edge("c", "r")]);
-    expect((await collect(empty, { registry })).done?.error).toMatch(/required/);
-    const ok = flow([node("s", "source", { json: { v: 1 } }), node("c", "run_flow", { flowId: "x", triggerId: "t" }), node("r", "result")], [edge("s", "c"), edge("c", "r")]);
-    expect((await collect(ok, { registry })).done?.error).toMatch(/not available/);
-    const fired: Req[] = [];
-    const r = await collect(ok, { registry, fire: async (q) => void fired.push(q) });
-    expect(fired).toHaveLength(1);
-    expect(r.done?.result).toEqual({ fired: true, flowId: "x", triggerId: "t" });
-  });
-
-  it("call_trigger — триггер события: ручной запуск его не стартует, с закреплёнными данными — стартует, по событию отдаёт данные вызова", async () => {
-    const f = flow([node("c", "call_trigger"), node("r", "result")], [edge("c", "r")]);
-    expect((await collect(f, { registry })).done?.error).toMatch(/Nothing to start manually/);
-    const pinned = flow([{ ...node("c", "call_trigger"), pinData: { out0: { x: 1 } } }, node("r", "result")], [edge("c", "r")]);
-    expect((await collect(pinned, { registry })).done?.result).toEqual({ x: 1 });
-    expect((await collect(f, { registry, trigger: "c", triggerData: { from: "a", data: 5 } })).done?.result).toEqual({ from: "a", data: 5 });
   });
 });
 

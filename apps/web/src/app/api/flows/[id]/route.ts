@@ -1,5 +1,5 @@
 import { registry } from "@fl0w/blocks";
-import { formatIssues, validateFlow } from "@fl0w/engine";
+import { formatIssues, validateFlow, validatePhoneChannels } from "@fl0w/engine";
 import { isSafeFlowId } from "@fl0w/engine/server";
 import { getRuntime } from "@/server/runtime";
 
@@ -52,6 +52,14 @@ export async function PUT(req: Request, { params }: Ctx) {
 
   const rt = getRuntime();
   await rt.start();
+  // phone-пара: канал связывает ровно один входящий и один исходящий телефон — и среди остальных сохранённых флоу
+  const clashes = validatePhoneChannels(flow, await rt.store.list());
+  if (clashes.length > 0) {
+    return Response.json(
+      { error: clashes.map((c) => c.message).join("; "), code: "phone_channel", issues: clashes },
+      { status: 400 },
+    );
+  }
   if (flow.status === "published") {
     const problems = rt.scheduler.problems(flow);
     if (problems.length > 0) {

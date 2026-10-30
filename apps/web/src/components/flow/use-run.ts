@@ -82,6 +82,13 @@ export function reduceRun(state: RunState, e: RunnerEvent, allNodeIds: string[])
         nodeErrors: { ...state.nodeErrors, [e.nodeId]: e.error },
         nodeDetails: { ...state.nodeDetails, [e.nodeId]: { ...(state.nodeDetails[e.nodeId] ?? { logs: [] }), error: e.error } },
       };
+    case "node:killed":
+      // нода сама отработала; оборван её shoot-вызов — в ленте и в списке ошибок, статус ноды не меняется
+      return {
+        ...state,
+        nodeErrors: { ...state.nodeErrors, [e.nodeId]: `killed: ${e.reason}` },
+        logs: [...state.logs, { nodeId: e.nodeId, message: `killed: ${e.reason}` }].slice(-MAX_LOG_LINES),
+      };
     case "flow:done": {
       if (e.error !== undefined) return { ...state, status: "error", error: e.error };
       // при успехе ноды, до которых данные не дошли (невзятая ветка), помечаем как пропущенные

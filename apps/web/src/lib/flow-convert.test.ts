@@ -119,3 +119,15 @@ describe("отпечаток флоу и оформление", () => {
     expect(flowFingerprint({ ...base, nodes: [{ ...block, params: { json: 1 } }, note] })).not.toBe(one);
   });
 });
+
+describe("порты, зависящие от параметров (phone-outgoing)", () => {
+  it("порт err есть только в режиме await; вид порта и класс ребра учитывают параметры", async () => {
+    const { getPorts, nodePortKind } = await import("./flow-convert");
+    const ids = (params: Record<string, unknown>) => getPorts("run_flow", null, params as never).outputs.map((p) => p.id);
+    expect(ids({})).toEqual(["out0", "err"]); // по умолчанию await
+    expect(ids({ mode: "await" })).toEqual(["out0", "err"]);
+    expect(ids({ mode: "shoot" })).toEqual(["out0"]);
+    expect(nodePortKind("run_flow", null, "outputs", "err", { mode: "await" })).toBe("data");
+    expect(nodePortKind("run_flow", null, "outputs", "err", { mode: "shoot" })).toBeNull();
+  });
+});

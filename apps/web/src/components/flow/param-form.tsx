@@ -21,7 +21,7 @@ import { Tip } from "@/components/tip";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { ExpressionField } from "./expression-field";
-import { FlowPicker } from "./flow-picker";
+import { ChannelPicker } from "./flow-picker";
 import { hasTemplate, insertTemplate } from "./expression-segments";
 
 type Props = {
@@ -204,11 +204,10 @@ export function ParamForm({ blockType, schema, values, onChange }: Props) {
             )}
 
             {p.type === "string" && p.picker && (
-              <FlowPicker
+              <ChannelPicker
                 id={id}
                 kind={p.picker}
                 value={typeof value === "string" ? value : ""}
-                flowId={String(values["flowId"] ?? "")}
                 invalid={missing}
                 onChange={(v) => set(p.name, v)}
               />

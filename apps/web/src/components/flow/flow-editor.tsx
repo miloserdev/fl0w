@@ -39,6 +39,7 @@ import {
   defaultParams,
   edgeClassFor,
   fromReactFlow,
+  getPorts,
   nodePortKind,
   newFlowId,
   newNodeId,
@@ -58,6 +59,7 @@ import { cn } from "@/lib/utils";
 import { AddBlockDialog } from "./add-block-dialog";
 import { BlockNode } from "./block-node";
 import { GroupNode, NoteNode } from "./layout-nodes";
+import { CurrentFlowProvider } from "./flow-picker";
 import { NodeLogsProvider } from "./node-logs";
 import { TerminalNode } from "./terminal-node";
 import { Inspector } from "./inspector";
@@ -206,7 +208,21 @@ function Editor() {
   };
 
   const updateNodeData = useCallback(
-    (id: string, patch: Partial<BlockNodeData>) =>
+    (id: string, patch: Partial<BlockNodeData>) => {
+      // порты могут зависеть от параметров (порт err у phone-outgoing только в режиме await): рёбра к исчезнувшим портам снимаются
+      if (patch.params) {
+        const cur = (getNodes() as BlockNodeType[]).find((n) => n.id === id);
+        if (cur) {
+          const ports = getPorts(cur.data.blockType, cur.data.portsOverride, patch.params);
+          setEdges((es) =>
+            es.filter(
+              (e) =>
+                !(e.source === id && !ports.outputs.some((p) => p.id === e.sourceHandle)) &&
+                !(e.target === id && !ports.inputs.some((p) => p.id === e.targetHandle)),
+            ),
+          );
+        }
+      }
       setNodes((ns) =>
         ns.map((n) => {
           if (n.id !== id) return n;
@@ -216,8 +232,9 @@ function Editor() {
             ? { ...next, ...layoutSize(n.data.blockType, patch.params) }
             : next;
         }),
-      ),
-    [setNodes],
+      );
+    },
+    [setNodes, setEdges, getNodes],
   );
 
   // Живая валидация: те же правила, что в движке и API. Проблемные ноды подсвечиваются на холсте.
@@ -330,7 +347,7 @@ function Editor() {
   const onConnect = useCallback(
     (c: Connection) => {
       const src = (getNodes() as BlockNodeType[]).find((n) => n.id === c.source);
-      const kind = src ? nodePortKind(src.data.blockType, src.data.portsOverride, "outputs", c.sourceHandle) : null;
+      const kind = src ? nodePortKind(src.data.blockType, src.data.portsOverride, "outputs", c.sourceHandle, src.data.params) : null;
       setEdges((es) =>
         addEdge({ ...c, id: `e_${Math.random().toString(36).slice(2, 8)}`, className: edgeClassFor(kind) }, es),
       );
@@ -381,6 +398,7 @@ function Editor() {
   return (
     <div ref={wrapper} className="relative h-dvh w-full overflow-hidden">
       <NodeIssuesProvider value={nodeIssues}>
+        <CurrentFlowProvider value={meta.id}>
         <NodeLogsProvider value={nodeLogs}>
         <RunStatusProvider value={view.nodes}>
           <ReactFlow
@@ -429,6 +447,7 @@ function Editor() {
           </ReactFlow>
         </RunStatusProvider>
         </NodeLogsProvider>
+        </CurrentFlowProvider>
       </NodeIssuesProvider>
 
       {nodes.length === 0 && (

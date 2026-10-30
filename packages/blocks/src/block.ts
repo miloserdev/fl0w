@@ -52,8 +52,18 @@ export type MemoryHandle = {
   clear(): Promise<void>;
 };
 
-/** Просьба блока запустить триггер другого флоу (см. `RunContext.fire`). */
-export type FireCall = { flowId: string; triggerId: string; data: Json; allowRecursive?: boolean; maxDepth?: number };
+/** Просьба phone-outgoing вызвать флоу с входящим телефоном на канале `channelId` (см. `RunContext.call`). */
+export type CallRequest = {
+  channelId: string;
+  data: Json;
+  /** await — ждать результат вызванного флоу; shoot — «выстрелить и забыть». */
+  mode: "await" | "shoot";
+  allowRecursive?: boolean;
+  maxDepth?: number;
+};
+
+/** Итог вызова: для shoot — всегда `ok` (факт отправки), для await — результат вызванного флоу или причина отказа/падения. */
+export type CallOutcome = { ok: true; result: Json } | { ok: false; error: string };
 
 export interface RunContext {
   log(msg: string): void;
@@ -64,10 +74,12 @@ export interface RunContext {
   tools?: ToolHandle[];
   memory?: MemoryHandle[];
   /**
-   * Запустить триггер другого опубликованного флоу с данными (fire-and-forget: возвращается, когда цель приняла запуск,
-   * а не когда он закончился). Бросает, если цель недоступна, это рекурсия или цель занята. Нет в окружениях без сервера.
+   * Вызвать флоу по каналу (phone-outgoing). await: возвращает результат вызванного флоу или ошибку; shoot: возвращается сразу,
+   * вызванный флоу идёт «в фоне» внутри этого же запуска и обрывается, если запуск закончится раньше (это логируется).
    */
-  fire?: (req: FireCall) => Promise<void>;
+  call?: (req: CallRequest) => Promise<CallOutcome>;
+  /** Порты выходов этой ноды, к которым подключены рёбра (нужно, чтобы не терять ошибку, если порт `err` ни к чему не ведёт). */
+  connected?: string[];
   /** Флоу и нода, которую сейчас исполняют (у блоков, которым нужна «своя» идентичность — например, Counter). */
   flowId?: string;
   nodeId?: string;
@@ -112,6 +124,15 @@ export abstract class Block {
    * Его запускает только само событие (планировщик).
    */
   static eventDriven = false;
+  /**
+   * Триггер, который поднимается ТОЛЬКО вызовом (phone-incoming ← phone-outgoing): ни ручной запуск (даже с закреплёнными
+   * данными), ни события, ни расписание его не стартуют.
+   */
+  static callOnly = false;
+  /** Порты, зависящие от параметров (например, `err` только в режиме await); null — использовать `ports`. */
+  static portsFor(_params: Record<string, Json>): PortsDef | null {
+    return null;
+  }
   /** Для триггеров по файловой системе: что отслеживать (путь относительно каталога файлов); null — не файловый. */
   static fileWatch(_params: Record<string, Json>): FileWatchSpec | null {
     return null;
