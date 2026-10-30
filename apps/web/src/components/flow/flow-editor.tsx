@@ -306,6 +306,9 @@ function Editor() {
             isValidConnection={isValidConnection}
             colorMode={hydrated && resolvedTheme === "dark" ? "dark" : "light"}
             deleteKeyCode={["Backspace", "Delete"]}
+            // Space по умолчанию — «панорамирование»: React Flow глушит его и в Monaco (его ввод идёт через
+            // native-edit-context, который React Flow не считает полем ввода). Панорамируем перетаскиванием.
+            panActivationKeyCode={null}
             minZoom={0.2}
             maxZoom={2}
             fitView

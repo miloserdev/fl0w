@@ -8,7 +8,8 @@
 // Опции: --url (http://localhost:3001) --flow <json> --theme light|dark --steps '<json>'|--steps-file <path>
 //        --out <каталог скриншотов> --width 1500 --height 900 --allow-problems
 // Шаги: {"click":"text:<подстрока кнопки>"|"css:<селектор>"} {"wait":ms} {"waitFor":"<css>"} {"shot":"имя"}
-//       {"eval":"js","print":true} {"press":"Escape"}
+//       {"eval":"js","print":true} {"press":"Escape"} {"type":"текст с пробелами","delay":0}
+//       type — набор по клавишам (keyDown/keyUp с text), как настоящий ввод; delay — пауза между символами, мс
 // Вывод — JSON; код выхода 1, если в консоли были ошибки (если не задан --allow-problems).
 import { spawn } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -94,8 +95,20 @@ try {
       const t = Date.now();
       while (!(await evalJs(`!!document.querySelector(${JSON.stringify(step.waitFor)})`)) && Date.now() - t < (step.timeout ?? 8000)) await sleep(100);
       entry.found = await evalJs(`!!document.querySelector(${JSON.stringify(step.waitFor)})`);
+    } else if (step.type !== undefined) {
+      for (const ch of String(step.type)) {
+        const space = ch === " ";
+        const base = { key: ch, code: space ? "Space" : /[a-z]/i.test(ch) ? `Key${ch.toUpperCase()}` : undefined, windowsVirtualKeyCode: space ? 32 : ch.toUpperCase().charCodeAt(0) };
+        await send("Input.dispatchKeyEvent", { type: "keyDown", text: ch, unmodifiedText: ch, ...base });
+        await send("Input.dispatchKeyEvent", { type: "keyUp", ...base });
+        if (step.delay) await sleep(step.delay);
+      }
     } else if (step.press) {
-      await send("Input.dispatchKeyEvent", { type: "keyDown", key: step.press, code: step.press, windowsVirtualKeyCode: step.press === "Escape" ? 27 : 13 });
+      // коды клавиш: без windowsVirtualKeyCode Chromium вставляет имя клавиши как текст
+      const codes = { Backspace: 8, Tab: 9, Enter: 13, Escape: 27, End: 35, Home: 36, ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, Delete: 46 };
+      const k = { key: step.press, code: step.press, windowsVirtualKeyCode: codes[step.press] ?? 0 };
+      await send("Input.dispatchKeyEvent", { type: "rawKeyDown", ...k });
+      await send("Input.dispatchKeyEvent", { type: "keyUp", ...k });
     } else if (step.eval) entry.value = await evalJs(step.eval);
     if (step.click || step.press) await sleep(step.after ?? 500);
     if (step.shot) {

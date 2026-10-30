@@ -46,7 +46,9 @@ export function CodeEditor({
   return (
     <Monaco
       language={language}
-      value={value}
+      // неуправляемый режим: при быстром наборе prop `value` отстаёт от текста в редакторе, и обёртка
+      // перезаписывала документ целиком — курсор прыгал в конец. Внешняя замена значения — через key у родителя.
+      defaultValue={value}
       theme={resolvedTheme === "dark" ? "fl0w-dark" : "fl0w-light"}
       beforeMount={beforeMount}
       onChange={(v) => onChange(v ?? "")}

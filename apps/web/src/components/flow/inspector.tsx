@@ -3,10 +3,10 @@
 import { registry } from "@fl0w/blocks";
 import { RotateCcw, X } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FLOATING } from "@/lib/floating";
 import { cn } from "@/lib/utils";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { BlockNodeData, BlockNodeType } from "@/lib/flow-convert";
 import { BlockIcon } from "./block-icon";
@@ -29,12 +29,17 @@ export function Inspector({
 }) {
   const t = useTranslations("inspector");
   const blockLabel = useBlockLabel();
+  // счётчик «сбросов» CSS: редактор неуправляемый, после сброса к стилям блока его нужно пересоздать
+  const [cssEpoch, setCssEpoch] = useState(0);
   const cls = registry[node.data.blockType];
   if (!cls) return null;
   const codeParam = cls.params.find((p) => p.editor === "code");
 
   return (
-    <aside className={cn(FLOATING, "absolute top-[4.25rem] bottom-3 left-3 z-10 flex w-96 max-w-[calc(100%-1.5rem)] flex-col overflow-hidden")}>
+    // `nokey` — штатный способ React Flow: внутри этого окна он не обрабатывает клавиши (Backspace/Delete удаляли бы
+    // выбранную ноду, Space включал бы панорамирование) — Monaco вводит текст через native-edit-context, который
+    // React Flow сам полем ввода не считает
+    <aside className={cn(FLOATING, "nokey absolute top-[4.25rem] bottom-3 left-3 z-10 flex w-96 max-w-[calc(100%-1.5rem)] flex-col overflow-hidden")}>
       <div className="flex items-center gap-2 border-b px-3 py-2">
         <BlockIcon name={cls.icon} className="text-muted-foreground size-4" />
         <div className="min-w-0 flex-1">
@@ -52,8 +57,8 @@ export function Inspector({
           {codeParam && <TabsTrigger value="code">{t("tabCode")}</TabsTrigger>}
           <TabsTrigger value="css">{t("tabCss")}</TabsTrigger>
         </TabsList>
-        <TabsContent value="params" className="min-h-0">
-          <ScrollArea className="h-full">
+        <TabsContent value="params" className="min-h-0 overflow-y-auto">
+          <div>
             <div className="p-3">
               <ParamForm
                 blockType={node.data.blockType}
@@ -62,7 +67,7 @@ export function Inspector({
                 onChange={(params) => onChange(node.id, { params })}
               />
             </div>
-          </ScrollArea>
+          </div>
         </TabsContent>
         {codeParam && (
           <TabsContent value="code" className="flex min-h-0 flex-col">
@@ -93,13 +98,17 @@ export function Inspector({
               disabled={node.data.cssOverride === null}
               aria-label={t("cssReset")}
               title={t("cssReset")}
-              onClick={() => onChange(node.id, { cssOverride: null })}
+              onClick={() => {
+                onChange(node.id, { cssOverride: null });
+                setCssEpoch((n) => n + 1);
+              }}
             >
               <RotateCcw className="size-4" />
             </Button>
           </div>
           <div className="min-h-0 flex-1 border-t">
             <CodeEditor
+              key={`css-${cssEpoch}`}
               language="css"
               value={node.data.cssOverride ?? cls.defaultCss}
               onChange={(css) => onChange(node.id, { cssOverride: css })}

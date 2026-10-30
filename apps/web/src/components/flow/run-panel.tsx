@@ -5,7 +5,6 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { FLOATING } from "@/lib/floating";
 import { cn } from "@/lib/utils";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import type { RunState } from "./use-run";
 
 /** Окно запуска: статус, результат из Result, ошибки нод и логи. Плавает справа сверху. */
@@ -39,7 +38,7 @@ export function RunPanel({
           <X className="size-4" />
         </Button>
       </div>
-      <ScrollArea className="min-h-0 flex-1">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="flex flex-col gap-3 p-3 text-sm">
           {state.status === "idle" && live && <p className="text-muted-foreground">{t("waiting")}</p>}
           {state.error && <p className="text-destructive">{state.error}</p>}
@@ -72,7 +71,7 @@ export function RunPanel({
             </div>
           )}
         </div>
-      </ScrollArea>
+      </div>
     </section>
   );
 }
