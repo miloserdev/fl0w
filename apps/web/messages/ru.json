@@ -114,7 +114,6 @@
     "notePlaceholder": "Двойной клик — ввести текст",
     "groupTitle": "Заголовок группы",
     "groupPlaceholder": "Группа (двойной клик — название)",
-    "terminalTitle": "терминал",
     "terminalIdle": "ждёт запуска…"
   },
   "errors": {

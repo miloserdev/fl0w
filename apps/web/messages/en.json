@@ -114,7 +114,6 @@
     "notePlaceholder": "Double-click to type",
     "groupTitle": "Group title",
     "groupPlaceholder": "Group (double-click to name)",
-    "terminalTitle": "terminal",
     "terminalIdle": "waiting for a run…"
   },
   "errors": {
