@@ -22,62 +22,78 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-const ctx = () => ({ signal: new AbortController().signal, log: (m: string) => void logs.push(m) });
 let logs: string[] = [];
+let shown: string[] = [];
 beforeEach(() => {
   logs = [];
+  shown = [];
 });
-const count = async (params: Record<string, Json>, input: Json = { a: 1 }) => {
-  const out = (await new Counter().run({ in0: input }, params, ctx())) as { out0: Record<string, Json> };
-  return out.out0;
-};
-const val = async (params: Record<string, Json>) => ((await count(params))["counter"] as { value: number }).value;
+const ctx = (ids: { flowId?: string; nodeId?: string } = {}) => ({
+  signal: new AbortController().signal,
+  log: (m: string) => void logs.push(m),
+  display: (t: string) => void shown.push(t),
+  ...ids,
+});
+const at = { flowId: "f", nodeId: "n" };
+const count = (params: Record<string, Json> = {}, input: Json = { a: 1 }, ids = at) => new Counter().run({ in0: input }, params, ctx(ids));
+const last = () => Number(shown.at(-1));
 
 describe("Counter", () => {
-  it("считает запуски и переживает их: 1, 2, 3; результат — { name, value, previous } в поле counter", async () => {
-    expect(await count({ name: "c" })).toEqual({ counter: { name: "c", value: 1, previous: 0 } });
-    expect(await val({ name: "c" })).toBe(2);
-    expect(await count({ name: "c" })).toMatchObject({ counter: { value: 3, previous: 2 } });
+  it("считает, сколько раз нода сработала, и просит показать число на ноде; данные идут дальше без изменений", async () => {
+    expect(await count({}, { a: 1 })).toEqual({ out0: { a: 1 } }); // никаких лишних полей в JSON
+    await count();
+    await count();
+    expect(shown).toEqual(["1", "2", "3"]);
   });
 
-  it("decrement, шаг, начальное значение, reset и get (get не создаёт и не меняет счётчик)", async () => {
-    expect(await val({ name: "s", start: 10, step: 5 })).toBe(15);
-    expect(await val({ name: "s", operation: "decrement", step: 3 })).toBe(12);
-    expect(await val({ name: "s", operation: "get" })).toBe(12);
-    expect(await val({ name: "s", operation: "reset", start: 10 })).toBe(10);
-    expect(await val({ name: "never", operation: "get", start: 7 })).toBe(7);
-    expect(await val({ name: "never", operation: "get", start: 99 })).toBe(99); // не создан — start виден заново
-    expect(await val({ name: "never" })).toBe(1);
+  it("у каждой ноды свой счёт (по флоу и id ноды); счёт переживает запуски", async () => {
+    await count({}, 1, { flowId: "f", nodeId: "a" });
+    await count({}, 1, { flowId: "f", nodeId: "a" });
+    await count({}, 1, { flowId: "f", nodeId: "b" });
+    await count({}, 1, { flowId: "g", nodeId: "a" });
+    expect(shown).toEqual(["1", "2", "1", "1"]);
   });
 
-  it("счётчики независимы по имени; включение входа и свое поле результата", async () => {
-    await val({ name: "a" });
-    await val({ name: "a" });
-    expect(await val({ name: "b" })).toBe(1);
-    const out = await count({ name: "a", field: "n", includeInput: true }, { user: "ann" });
-    expect(out).toEqual({ user: "ann", n: { name: "a", value: 3, previous: 2 } });
+  it("именованный счётчик общий для нод; именованный и «свой» не пересекаются", async () => {
+    await count({ name: "shared" }, 1, { flowId: "f", nodeId: "a" });
+    await count({ name: "shared" }, 1, { flowId: "g", nodeId: "z" });
+    expect(shown).toEqual(["1", "2"]);
+    await count({}, 1, { flowId: "f", nodeId: "a" }); // свой счёт этой ноды отдельно
+    expect(last()).toBe(1);
+    await count({ name: "node:f/a" }); // имя, похожее на внутренний ключ, не попадает в чужой счёт
+    expect(last()).toBe(1);
   });
 
-  it("параллельные запуски не теряют приращений (атомарно)", async () => {
-    await Promise.all(Array.from({ length: 30 }, () => count({ name: "par" })));
-    expect(await val({ name: "par", operation: "get" })).toBe(30);
+  it("reset обнуляет и показывает 0; следующий запуск снова даёт 1", async () => {
+    await count();
+    await count();
+    await count({ operation: "reset" });
+    expect(last()).toBe(0);
+    await count();
+    expect(last()).toBe(1);
   });
 
-  it("ошибки: пустое/запрещённое имя, неизвестная операция, плохой step, нечисловое значение в хранилище", async () => {
-    await expect(count({ name: "" })).rejects.toThrow(/Counter name/);
-    await expect(count({ name: "x".repeat(257) })).rejects.toThrow(/Counter name/);
-    await expect(count({ name: "__proto__" })).rejects.toThrow(/not allowed/);
-    await expect(count({ name: "z", operation: "explode" })).rejects.toThrow(/Unknown operation/);
-    await expect(count({ name: "z", step: -1 })).rejects.toThrow(/step/);
-    await expect(count({ name: "z", start: Number.NaN })).rejects.toThrow(/start/);
-    // имя вроде constructor — обычный ключ, прототип не «подмешивается» как значение
-    expect(await val({ name: "constructor" })).toBe(1);
-    expect(await val({ name: "toString" })).toBe(1);
+  it("параллельные срабатывания не теряются (атомарно)", async () => {
+    await Promise.all(Array.from({ length: 30 }, () => count()));
+    expect(Math.max(...shown.map(Number))).toBe(30);
+    expect(new Set(shown).size).toBe(30);
   });
 
-  it("без каталога памяти — понятная ошибка", async () => {
+  it("ошибки: нет ни имени, ни id ноды; слишком длинное имя; неизвестная операция; нечисловое значение в хранилище", async () => {
+    await expect(new Counter().run({ in0: 1 }, {}, ctx())).rejects.toThrow(/needs a name/);
+    await expect(count({ name: "x".repeat(257) })).rejects.toThrow(/too long/);
+    await expect(count({ operation: "explode" })).rejects.toThrow(/Unknown operation/);
+    // имена вроде __proto__ / constructor — обычные ключи (с префиксом), а не прототип
+    await expect(count({ name: "__proto__" })).resolves.toBeDefined();
+    expect(last()).toBe(1);
+    await count({ name: "constructor" });
+    expect(last()).toBe(1);
+  });
+
+  it("без каталога памяти — понятная ошибка; без display в контексте работает (display необязателен)", async () => {
+    await new Counter().run({ in0: 1 }, { name: "x" }, { signal: new AbortController().signal, log() {} });
     delete process.env[MEMORY_DIR_ENV];
-    await expect(count({ name: "c" })).rejects.toThrow(/not configured/);
+    await expect(count()).rejects.toThrow(/not configured/);
   });
 });
 

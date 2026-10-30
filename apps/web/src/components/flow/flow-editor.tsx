@@ -251,8 +251,8 @@ function Editor() {
   const watching = watchOn && published;
   const watch = useWatch(meta.id, watching, server?.nodeIds ?? []);
   const view = watching ? watch.state : runState;
-  // строки лога по нодам — для терминальных нод (Log) на холсте
-  const nodeLogs = useMemo(() => Object.fromEntries(Object.entries(view.nodeDetails).map(([id, d]) => [id, d.logs])), [view.nodeDetails]);
+  // строки лога и подписи по нодам — для терминала (Log) и числа вместо иконки (Counter) на холсте
+  const nodeLogs = useMemo(() => Object.fromEntries(Object.entries(view.nodeDetails).map(([id, d]) => [id, { logs: d.logs, display: d.display }])), [view.nodeDetails]);
 
   const onPublish = async () => {
     const checked = validateFlow(fromReactFlow(nodes, edges, meta), registry);

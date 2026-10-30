@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { getPorts, splitPorts, type BlockNodeType } from "@/lib/flow-convert";
 import { scopeCss } from "@/lib/scope-css";
 import { BlockIcon } from "./block-icon";
+import { useNodeDisplay } from "./node-logs";
 import { useNodeIssues } from "./node-issues";
 import { useNodeRunStatus } from "./run-status";
 import { useBlockLabel } from "./use-block-label";
@@ -45,6 +46,8 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNodeType>) {
   const portLabel = (portId: string, fallback?: string) =>
     tPorts.has(`${data.blockType}.${portId}`) ? tPorts(`${data.blockType}.${portId}`) : fallback;
   const runStatus = useNodeRunStatus(id);
+  // нода может просить показать на себе короткий текст вместо иконки (число у Counter)
+  const display = useNodeDisplay(id);
   const issues = useNodeIssues(id);
   const cls = registry[data.blockType];
   const ports = getPorts(data.blockType, data.portsOverride);
@@ -81,7 +84,19 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNodeType>) {
     >
       {css && <style>{css}</style>}
 
-      <BlockIcon name={cls?.icon ?? ""} className={cn("fl-node-icon size-7", ACCENT[cls?.category ?? ""] ?? "text-muted-foreground")} />
+      {display !== undefined ? (
+        <span
+          className={cn(
+            "fl-node-icon max-w-full truncate px-1 text-center font-semibold tabular-nums",
+            display.length > 5 ? "text-xs" : display.length > 3 ? "text-base" : "text-2xl",
+            ACCENT[cls?.category ?? ""] ?? "text-muted-foreground",
+          )}
+        >
+          {display}
+        </span>
+      ) : (
+        <BlockIcon name={cls?.icon ?? ""} className={cn("fl-node-icon size-7", ACCENT[cls?.category ?? ""] ?? "text-muted-foreground")} />
+      )}
 
       {issues && (
         <Tip label={issues.join("\n")}>

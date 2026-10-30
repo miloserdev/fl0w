@@ -32,6 +32,8 @@ export const runnerEventSchema = z.discriminatedUnion("event", [
   z.object({
     event: z.literal("node:done"),
     nodeId: z.string(),
+    /** Короткая подпись, которую нода просит показать на себе вместо иконки (например, число у Counter). */
+    display: z.string().max(64).optional(),
     output: z.record(z.string(), jsonSchema),
   }),
   z.object({ event: z.literal("node:error"), nodeId: z.string(), error: z.string() }),

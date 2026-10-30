@@ -15,6 +15,8 @@ export type NodeDetail = {
   input?: Record<string, Json>;
   params?: Record<string, Json>;
   output?: Record<string, Json>;
+  /** Подпись, которую нода просила показать на себе (число у Counter). */
+  display?: string;
   error?: string;
   logs: string[];
 };
@@ -55,7 +57,7 @@ export function reduceRun(state: RunState, e: RunnerEvent, allNodeIds: string[])
         ...state,
         nodes: { ...state.nodes, [e.nodeId]: "running" },
         nodeErrors: Object.fromEntries(Object.entries(state.nodeErrors).filter(([id]) => id !== e.nodeId)),
-        nodeDetails: { ...state.nodeDetails, [e.nodeId]: { input: e.input, params: e.params, logs: [] } },
+        nodeDetails: { ...state.nodeDetails, [e.nodeId]: { input: e.input, params: e.params, logs: [], display: state.nodeDetails[e.nodeId]?.display } },
       };
     case "node:log": {
       const logs = [...state.logs, { nodeId: e.nodeId, message: e.message }];
@@ -68,7 +70,10 @@ export function reduceRun(state: RunState, e: RunnerEvent, allNodeIds: string[])
       return {
         ...state,
         nodes: { ...state.nodes, [e.nodeId]: "done" },
-        nodeDetails: { ...state.nodeDetails, [e.nodeId]: { ...(state.nodeDetails[e.nodeId] ?? { logs: [] }), output: e.output } },
+        nodeDetails: {
+          ...state.nodeDetails,
+          [e.nodeId]: { ...(state.nodeDetails[e.nodeId] ?? { logs: [] }), output: e.output, ...(e.display !== undefined ? { display: e.display } : {}) },
+        },
       };
     case "node:error":
       return {

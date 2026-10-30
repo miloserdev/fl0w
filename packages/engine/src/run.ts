@@ -210,11 +210,17 @@ export async function runFlow(
     // после завершения ноды её ctx.log молчит: код может жить в фоне и писать после flow:done
     let live = true;
     let logged = 0;
+    let displayText: string | undefined;
     try {
       const ctx: RunContext = {
         signal,
         triggerData: id === opts.trigger ? opts.triggerData : undefined,
         fire: opts.fire,
+        flowId: flow.id,
+        nodeId: id,
+        display: (text) => {
+          displayText = String(text).slice(0, 64);
+        },
         log: (msg) => {
           if (!live || ++logged > MAX_LOGS_PER_NODE + 1) return;
           const message =
@@ -242,7 +248,7 @@ export async function runFlow(
         if (value !== undefined) edgeValues.set(e.id, value);
       }
       if (node.type === RESULT_TYPE) results.push([id, inputs["in0"] ?? null]);
-      await onEvent({ event: "node:done", nodeId: id, output: maskHeaders(output) as typeof output });
+      await onEvent({ event: "node:done", nodeId: id, output: maskHeaders(output) as typeof output, ...(displayText !== undefined ? { display: displayText } : {}) });
     } catch (e) {
       live = false;
       await onEvent({ event: "node:error", nodeId: id, error: message(e) });

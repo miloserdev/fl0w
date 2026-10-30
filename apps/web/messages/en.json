@@ -439,12 +439,8 @@
       "maxDepth": "Max call chain depth (0 — unlimited)"
     },
     "counter": {
-      "name": "Counter name",
-      "operation": "Operation",
-      "step": "Step",
-      "start": "Initial value",
-      "field": "Result field",
-      "includeInput": "Keep input fields"
+      "name": "Shared counter name (empty — count this node)",
+      "operation": "Operation"
     },
     "log": {
       "message": "Message (empty — whole input)",
@@ -578,10 +574,8 @@
       "sendPhoto": "Message: send photo",
       "sendSticker": "Message: send sticker",
       "sendVideo": "Message: send video",
-      "increment": "increment",
-      "decrement": "decrement",
-      "reset": "reset to initial",
-      "get": "get — read only"
+      "reset": "reset — set to zero",
+      "count": "count — count a trigger"
     },
     "part": {
       "year": "year",
