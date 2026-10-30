@@ -9,6 +9,11 @@ export const nodeSchema = z.object({
   params: z.record(z.string(), jsonSchema),
   portsOverride: portsDefSchema.nullable(),
   cssOverride: z.string().nullable(),
+  /**
+   * Закреплённый выход ноды (pin data): `{ порт: JSON }`. В ручном запуске нода не исполняется, а отдаёт эти данные —
+   * так отлаживают цепочку без повторных вызовов и без ожидания события. В плановых запусках опубликованного флоу не действует.
+   */
+  pinData: z.record(z.string(), jsonSchema).nullable().optional(),
 });
 export type FlowNode = z.infer<typeof nodeSchema>;
 

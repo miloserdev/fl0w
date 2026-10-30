@@ -44,6 +44,7 @@ import {
   newNodeId,
   toReactFlow,
   type BlockNodeData,
+  collectSeeds,
   flowFingerprint,
   type BlockNodeType,
   type FlowMeta,
@@ -270,14 +271,15 @@ function Editor() {
     [setEdges, getNodes],
   );
 
-  const onRun = () => {
+  const onRun = (from?: string) => {
     const checked = validateFlow(fromReactFlow(nodes, edges, meta), registry);
     if (!checked.ok) {
       setError({ title: t("errors.invalidFlow"), items: checked.issues.map(issueText) });
       return;
     }
     setError(null);
-    void run(checked.flow);
+    // перезапуск с ноды: предшественники берут выходы из последнего запуска
+    void run(checked.flow, from ? { nodeId: from, seeds: collectSeeds(runState.nodeDetails) } : undefined);
   };
 
   const onSave = () => {
@@ -382,7 +384,7 @@ function Editor() {
         issues={issues}
         onSelectIssueNode={selectNode}
         onAdd={() => setAddOpen(true)}
-        onRun={onRun}
+        onRun={() => onRun()}
         onStop={stop}
         onSave={onSave}
         onLoad={onLoad}
@@ -407,7 +409,7 @@ function Editor() {
       )}
 
       {selectedNode && (
-        <Inspector node={selectedNode} detail={view.nodeDetails[selectedNode.id]} onChange={updateNodeData} onClose={() => selectNode(null)} />
+        <Inspector node={selectedNode} detail={view.nodeDetails[selectedNode.id]} canRunFrom={!watching && runState.status !== "running"} onRunFrom={() => onRun(selectedNode.id)} onChange={updateNodeData} onClose={() => selectNode(null)} />
       )}
       <RunPanel
         state={view}

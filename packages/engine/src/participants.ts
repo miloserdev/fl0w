@@ -3,7 +3,7 @@ import type { Flow } from "@fl0w/schema";
 import { edgeKind } from "./resources";
 import type { Registry } from "./validate";
 
-function closure(from: Iterable<string>, next: (id: string) => string[]): Set<string> {
+export function closure(from: Iterable<string>, next: (id: string) => string[]): Set<string> {
   const seen = new Set<string>();
   const stack = [...from];
   while (stack.length) {
@@ -35,8 +35,12 @@ export function startNodes(flow: Flow, registry: Registry, trigger?: string): st
   const triggers = flow.nodes.filter((n) => registry[n.type]?.isTrigger).map((n) => n.id);
   if (triggers.length === 0) return flow.nodes.filter((n) => isDataSource(flow, registry, n.id)).map((n) => n.id);
   if (trigger !== undefined) return [trigger];
-  // ручной запуск: триггеры, ждущие внешнего события (вебхук, файл, Telegram…), не стартуют
-  return triggers.filter((id) => !registry[flow.nodes.find((n) => n.id === id)!.type]?.eventDriven);
+  // ручной запуск: триггеры, ждущие внешнего события (вебхук, файл, Telegram…), не стартуют — кроме закреплённых
+  // триггер события с закреплёнными данными (pin) стартует: закреплённый «запрос» заменяет настоящее событие
+  return triggers.filter((id) => {
+    const n = flow.nodes.find((x) => x.id === id)!;
+    return !registry[n.type]?.eventDriven || !!n.pinData;
+  });
 }
 
 export function participatingNodes(flow: Flow, registry: Registry, trigger?: string): Set<string> {

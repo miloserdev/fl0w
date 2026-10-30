@@ -23,7 +23,7 @@ process.once("message", async (raw: unknown) => {
   };
 
   const cmd =
-    typeof raw === "object" && raw !== null ? (raw as { cmd?: unknown; flow?: unknown; trigger?: unknown; triggerData?: unknown }) : {};
+    typeof raw === "object" && raw !== null ? (raw as { cmd?: unknown; flow?: unknown; trigger?: unknown; triggerData?: unknown; from?: unknown; seeds?: unknown }) : {};
   if (cmd.cmd !== "run") {
     emit({ event: "flow:done", error: "Unknown runner command" });
   } else {
@@ -31,6 +31,8 @@ process.once("message", async (raw: unknown) => {
     await runFlow(cmd.flow, emit, {
       trigger: typeof cmd.trigger === "string" ? cmd.trigger : undefined,
       triggerData: cmd.triggerData as Json | undefined,
+      from: typeof cmd.from === "string" ? cmd.from : undefined,
+      seeds: cmd.seeds as Record<string, Record<string, Json>> | undefined,
     });
   }
 

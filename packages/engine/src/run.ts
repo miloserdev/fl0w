@@ -9,7 +9,7 @@ import {
 import { jsonSchema, type Flow, type Json, type RunnerEvent } from "@fl0w/schema";
 import { z } from "zod";
 import { buildResources, dataView } from "./resources";
-import { participatingNodes, startNodes } from "./participants";
+import { closure, participatingNodes, startNodes } from "./participants";
 import { toposort } from "./toposort";
 import { formatIssues, validateFlow, type Registry } from "./validate";
 
@@ -23,6 +23,12 @@ export type RunOptions = {
   trigger?: string;
   /** Данные срабатывания триггера; передаются в ctx.triggerData ноды `trigger`. */
   triggerData?: Json;
+  /**
+   * Перезапуск с ноды: исполняются она и всё, что после неё; нужные ей предшественники не запускаются, а выдают
+   * закреплённые данные или `seeds[nodeId]` (выход из прошлого запуска). Нет данных — понятная ошибка.
+   */
+  from?: string;
+  seeds?: Record<string, Record<string, Json>>;
 };
 
 // защита от потока логов из пользовательского кода: IPC и UI не должны захлебнуться
@@ -118,7 +124,7 @@ export async function runFlow(
 
   // Запускаются только ноды, связанные со стартовыми (триггеры / источники данных), — не любая «без входов».
   const participants = participatingNodes(flow, registry, opts.trigger);
-  if (flow.nodes.some((n) => registry[n.type]?.isTrigger) && startNodes(flow, registry, opts.trigger).length === 0) {
+  if (opts.from === undefined && flow.nodes.some((n) => registry[n.type]?.isTrigger) && startNodes(flow, registry, opts.trigger).length === 0) {
     finish({ error: "Nothing to start manually: this flow begins with event triggers (webhook, file, Telegram, …). Publish it and send an event, or add a Manual trigger for testing" });
     return;
   }
@@ -126,15 +132,54 @@ export async function runFlow(
   const edgeValues = new Map<string, Json>(); // edge.id → JSON, лежащий на ребре
   const results: [string, Json][] = [];
 
+  // Перезапуск с ноды: rerun — исполняемые (она и всё после), needed — они плюс все их предшественники
+  const manual = opts.trigger === undefined; // закрепления (pin) действуют только в ручных запусках; плановые идут по триггеру
+  let rerun: Set<string> | undefined;
+  let needed: Set<string> | undefined;
+  if (opts.from !== undefined) {
+    if (!nodes.has(opts.from)) {
+      finish({ error: `Unknown node "${opts.from}"` });
+      return;
+    }
+    const out = new Map<string, string[]>();
+    const inn = new Map<string, string[]>();
+    for (const e of dataFlow.edges) {
+      out.set(e.source, [...(out.get(e.source) ?? []), e.target]);
+      inn.set(e.target, [...(inn.get(e.target) ?? []), e.source]);
+    }
+    rerun = closure([opts.from], (id) => out.get(id) ?? []);
+    needed = closure(rerun, (id) => inn.get(id) ?? []);
+  }
+
   for (const id of topo.order) {
     if (signal.aborted) {
       finish({ error: "Aborted" });
       return;
     }
 
-    if (!participants.has(id)) continue; // нет связи со стартовой нодой
+    if (!(needed ? needed.has(id) : participants.has(id))) continue; // нет связи со стартовой нодой / не нужна перезапуску
     if (registry[nodes.get(id)!.type]?.resource) continue; // sub-node: её вызывает хозяин
     const node = nodes.get(id)!;
+
+    // Данные вместо исполнения: закрепление (pin) или выход прошлого запуска для нод до точки перезапуска
+    const pinned = manual ? (node.pinData ?? undefined) : undefined;
+    const frozen = rerun && !rerun.has(id);
+    const fixed = pinned ?? (frozen ? opts.seeds?.[id] : undefined);
+    if (frozen && fixed === undefined) {
+      finish({ error: `No saved data for node "${id}": run the whole flow once, then re-run from a node` });
+      return;
+    }
+    if (fixed !== undefined) {
+      await onEvent({ event: "node:start", nodeId: id, input: {}, params: {} });
+      await onEvent({ event: "node:log", nodeId: id, message: pinned ? "pinned data used (node not executed)" : "data from the previous run used (node not executed)" });
+      for (const e of outgoing.get(id) ?? []) {
+        const value = fixed[e.sourcePort];
+        if (value !== undefined) edgeValues.set(e.id, value);
+      }
+      if (node.type === RESULT_TYPE) results.push([id, fixed["in0"] ?? null]);
+      await onEvent({ event: "node:done", nodeId: id, output: capRecord(fixed) });
+      continue;
+    }
     // другие триггеры в этом запуске молчат: он начат от выбранного
     if (registry[node.type]!.isTrigger && (opts.trigger !== undefined ? id !== opts.trigger : registry[node.type]!.eventDriven)) continue;
     const edges = incoming.get(id) ?? [];

@@ -24,6 +24,9 @@ export type ProcessRunOptions = {
   trigger?: string;
   /** Данные срабатывания триггера (тело вебхука и т.п.). */
   triggerData?: Json;
+  /** Перезапуск с ноды и данные прошлого запуска для её предшественников (см. RunOptions.from). */
+  from?: string;
+  seeds?: Record<string, Record<string, Json>>;
   /** Отмена: убивает процесс и завершает запуск событием `flow:done` с ошибкой. */
   signal?: AbortSignal;
   /** stderr процесса (лог блоков, падения). */
@@ -132,7 +135,7 @@ export function runFlowInProcess(
       finish({ error: `Runner exited unexpectedly (${how})${tail ? `: ${tail}` : ""}` });
     });
 
-    proc.send({ cmd: "run", flow, trigger: opts.trigger, triggerData: opts.triggerData } satisfies RunnerCommand, (err) => {
+    proc.send({ cmd: "run", flow, trigger: opts.trigger, triggerData: opts.triggerData, from: opts.from, seeds: opts.seeds } satisfies RunnerCommand, (err) => {
       if (err) finish({ error: `Failed to send command to runner: ${err.message}` });
     });
   });

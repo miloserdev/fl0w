@@ -7,6 +7,8 @@ export type BlockNodeData = {
   params: Record<string, Json>;
   portsOverride: PortsDef | null;
   cssOverride: string | null;
+  /** Закреплённый выход ноды (pin data): в ручном запуске нода отдаёт его, не исполняясь. */
+  pinData?: Record<string, Json> | null;
 };
 export type BlockNodeType = Node<BlockNodeData, "block">;
 
@@ -82,6 +84,7 @@ export function toReactFlow(flow: Flow): { nodes: BlockNodeType[]; edges: Edge[]
         params: n.params,
         portsOverride: n.portsOverride,
         cssOverride: n.cssOverride,
+        pinData: n.pinData ?? null,
       },
     })),
     edges: flow.edges.map((e) => ({
@@ -112,6 +115,7 @@ export function fromReactFlow(
         params: n.data.params,
         portsOverride: n.data.portsOverride,
         cssOverride: n.data.cssOverride,
+        ...(n.data.pinData ? { pinData: n.data.pinData } : {}),
       }),
     ),
     edges: edges.flatMap((e) =>
@@ -153,4 +157,26 @@ export function flowFingerprint(flow: Flow): string {
       .sort((a, b) => a.id.localeCompare(b.id)),
     edges: [...flow.edges].sort((a, b) => a.id.localeCompare(b.id)),
   });
+}
+
+/**
+ * Данные для перезапуска с ноды: выходы нод из последнего запуска (по id). Движок берёт из них данные предшественников,
+ * которые заново не исполняются.
+ */
+export function collectSeeds(details: Record<string, { output?: Record<string, Json> }>): Record<string, Record<string, Json>> {
+  const seeds: Record<string, Record<string, Json>> = {};
+  for (const [id, d] of Object.entries(details)) if (d.output) seeds[id] = d.output;
+  return seeds;
+}
+
+/** Разбор закреплённых данных, введённых вручную: JSON-объект `{ порт: значение }`; иначе текст ошибки. */
+export function parsePin(text: string): { ok: true; value: Record<string, Json> } | { ok: false; error: string } {
+  let v: unknown;
+  try {
+    v = JSON.parse(text);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+  if (v === null || typeof v !== "object" || Array.isArray(v)) return { ok: false, error: "Expected an object like { \"out0\": … }" };
+  return { ok: true, value: v as Record<string, Json> };
 }

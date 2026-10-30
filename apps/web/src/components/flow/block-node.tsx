@@ -2,7 +2,7 @@
 
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { registry } from "@fl0w/blocks";
-import { TriangleAlert } from "lucide-react";
+import { Pin, TriangleAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { getPorts, splitPorts, type BlockNodeType } from "@/lib/flow-convert";
@@ -89,6 +89,12 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNodeType>) {
         >
           <TriangleAlert className="size-3" />
           <span className="sr-only">{issues.join(". ")}</span>
+        </span>
+      )}
+      {data.pinData && (
+        <span title={t("pinned")} className="bg-primary text-primary-foreground absolute -top-2 -left-2 flex size-5 items-center justify-center rounded-full">
+          <Pin className="size-3" />
+          <span className="sr-only">{t("pinned")}</span>
         </span>
       )}
       {runStatus && <span className="sr-only">{t(`status.${runStatus}`)}</span>}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { edgeClassFor, nodePortKind, splitPorts, toReactFlow } from "./flow-convert";
+import { collectSeeds, edgeClassFor, flowFingerprint, fromReactFlow, nodePortKind, parsePin, splitPorts, toReactFlow } from "./flow-convert";
 import type { Flow } from "@fl0w/schema";
 
 describe("splitPorts", () => {
@@ -47,5 +47,37 @@ describe("toReactFlow", () => {
     expect(edges[0]!.className).toBeUndefined();
     expect(edges[1]!.className).toContain("fl-edge-tool");
     expect(edges[2]!.className).toContain("fl-edge-memory");
+  });
+});
+
+describe("pin data и перезапуск", () => {
+  it("pinData проходит через Flow ↔ React Flow без потерь; без закрепления поле не пишется", () => {
+    const flow = {
+      version: 1 as const,
+      id: "f",
+      name: "n",
+      nodes: [
+        { id: "a", type: "source", position: { x: 0, y: 0 }, params: {}, portsOverride: null, cssOverride: null, pinData: { out0: { x: 1 } } },
+        { id: "b", type: "result", position: { x: 1, y: 1 }, params: {}, portsOverride: null, cssOverride: null },
+      ],
+      edges: [],
+    };
+    const rf = toReactFlow(flow);
+    expect(rf.nodes[0]!.data.pinData).toEqual({ out0: { x: 1 } });
+    const back = fromReactFlow(rf.nodes, rf.edges, { id: "f", name: "n" });
+    expect(back.nodes[0]).toMatchObject({ pinData: { out0: { x: 1 } } });
+    expect(back.nodes[1]).not.toHaveProperty("pinData");
+  });
+
+  it("закрепление не делает опубликованный флоу «изменённым»", () => {
+    const base = { version: 1 as const, id: "f", name: "n", edges: [] };
+    const node = { id: "a", type: "source", position: { x: 0, y: 0 }, params: {}, portsOverride: null, cssOverride: null };
+    expect(flowFingerprint({ ...base, nodes: [node] })).toBe(flowFingerprint({ ...base, nodes: [{ ...node, pinData: { out0: 1 } }] }));
+  });
+
+  it("collectSeeds берёт только выходы; parsePin требует объект", () => {
+    expect(collectSeeds({ a: { output: { out0: 1 } }, b: {}, c: { output: {} } })).toEqual({ a: { out0: 1 }, c: {} });
+    expect(parsePin('{"out0": {"a": 1}}')).toEqual({ ok: true, value: { out0: { a: 1 } } });
+    for (const bad of ["[1]", "5", "null", "{oops", ""]) expect(parsePin(bad).ok, bad).toBe(false);
   });
 });

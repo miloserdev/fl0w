@@ -1,7 +1,7 @@
 import { registry } from "@fl0w/blocks";
 import { formatIssues, validateFlow } from "@fl0w/engine";
 import { runFlowInProcess } from "@fl0w/engine/process";
-import type { RunnerEvent } from "@fl0w/schema";
+import type { Json, RunnerEvent } from "@fl0w/schema";
 import { engineDir } from "@/server/engine-dir";
 import { RUN_TIMEOUT_MS } from "@/server/runtime";
 
@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * POST /api/run  { flow }
+ * POST /api/run  { flow, from?, seeds? } — from/seeds: перезапуск с ноды (данные предшественников из прошлого запуска)
  * 400 { error, issues }  — флоу не прошёл валидацию (до запуска процесса).
  * 200 application/x-ndjson — по строке JSON на событие `RunnerEvent`; последняя — `flow:done`.
  * Разрыв соединения клиентом убивает процесс-раннер.
@@ -22,6 +22,14 @@ export async function POST(req: Request) {
       { error: `Invalid flow: ${formatIssues(checked.issues)}`, issues: checked.issues },
       { status: 400 },
     );
+  }
+
+  const { from, seeds } = (body ?? {}) as { from?: unknown; seeds?: unknown };
+  const seedsOk =
+    seeds === undefined ||
+    (typeof seeds === "object" && seeds !== null && !Array.isArray(seeds) && Object.values(seeds).every((v) => typeof v === "object" && v !== null && !Array.isArray(v)));
+  if ((from !== undefined && typeof from !== "string") || !seedsOk) {
+    return Response.json({ error: "Invalid from/seeds" }, { status: 400 });
   }
 
   const abort = new AbortController();
@@ -41,6 +49,8 @@ export async function POST(req: Request) {
         engineDir: engineDir(),
         signal: abort.signal,
         timeoutMs: RUN_TIMEOUT_MS,
+        from: from as string | undefined,
+        seeds: seeds as Record<string, Record<string, Json>> | undefined,
         onStderr: (chunk) => process.stderr.write(chunk),
       }).finally(() => {
         try {

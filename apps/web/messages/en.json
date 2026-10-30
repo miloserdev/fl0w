@@ -101,7 +101,8 @@
       "done": "done",
       "error": "error",
       "skipped": "skipped"
-    }
+    },
+    "pinned": "Output pinned"
   },
   "errors": {
     "invalidFlow": "The flow has errors and cannot run:",
@@ -138,7 +139,16 @@
     "dataLogs": "Log",
     "insertExpression": "Insert an expression from the input",
     "expand": "Open in a centered window",
-    "expandDescription": "Code editor in a large window"
+    "expandDescription": "Code editor in a large window",
+    "runFrom": "Run from here",
+    "runFromHint": "Execute this node and everything after it; predecessors reuse data from the last run",
+    "pin": "Pin output",
+    "unpin": "Unpin",
+    "pinned": "Pinned output (node is not executed in manual runs)",
+    "pinManual": "Set data manually…",
+    "pinManualTitle": "Manual data (pin)",
+    "pinSave": "Save",
+    "pinHint": "Format: an object of port: value, for example out0 with your data. Applies to manual runs only; scheduled runs of a published flow use real data. An event trigger with pinned data starts in a manual run."
   },
   "params": {
     "source": {

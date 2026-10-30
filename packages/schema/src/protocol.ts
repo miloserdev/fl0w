@@ -13,6 +13,9 @@ export const runnerCommandSchema = z.object({
   trigger: z.string().optional(),
   /** Данные срабатывания триггера (тело вебхука и т.п.): получает только нода-триггер через ctx. */
   triggerData: jsonSchema.optional(),
+  /** Перезапуск с ноды: исполняется она и всё после неё, остальным нужным нодам выдаются `seeds` (данные прошлого запуска). */
+  from: z.string().optional(),
+  seeds: z.record(z.string(), z.record(z.string(), jsonSchema)).optional(),
 });
 export type RunnerCommand = z.infer<typeof runnerCommandSchema>;
 
