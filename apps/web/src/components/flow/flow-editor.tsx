@@ -60,6 +60,7 @@ import { BlockNode } from "./block-node";
 import { GroupNode, NoteNode } from "./layout-nodes";
 import { Inspector } from "./inspector";
 import { NodeIssuesProvider } from "./node-issues";
+import { NodeDataPanel } from "./node-data-panel";
 import { RunPanel } from "./run-panel";
 import { RunStatusProvider } from "./run-status";
 import { usePublish } from "./use-publish";
@@ -312,6 +313,8 @@ function Editor() {
     groupDrag.current = null;
   }, []);
 
+  // окно данных ноды закрыто крестиком для этой ноды (при выборе другой снова показывается)
+  const [dataClosedFor, setDataClosedFor] = useState<string | null>(null);
   const selectedNodes = nodes.filter((n) => n.selected);
   const selectedNode = selectedNodes.length === 1 ? selectedNodes[0]! : null;
 
@@ -474,13 +477,27 @@ function Editor() {
       )}
 
       {selectedNode && (
-        <Inspector node={selectedNode} detail={view.nodeDetails[selectedNode.id]} canRunFrom={!watching && runState.status !== "running"} onRunFrom={() => onRun(selectedNode.id)} onChange={updateNodeData} onClose={() => selectNode(null)} />
+        <Inspector node={selectedNode} onChange={updateNodeData} onClose={() => selectNode(null)} />
       )}
-      <RunPanel
+      {/* правая колонка: общий результат запуска, под ним — данные выбранной ноды (отдельное окно) */}
+      <div className="pointer-events-none absolute top-[4.25rem] right-3 z-10 flex max-h-[calc(100dvh-16.5rem)] w-96 max-w-[calc(100%-1.5rem)] flex-col gap-3">
+  <RunPanel
         state={view}
         live={watching ? { connected: watch.connected } : undefined}
         onClose={watching ? () => setWatchOn(false) : () => resetRun(true)}
       />
+        {selectedNode && !registry[selectedNode.data.blockType]?.layout && dataClosedFor !== selectedNode.id && (
+          <NodeDataPanel
+            node={selectedNode}
+            detail={view.nodeDetails[selectedNode.id]}
+            canRunFrom={!watching && runState.status !== "running"}
+            onRunFrom={() => onRun(selectedNode.id)}
+            onChange={updateNodeData}
+            onClose={() => setDataClosedFor(selectedNode.id)}
+          />
+        )}
+      </div>
+
 
       <AddBlockDialog open={addOpen} onOpenChange={setAddOpen} onPick={addBlock} />
     </div>

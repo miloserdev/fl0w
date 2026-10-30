@@ -1,17 +1,15 @@
 "use client";
 
 import { registry } from "@fl0w/blocks";
-import { Maximize2, Pin, PinOff, Play, RotateCcw, X } from "lucide-react";
+import { Maximize2, RotateCcw, X } from "lucide-react";
 import { useTranslations } from "next-intl";
-import type { Json } from "@fl0w/schema";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FLOATING } from "@/lib/floating";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { NodeDetail } from "./use-run";
-import { parsePin, type BlockNodeData, type BlockNodeType } from "@/lib/flow-convert";
+import type { BlockNodeData, BlockNodeType } from "@/lib/flow-convert";
 import { BlockIcon } from "./block-icon";
 import { CodeEditor } from "./code-editor";
 import { ParamForm } from "./param-form";
@@ -23,18 +21,10 @@ import { useBlockLabel } from "./use-block-label";
  */
 export function Inspector({
   node,
-  detail,
-  canRunFrom,
-  onRunFrom,
   onChange,
   onClose,
 }: {
   node: BlockNodeType;
-  /** Данные ноды из последнего запуска (если она в нём участвовала). */
-  detail?: NodeDetail;
-  /** Можно ли перезапустить флоу с этой ноды (нет Watch и идущего запуска). */
-  canRunFrom?: boolean;
-  onRunFrom?: () => void;
   onChange: (id: string, patch: Partial<BlockNodeData>) => void;
   onClose: () => void;
 }) {
@@ -79,7 +69,6 @@ export function Inspector({
           <TabsTrigger value="params">{t("tabParams")}</TabsTrigger>
           {codeParam && <TabsTrigger value="code">{t("tabCode")}</TabsTrigger>}
           <TabsTrigger value="css">{t("tabCss")}</TabsTrigger>
-          <TabsTrigger value="data">{t("tabData")}</TabsTrigger>
         </TabsList>
         <TabsContent value="params" className="min-h-0 overflow-y-auto">
           <div>
@@ -113,41 +102,6 @@ export function Inspector({
             </div>
           </TabsContent>
         )}
-        <TabsContent value="data" className="min-h-0 overflow-y-auto">
-          <div className="space-y-3 p-3">
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" disabled={!canRunFrom} onClick={onRunFrom} title={t("runFromHint")}>
-                <Play className="size-3.5" />
-                {t("runFrom")}
-              </Button>
-              {detail?.output && !node.data.pinData && (
-                <Button size="sm" variant="outline" onClick={() => onChange(node.id, { pinData: detail.output })}>
-                  <Pin className="size-3.5" />
-                  {t("pin")}
-                </Button>
-              )}
-              {node.data.pinData && (
-                <Button size="sm" variant="outline" onClick={() => onChange(node.id, { pinData: null })}>
-                  <PinOff className="size-3.5" />
-                  {t("unpin")}
-                </Button>
-              )}
-            </div>
-            <PinEditor key={`${node.id}-${node.data.pinData ? "pinned" : "free"}`} pin={node.data.pinData ?? null} onSave={(pinData) => onChange(node.id, { pinData })} />
-            {!detail ? (
-              <p className="text-muted-foreground text-sm">{t("dataEmpty")}</p>
-            ) : (
-              <>
-                <p className="text-muted-foreground text-xs">{t("dataHint")}</p>
-                {detail.error !== undefined && <DataBlock title={t("dataError")} text={detail.error} tone="error" />}
-                <DataBlock title={t("dataInput")} text={detail.input === undefined ? undefined : JSON.stringify(detail.input, null, 2)} />
-                <DataBlock title={t("dataParams")} text={detail.params === undefined ? undefined : JSON.stringify(detail.params, null, 2)} />
-                <DataBlock title={t("dataOutput")} text={detail.output === undefined ? undefined : JSON.stringify(detail.output, null, 2)} />
-                {detail.logs.length > 0 && <DataBlock title={t("dataLogs")} text={detail.logs.join("\n")} />}
-              </>
-            )}
-          </div>
-        </TabsContent>
         <TabsContent value="css" className="flex min-h-0 flex-col">
           <div className="flex items-center justify-between gap-2 px-3 py-2">
             <p className="text-muted-foreground text-xs">{t("cssHint")}</p>
@@ -182,21 +136,6 @@ export function Inspector({
   );
 }
 
-function DataBlock({ title, text, tone }: { title: string; text?: string; tone?: "error" }) {
-  return (
-    <section>
-      <h3 className="mb-1 text-xs font-medium">{title}</h3>
-      <pre
-        className={cn(
-          "bg-muted max-h-64 overflow-auto rounded-md p-2 font-mono text-xs whitespace-pre-wrap [overflow-wrap:anywhere]",
-          tone === "error" && "text-destructive",
-        )}
-      >
-        {text ?? "—"}
-      </pre>
-    </section>
-  );
-}
 
 /**
  * Редактор кода во вкладке окна параметров с кнопкой «открыть по центру»: тот же текст в большом окне, как у «Добавить блок».
@@ -255,46 +194,3 @@ function ExpandableEditor({
   );
 }
 
-/**
- * Закреплённые данные ноды (pin data) — JSON `{ порт: значение }`. Редактируются вручную: так задают «запрос вебхука» или
- * «сообщение Telegram» для отладки без настоящего события. Применяются только в ручных запусках.
- */
-function PinEditor({ pin, onSave }: { pin: Record<string, Json> | null; onSave: (pin: Record<string, Json>) => void }) {
-  const t = useTranslations("inspector");
-  const [text, setText] = useState(pin ? JSON.stringify(pin, null, 2) : "");
-  const [error, setError] = useState<string | null>(null);
-  if (!pin && text === "") {
-    // свёрнуто: ввод данных вручную открывается по кнопке
-    return (
-      <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => setText('{\n  "out0": {}\n}')}>
-        {t("pinManual")}
-      </Button>
-    );
-  }
-  return (
-    <section className="space-y-1.5">
-      <h3 className="text-xs font-medium">{pin ? t("pinned") : t("pinManualTitle")}</h3>
-      <textarea
-        value={text}
-        spellCheck={false}
-        onChange={(e) => {
-          setText(e.target.value);
-          setError(null);
-        }}
-        className="bg-muted focus-visible:ring-ring h-40 w-full resize-y rounded-md p-2 font-mono text-xs outline-none focus-visible:ring-2"
-      />
-      {error && <p className="text-destructive text-xs [overflow-wrap:anywhere]">{error}</p>}
-      <Button
-        size="sm"
-        onClick={() => {
-          const parsed = parsePin(text);
-          if (parsed.ok) onSave(parsed.value);
-          else setError(parsed.error);
-        }}
-      >
-        {t("pinSave")}
-      </Button>
-      <p className="text-muted-foreground text-xs">{t("pinHint")}</p>
-    </section>
-  );
-}

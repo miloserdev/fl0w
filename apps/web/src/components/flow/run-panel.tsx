@@ -7,7 +7,7 @@ import { FLOATING } from "@/lib/floating";
 import { cn } from "@/lib/utils";
 import type { RunState } from "./use-run";
 
-/** Окно запуска: статус, результат из Result, ошибки нод и логи. Плавает справа сверху. */
+/** Окно запуска: статус, результат из Result, ошибки нод и логи. Лежит в правой колонке редактора (под ним — данные выбранной ноды). */
 export function RunPanel({
   state,
   live,
@@ -24,7 +24,7 @@ export function RunPanel({
   const nodeErrors = Object.entries(state.nodeErrors);
 
   return (
-    <section className={cn(FLOATING, "absolute top-[4.25rem] right-3 z-10 flex max-h-[min(60dvh,30rem)] w-96 max-w-[calc(100%-1.5rem)] flex-col overflow-hidden")}>
+    <section className={cn(FLOATING, "pointer-events-auto flex max-h-[min(45dvh,26rem)] shrink-0 flex-col overflow-hidden")}>
       <div className="flex items-center gap-2 border-b px-3 py-1.5">
         <h2 className="text-sm font-medium">{live ? t("liveTitle") : t("title")}</h2>
         {live && (
