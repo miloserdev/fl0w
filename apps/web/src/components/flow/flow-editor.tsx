@@ -7,6 +7,7 @@ import {
   Background,
   ControlButton,
   Controls,
+  SelectionMode,
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
@@ -333,6 +334,12 @@ function Editor() {
             onConnect={onConnect}
             isValidConnection={isValidConnection}
             colorMode={hydrated && resolvedTheme === "dark" ? "dark" : "light"}
+            // выделение рамкой левой кнопкой по пустому месту (частично попавшие ноды тоже), группа переносится целиком;
+            // панорамирование — средней/правой кнопкой (Space отдан Monaco, см. panActivationKeyCode), Ctrl/Cmd — добавить к выделению
+            selectionOnDrag
+            selectionMode={SelectionMode.Partial}
+            panOnDrag={[1, 2]}
+            onPaneContextMenu={(e) => e.preventDefault()}
             snapToGrid={snap}
             snapGrid={[GRID, GRID]}
             deleteKeyCode={["Backspace", "Delete"]}

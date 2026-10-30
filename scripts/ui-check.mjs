@@ -8,6 +8,7 @@
 // Опции: --url (http://localhost:3001) --flow <json> --theme light|dark --steps '<json>'|--steps-file <path>
 //        --out <каталог скриншотов> --width 1500 --height 900 --allow-problems
 // Шаги: {"click":"text:<подстрока кнопки>"|"css:<селектор>"} {"wait":ms} {"waitFor":"<css>"} {"shot":"имя"}
+//       {"drag":[x1,y1,x2,y2]} — перетаскивание левой кнопкой
 //       {"eval":"js","print":true} {"press":"Escape"} {"type":"текст с пробелами","delay":0}
 //       type — набор по клавишам (keyDown/keyUp с text), как настоящий ввод; delay — пауза между символами, мс
 // Вывод — JSON; код выхода 1, если в консоли были ошибки (если не задан --allow-problems).
@@ -90,6 +91,15 @@ try {
       entry.found = !!c;
       entry.disabled = c?.disabled ?? null;
       if (c && !c.disabled) await click(c.x, c.y);
+    } else if (step.drag) {
+      // {"drag":[x1,y1,x2,y2]} — перетаскивание левой кнопкой (рамка выделения, перенос нод)
+      const [x1, y1, x2, y2] = step.drag;
+      const mouse = (type, x, y) => send("Input.dispatchMouseEvent", { type, x, y, button: type === "mouseMoved" ? "none" : "left", buttons: type === "mouseReleased" ? 0 : 1, clickCount: 1 });
+      await mouse("mouseMoved", x1, y1);
+      await mouse("mousePressed", x1, y1);
+      for (let i = 1; i <= 10; i++) await mouse("mouseMoved", x1 + ((x2 - x1) * i) / 10, y1 + ((y2 - y1) * i) / 10);
+      await mouse("mouseReleased", x2, y2);
+      await sleep(step.after ?? 400);
     } else if (step.wait) await sleep(step.wait);
     else if (step.waitFor) {
       const t = Date.now();
