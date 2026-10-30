@@ -332,10 +332,11 @@
     },
     "telegram_trigger": {
       "token": "Токен бота (env:FL0W_SECRET_…)",
-      "updates": "Типы обновлений (JSON-список, * — все)",
+      "updates": "Срабатывать на события",
       "chatIds": "Только чаты (id через запятую)",
       "userIds": "Только пользователи (id через запятую)",
-      "dropPending": "Сбросить накопленные при запуске"
+      "dropPending": "Сбросить накопленные при запуске",
+      "mode": "Способ получения"
     }
   },
   "run": {
@@ -370,7 +371,9 @@
       "random": "random — перемешать",
       "fields": "fields — значения полей",
       "all": "all — все",
-      "first": "first — первое совпадение"
+      "first": "first — первое совпадение",
+      "polling": "polling — опрос (по умолчанию)",
+      "webhook": "webhook — Telegram присылает сам (нужен FL0W_PUBLIC_URL)"
     },
     "operator": {
       "eq": "равно",
@@ -542,6 +545,32 @@
       "HTML": "HTML",
       "Markdown": "Markdown (старый)",
       "MarkdownV2": "MarkdownV2"
+    },
+    "updates": {
+      "message": "Сообщение",
+      "edited_message": "Изменённое сообщение",
+      "channel_post": "Пост в канале",
+      "edited_channel_post": "Изменённый пост в канале",
+      "business_connection": "Бизнес-подключение",
+      "business_message": "Бизнес-сообщение",
+      "edited_business_message": "Изменённое бизнес-сообщение",
+      "deleted_business_messages": "Удалённые бизнес-сообщения",
+      "message_reaction": "Реакция на сообщение",
+      "message_reaction_count": "Счётчик реакций",
+      "inline_query": "Инлайн-запрос",
+      "chosen_inline_result": "Выбранный инлайн-результат",
+      "callback_query": "Нажатие кнопки",
+      "shipping_query": "Запрос доставки",
+      "pre_checkout_query": "Предоплатный запрос",
+      "purchased_paid_media": "Купленное платное медиа",
+      "poll": "Опрос",
+      "poll_answer": "Ответ в опросе",
+      "my_chat_member": "Статус бота в чате",
+      "chat_member": "Статус участника чата",
+      "chat_join_request": "Заявка на вступление",
+      "chat_boost": "Буст чата",
+      "removed_chat_boost": "Снятый буст чата",
+      "*": "Все (кроме chat_member, реакций)"
     }
   },
   "issues": {

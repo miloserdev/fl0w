@@ -30,7 +30,7 @@ afterEach(() => {
   fake.stop();
 });
 
-const spec = (over: Partial<TelegramSpec> = {}): TelegramSpec => ({ token: TOKEN, updates: ["message"], chatIds: [], userIds: [], dropPending: false, ...over });
+const spec = (over: Partial<TelegramSpec> = {}): TelegramSpec => ({ token: TOKEN, updates: ["message"], mode: "polling", chatIds: [], userIds: [], dropPending: false, ...over });
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 async function until(cond: () => boolean, ms = 4000) {
   const t = Date.now();

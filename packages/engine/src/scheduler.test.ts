@@ -688,7 +688,7 @@ describe("Scheduler: Telegram Trigger", () => {
     const { scheduler, subs, calls } = tgSetup();
     scheduler.sync(tgFlow("a", { updates: ["message", "callback_query"], chatIds: "12, -100", userIds: "5", dropPending: true }));
     expect(subs).toHaveLength(1);
-    expect(subs[0]!.spec).toEqual({ token: TG_TOKEN, updates: ["message", "callback_query"], chatIds: ["12", "-100"], userIds: ["5"], dropPending: true });
+    expect(subs[0]!.spec).toEqual({ token: TG_TOKEN, updates: ["message", "callback_query"], mode: "polling", chatIds: ["12", "-100"], userIds: ["5"], dropPending: true });
     subs[0]!.emit(upd(1));
     await vi.advanceTimersByTimeAsync(0);
     expect(calls).toEqual([{ flowId: "a", trigger: "tg", triggerData: upd(1) }]);

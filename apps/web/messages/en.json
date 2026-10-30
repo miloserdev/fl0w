@@ -332,10 +332,11 @@
     },
     "telegram_trigger": {
       "token": "Bot token (env:FL0W_SECRET_…)",
-      "updates": "Update types (JSON list, * — all)",
+      "updates": "Trigger on events",
       "chatIds": "Only these chats (comma-separated ids)",
       "userIds": "Only these users (comma-separated ids)",
-      "dropPending": "Drop pending updates on start"
+      "dropPending": "Drop pending updates on start",
+      "mode": "How to receive"
     }
   },
   "run": {
@@ -370,7 +371,9 @@
       "random": "random — shuffle",
       "fields": "fields — field values",
       "all": "all",
-      "first": "first — first match"
+      "first": "first — first match",
+      "polling": "polling — fetch updates (default)",
+      "webhook": "webhook — Telegram pushes (needs FL0W_PUBLIC_URL)"
     },
     "operator": {
       "eq": "equals",
@@ -542,6 +545,32 @@
       "HTML": "HTML",
       "Markdown": "Markdown (legacy)",
       "MarkdownV2": "MarkdownV2"
+    },
+    "updates": {
+      "message": "Message",
+      "edited_message": "Edited message",
+      "channel_post": "Channel post",
+      "edited_channel_post": "edited_channel_post",
+      "business_connection": "business_connection",
+      "business_message": "business_message",
+      "edited_business_message": "edited_business_message",
+      "deleted_business_messages": "deleted_business_messages",
+      "message_reaction": "message_reaction",
+      "message_reaction_count": "message_reaction_count",
+      "inline_query": "inline_query",
+      "chosen_inline_result": "chosen_inline_result",
+      "callback_query": "Button press",
+      "shipping_query": "shipping_query",
+      "pre_checkout_query": "pre_checkout_query",
+      "purchased_paid_media": "purchased_paid_media",
+      "poll": "poll",
+      "poll_answer": "poll_answer",
+      "my_chat_member": "my_chat_member",
+      "chat_member": "chat_member",
+      "chat_join_request": "chat_join_request",
+      "chat_boost": "chat_boost",
+      "removed_chat_boost": "removed_chat_boost",
+      "*": "All (except chat_member and reactions)"
     }
   },
   "issues": {

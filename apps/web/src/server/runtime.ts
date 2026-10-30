@@ -1,7 +1,7 @@
 import path from "node:path";
 import { registry } from "@fl0w/blocks";
 import { processSchedulerRun } from "@fl0w/engine/process";
-import { createFileWatcher, createTelegramPoller, FlowStore, RunHub, Scheduler } from "@fl0w/engine/server";
+import { createFileWatcher, createTelegramSources, FlowStore, RunHub, Scheduler } from "@fl0w/engine/server";
 import { engineDir } from "./engine-dir";
 
 /** Предел времени одного запуска; дальше процесс-раннер убивается. */
@@ -11,6 +11,8 @@ class Runtime {
   readonly store: FlowStore;
   readonly hub = new RunHub();
   readonly scheduler: Scheduler;
+  /** Источники Telegram Trigger; `handleWebhook` принимает входящие обновления вебхука. */
+  readonly telegram = createTelegramSources({ log: (msg) => console.log(`[telegram] ${msg}`) });
   private started: Promise<void> | null = null;
 
   constructor() {
@@ -28,8 +30,8 @@ class Runtime {
       // каждый плановый запуск — отдельный процесс, как и ручной (SPEC §2.1)
       run: processSchedulerRun({ engineDir: engineDir(), timeoutMs: RUN_TIMEOUT_MS }),
       watchFiles: createFileWatcher({ baseDir: filesDir, log: (msg) => console.log(`[file-watch] ${msg}`) }),
-      // Telegram Trigger: long polling (только исходящие запросы; вебхук потребовал бы публичный адрес редактора)
-      pollTelegram: createTelegramPoller({ log: (msg) => console.log(`[telegram] ${msg}`) }),
+      // Telegram Trigger: опрос (по умолчанию, только исходящие запросы) или вебхук (нужен FL0W_PUBLIC_URL)
+      pollTelegram: this.telegram.factory,
       log: (msg) => console.log(`[scheduler] ${msg}`),
     });
   }

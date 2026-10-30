@@ -10,6 +10,7 @@ import { isParamVisible, resolveParams, validateParams } from "./params";
 import { redact, resolveSecret } from "./secrets";
 import { FILES_DIR_ENV } from "./sandbox";
 import { Telegram, TELEGRAM_OPERATIONS } from "./telegram";
+import { TelegramTrigger } from "./telegram-trigger";
 import { TELEGRAM_API_ENV, assertToken, callTelegram } from "./telegram-api";
 
 const TOKEN = "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11";
@@ -414,5 +415,57 @@ describe("Telegram: параметры и видимость", () => {
     expect(Telegram.category).toBe("app");
     expect(Telegram.ports.inputs).toHaveLength(1);
     expect(Telegram.params.find((p) => p.name === "token")?.required).toBeUndefined();
+  });
+});
+
+describe("Telegram Trigger: mode", () => {
+  const saved = { url: process.env["FL0W_PUBLIC_URL"], api: process.env[TELEGRAM_API_ENV] };
+  afterEach(() => {
+    for (const [k, v] of [["FL0W_PUBLIC_URL", saved.url], [TELEGRAM_API_ENV, saved.api]] as const) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+    delete process.env["FL0W_SECRET_TG_MODE_TEST"];
+  });
+  const params = (extra: Record<string, Json> = {}) => ({ token: "env:FL0W_SECRET_TG_MODE_TEST", ...extra });
+
+  it("polls by default and needs no public URL", () => {
+    process.env["FL0W_SECRET_TG_MODE_TEST"] = TOKEN;
+    delete process.env["FL0W_PUBLIC_URL"];
+    const spec = TelegramTrigger.telegram(params())!;
+    expect(spec.mode).toBe("polling");
+    expect(spec.publicUrl).toBeUndefined();
+  });
+
+  it("webhook mode takes the public URL without a trailing slash", () => {
+    process.env["FL0W_SECRET_TG_MODE_TEST"] = TOKEN;
+    process.env["FL0W_PUBLIC_URL"] = "https://bot.example.com//";
+    expect(TelegramTrigger.telegram(params({ mode: "webhook" }))!.publicUrl).toBe("https://bot.example.com");
+  });
+
+  it("webhook mode rejects a missing, non-https or decorated URL", () => {
+    process.env["FL0W_SECRET_TG_MODE_TEST"] = TOKEN;
+    delete process.env["FL0W_PUBLIC_URL"];
+    delete process.env[TELEGRAM_API_ENV];
+    expect(() => TelegramTrigger.telegram(params({ mode: "webhook" }))).toThrow(/FL0W_PUBLIC_URL/);
+    process.env["FL0W_PUBLIC_URL"] = "http://bot.example.com";
+    expect(() => TelegramTrigger.telegram(params({ mode: "webhook" }))).toThrow(/https/);
+    process.env["FL0W_PUBLIC_URL"] = "https://bot.example.com/?a=1";
+    expect(() => TelegramTrigger.telegram(params({ mode: "webhook" }))).toThrow(/query/);
+    process.env["FL0W_PUBLIC_URL"] = "not a url";
+    expect(() => TelegramTrigger.telegram(params({ mode: "webhook" }))).toThrow(/valid URL/);
+  });
+
+  it("http is allowed only with a custom Bot API (tests)", () => {
+    process.env["FL0W_SECRET_TG_MODE_TEST"] = TOKEN;
+    process.env["FL0W_PUBLIC_URL"] = "http://127.0.0.1:3001";
+    process.env[TELEGRAM_API_ENV] = "http://127.0.0.1:9911";
+    expect(TelegramTrigger.telegram(params({ mode: "webhook" }))!.publicUrl).toBe("http://127.0.0.1:3001");
+  });
+
+  it("rejects an unknown mode and an empty event list", () => {
+    process.env["FL0W_SECRET_TG_MODE_TEST"] = TOKEN;
+    expect(() => TelegramTrigger.telegram(params({ mode: "push" }))).toThrow(/mode/);
+    expect(validateParams(TelegramTrigger.params, params({ updates: [] })).length).toBeGreaterThan(0);
   });
 });

@@ -162,7 +162,7 @@ export class Scheduler {
           } else {
             const stop = this.deps.pollTelegram(tg, (update) => this.enqueueEvent(flow.id, node.id, update));
             jobs.push({ nodeId: node.id, stop });
-            this.log(`flow ${flow.id}: trigger ${node.id} polls Telegram bot ${tg.token.split(":")[0]} for ${tg.updates.join(", ")}`);
+            this.log(`flow ${flow.id}: trigger ${node.id} ${tg.mode === "webhook" ? "receives webhooks of" : "polls"} Telegram bot ${tg.token.split(":")[0]} for ${tg.updates.join(", ")}`);
           }
         }
         const scope = cls.errorScope(node.params);

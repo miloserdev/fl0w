@@ -15,6 +15,13 @@ export type TelegramSpec = {
   token: string;
   /** Типы обновлений; "*" — все, кроме chat_member, message_reaction, message_reaction_count (как у Telegram). */
   updates: string[];
+  /**
+   * polling — сервер сам опрашивает getUpdates (только исходящие запросы); webhook — Telegram присылает обновления
+   * на адрес сервера (мгновенно, но нужен публичный https-адрес).
+   */
+  mode: "polling" | "webhook";
+  /** Публичный адрес сервера (FL0W_PUBLIC_URL, без завершающего слэша) — только для режима webhook. */
+  publicUrl?: string;
   chatIds: string[];
   userIds: string[];
   dropPending: boolean;

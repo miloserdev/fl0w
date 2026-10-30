@@ -45,6 +45,9 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNodeType>) {
   const ports = getPorts(data.blockType, data.portsOverride);
   const rows = Math.max(ports.inputs.length, ports.outputs.length, 1);
   const css = scopeCss(data.cssOverride ?? cls?.defaultCss ?? "", id);
+  // как в n8n: у стартовых нод (есть выход, нет входа) скруглена левая сторона, у финальных (вход без выхода) — правая
+  const isStart = ports.inputs.length === 0 && ports.outputs.length > 0;
+  const isEnd = ports.inputs.length > 0 && ports.outputs.length === 0;
   const label = cls ? blockLabel(data.blockType) : t("unknown", { type: data.blockType });
 
   return (
@@ -52,6 +55,8 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNodeType>) {
       data-node-id={id}
       className={cn(
         "fl-node bg-card text-card-foreground relative flex w-16 items-center justify-center rounded-xl border-2 shadow-sm transition-colors",
+        isStart && "rounded-l-[24px]",
+        isEnd && "rounded-r-[24px]",
         selected && "ring-ring ring-offset-background ring-2 ring-offset-2",
         runStatus === "running" && "fl-pulse border-blue-500",
         runStatus === "done" && "border-green-500",
