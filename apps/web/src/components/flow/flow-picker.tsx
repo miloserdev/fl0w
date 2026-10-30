@@ -3,7 +3,6 @@
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export type ServerFlow = {
   id: string;
@@ -27,8 +26,9 @@ function useServerFlows(): ServerFlow[] | null {
 }
 
 /**
- * Выбор флоу или его триггера из серверных копий (параметры `picker: "flow" | "flow-trigger"`). Вызвать можно только
- * опубликованный флоу — черновики показаны с пометкой. Если список недоступен или пуст — обычное текстовое поле.
+ * Поле id флоу или его триггера с подсказками из серверных копий (параметры `picker: "flow" | "flow-trigger"`). Ввод свободный:
+ * целевой флоу можно создать и опубликовать после вызывающего — публикация нужна к моменту самого вызова (иначе ошибка ноды).
+ * Для неизвестного или неопубликованного флоу показывается неблокирующая подсказка.
  */
 export function FlowPicker({
   id,
@@ -48,35 +48,43 @@ export function FlowPicker({
 }) {
   const t = useTranslations("inspector");
   const flows = useServerFlows();
+  const listId = `${id}-options`;
 
+  const target = (flows ?? []).find((f) => f.id === flowId);
   const options =
     kind === "flow"
-      ? (flows ?? []).map((f) => ({ value: f.id, label: `${f.name} (${f.id})${f.status === "published" ? "" : ` — ${t("flowDraft")}`}` }))
-      : ((flows ?? []).find((f) => f.id === flowId)?.triggers ?? []).map((tr) => ({ value: tr.id, label: `${tr.id} · ${tr.type}` }));
+      ? (flows ?? []).map((f) => ({ value: f.id, label: `${f.name}${f.status === "published" ? "" : ` — ${t("flowDraft")}`}` }))
+      : (target?.triggers ?? []).map((tr) => ({ value: tr.id, label: tr.type }));
 
-  if (!flows || options.length === 0) {
-    return (
-      <div className="flex flex-col gap-1">
-        <Input id={id} value={value} aria-invalid={invalid} spellCheck={false} className="font-mono text-xs" onChange={(e) => onChange(e.target.value)} />
-        {flows && <p className="text-muted-foreground text-xs">{kind === "flow" ? t("noFlows") : flowId ? t("noTriggers") : t("pickFlowFirst")}</p>}
-      </div>
-    );
+  // Подсказка не запрещает ввод: целевой флоу можно создать и опубликовать позже — важно, чтобы он был опубликован к моменту вызова
+  let hint: string | null = null;
+  if (flows && value !== "") {
+    if (kind === "flow") {
+      const f = flows.find((x) => x.id === value);
+      if (!f) hint = t("flowUnknown");
+      else if (f.status !== "published") hint = t("flowNotPublished");
+    } else if (target && !target.triggers.some((x) => x.id === value)) hint = t("triggerUnknown");
   }
-  // значение, которого нет в списке (набрано вручную или флоу удалён), остаётся выбираемым
-  const known = options.some((o) => o.value === value);
+
   return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger id={id} aria-invalid={invalid} className="w-full">
-        <SelectValue placeholder={kind === "flow" ? t("pickFlow") : t("pickTrigger")} />
-      </SelectTrigger>
-      <SelectContent>
-        {!known && value !== "" && <SelectItem value={value}>{value}</SelectItem>}
+    <div className="flex flex-col gap-1">
+      <Input
+        id={id}
+        list={listId}
+        value={value}
+        aria-invalid={invalid}
+        spellCheck={false}
+        autoComplete="off"
+        placeholder={kind === "flow" ? t("pickFlow") : t("pickTrigger")}
+        className="font-mono text-xs"
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <datalist id={listId}>
         {options.map((o) => (
-          <SelectItem key={o.value} value={o.value}>
-            {o.label}
-          </SelectItem>
+          <option key={o.value} value={o.value} label={o.label} />
         ))}
-      </SelectContent>
-    </Select>
+      </datalist>
+      {hint ? <p className="text-muted-foreground text-xs">{hint}</p> : <p className="text-muted-foreground text-xs">{t("pickerFree")}</p>}
+    </div>
   );
 }
