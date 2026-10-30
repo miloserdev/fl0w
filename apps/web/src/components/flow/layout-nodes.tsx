@@ -2,7 +2,8 @@
 
 import { NodeResizer, useReactFlow, type NodeProps } from "@xyflow/react";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { Lock, LockOpen } from "lucide-react";
+import { useEffect, useState } from "react";
 import type { Json } from "@fl0w/schema";
 import { layoutPalette } from "@/lib/layout";
 import { cn } from "@/lib/utils";
@@ -93,6 +94,12 @@ export function GroupNode({ id, data, selected }: NodeProps<BlockNodeType>) {
   const title = typeof data.params.title === "string" ? data.params.title : "";
   const palette = layoutPalette(data.params.color);
   const [draft, setDraft] = useState<string | null>(null);
+  const locked = data.params.locked === true;
+  const { setNodes } = useReactFlow();
+  // замок: у ноды React Flow свойство draggable — держим его в согласии с параметром (в том числе при правке из инспектора)
+  useEffect(() => {
+    setNodes((ns) => ns.map((n) => (n.id === id && (n.draggable === false) !== locked ? { ...n, draggable: !locked } : n)));
+  }, [id, locked, setNodes]);
 
   const commit = () => {
     if (draft !== null && draft !== title) setParam("title", draft);
@@ -108,9 +115,9 @@ export function GroupNode({ id, data, selected }: NodeProps<BlockNodeType>) {
         selected && "ring-ring ring-offset-background ring-2 ring-offset-2",
       )}
     >
-      <Resizer id={id} selected={selected} />
+      {!locked && <Resizer id={id} selected={selected} />}
       <div
-        className="fl-group-title pointer-events-auto flex h-8 cursor-grab items-center px-3"
+        className={cn("fl-group-title pointer-events-auto flex h-8 items-center px-3", locked ? "cursor-default" : "cursor-grab")}
         onDoubleClick={() => setDraft(title)}
       >
         {draft !== null ? (
@@ -130,6 +137,16 @@ export function GroupNode({ id, data, selected }: NodeProps<BlockNodeType>) {
             {title || t("groupPlaceholder")}
           </span>
         )}
+        <button
+          type="button"
+          className={cn("nodrag ml-auto shrink-0 rounded p-1 hover:bg-black/10 dark:hover:bg-white/10", palette.groupTitle, !locked && "opacity-50")}
+          title={locked ? t("groupUnlock") : t("groupLock")}
+          aria-label={locked ? t("groupUnlock") : t("groupLock")}
+          aria-pressed={locked}
+          onClick={() => setParam("locked", !locked)}
+        >
+          {locked ? <Lock className="size-3.5" /> : <LockOpen className="size-3.5" />}
+        </button>
       </div>
     </div>
   );

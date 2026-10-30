@@ -50,6 +50,7 @@ export class GroupFrame extends LayoutBlock {
   static params: ParamSchema[] = [
     { name: "title", type: "string", default: "", expressions: false },
     { ...colorParam, default: "blue" },
+    { name: "locked", type: "boolean", default: false, expressions: false },
     ...sizeParams(420, 260),
   ];
 }

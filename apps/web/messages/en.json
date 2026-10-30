@@ -118,7 +118,9 @@
     "groupPlaceholder": "Group (double-click to name)",
     "terminalIdle": "waiting for a run…",
     "runTrigger": "Run this trigger",
-    "disabled": "Node is disabled"
+    "disabled": "Node is disabled",
+    "groupLock": "Lock the group (cannot be moved)",
+    "groupUnlock": "Unlock the group"
   },
   "errors": {
     "invalidFlow": "The flow has errors and cannot run:",
@@ -428,6 +430,7 @@
     "group": {
       "title": "Title",
       "color": "Color",
+      "locked": "Locked (cannot be moved)",
       "width": "Width, px",
       "height": "Height, px"
     },

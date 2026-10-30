@@ -74,12 +74,12 @@ const LAYER_GROUP = -2;
 const LAYER_NOTE = -1;
 
 /** Свойства ноды React Flow, которые зависят от вида блока оформления (пусто — для обычного блока). */
-export function layoutNodeProps(blockType: string, params: Record<string, Json>): Partial<Pick<Node, "width" | "height" | "zIndex" | "dragHandle" | "style">> {
+export function layoutNodeProps(blockType: string, params: Record<string, Json>): Partial<Pick<Node, "width" | "height" | "zIndex" | "dragHandle" | "style" | "draggable">> {
   if (!isResizableBlock(blockType)) return {};
   const size = layoutSize(blockType, params);
   if (blockType === "group") {
     // под остальными; клики по пустой рамке проходят к холсту — группу берут за заголовок
-    return { ...size, zIndex: LAYER_GROUP, dragHandle: ".fl-group-title", style: { pointerEvents: "none" } };
+    return { ...size, zIndex: LAYER_GROUP, dragHandle: ".fl-group-title", style: { pointerEvents: "none" }, ...(params.locked === true ? { draggable: false } : {}) };
   }
   // заметка лежит ПОД блоками (но над группами): иначе свежая или большая заметка перекрывала бы ноды
   if (isLayoutBlock(blockType)) return { ...size, zIndex: LAYER_NOTE };
