@@ -7,8 +7,9 @@ const isPlainObject = (v: Json | undefined): v is { [key: string]: Json } =>
 /**
  * Объединитель: собирает данные со всех ПОДКЛЮЧЁННЫХ входов в один JSON.
  * В один вход идёт одно ребро (SPEC §4), поэтому несколько веток сводятся здесь.
- * Как и у любой ноды, wait-all: если по одному из подключённых входов данных нет
- * (ветка не пошла), Merge не запускается.
+ * Параметр `wait` — когда запускаться: `all` (по умолчанию, как у любой ноды) — когда данные пришли по ВСЕМ подключённым входам
+ * (если ветка не пошла, Merge не запускается); `any` — когда пришёл хотя бы один вход: объединяются те, что пришли, остальные
+ * (не пошедшие ветки, например после Branch) пропускаются.
  */
 export class Merge extends Block {
   static type = "merge";
@@ -19,7 +20,16 @@ export class Merge extends Block {
     inputs: [{ id: "in0" }, { id: "in1" }, { id: "in2" }, { id: "in3" }],
     outputs: [{ id: "out0" }],
   };
+  static waitMode(params: Record<string, Json>): "all" | "any" {
+    return params["wait"] === "any" ? "any" : "all";
+  }
   static params: ParamSchema[] = [
+    {
+      name: "wait",
+      type: "enum",
+      default: "all",
+      options: [{ value: "all" }, { value: "any" }],
+    },
     {
       name: "mode",
       type: "enum",

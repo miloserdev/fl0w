@@ -190,10 +190,13 @@ export async function runFlow(
     const cls = registry[node.type]!;
     const entry = cls.isTrigger || getNodePorts(cls, node.portsOverride).inputs.length === 0;
     if (edges.length === 0 && !entry) continue;
-    if (!edges.every((e) => edgeValues.has(e.id))) continue; // вход не готов — ветка не пошла
+    // готовность входов: по умолчанию ждём ВСЕ подключённые; блок может разрешить запуск по любому пришедшему (Merge, wait: any)
+    const waitAny = cls.waitMode(resolveParams(cls.params, node.params)) === "any";
+    const arrived = edges.filter((e) => edgeValues.has(e.id));
+    if (waitAny ? arrived.length === 0 && edges.length > 0 : arrived.length < edges.length) continue; // вход не готов — ветка не пошла
 
     const inputs: Record<string, Json> = {};
-    for (const e of edges) inputs[e.targetPort] = edgeValues.get(e.id)!;
+    for (const e of arrived) inputs[e.targetPort] = edgeValues.get(e.id)!;
 
     // выражения `{{ inputs.inN.путь }}` подставляются во ВСЕ параметры (кроме expressions: false) до запуска блока
     let params: Record<string, Json> = {};

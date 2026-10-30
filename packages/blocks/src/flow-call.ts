@@ -24,7 +24,7 @@ export class CallTrigger extends Block {
 /**
  * Выход «Запустить флоу»: в конце флоу дёргает триггер другого ОПУБЛИКОВАННОГО флоу, отдавая ему данные (`data`, по
  * умолчанию — весь вход). Не ждёт завершения вызванного флоу. Защита: флоу не может вызвать флоу из своей цепочки вызовов
- * (рекурсия, в том числе сам себя), если не включён `allowRecursive`; глубина цепочки ограничена `maxDepth` (по умолчанию 5).
+ * (рекурсия, в том числе сам себя), если не включён `allowRecursive`; глубина цепочки ограничена `maxDepth` (по умолчанию 5; 0 — без ограничения).
  */
 export class RunFlow extends Block {
   static type = "run_flow";
@@ -40,7 +40,8 @@ export class RunFlow extends Block {
     // по умолчанию флоу не может вызвать флоу из своей цепочки (в том числе себя): так он случайно не зациклится
     { name: "allowRecursive", type: "boolean", default: false },
     // предел длины цепочки вызовов (защита от бесконечной рекурсии даже при allowRecursive)
-    { name: "maxDepth", type: "number", default: 5, min: 1, max: 20 },
+    // 0 — без ограничения (осознанная бесконечная цепочка: остановить можно, только сняв флоу с публикации)
+    { name: "maxDepth", type: "number", default: 5, min: 0 },
   ];
 
   async run(inputs: Record<string, Json>, params: Record<string, Json>, ctx: RunContext) {

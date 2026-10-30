@@ -59,7 +59,7 @@ describe("Scheduler.fireFrom (вызов триггера другого фло�
   });
 
   it("allowRecursive разрешает вызов флоу из цепочки (в том числе самого себя), но глубину ограничивает maxDepth", async () => {
-    const { scheduler } = setup(idle);
+    const { scheduler, logs } = setup(idle);
     scheduler.sync(pub("a"));
     scheduler.sync(pub("b"));
     const self = { flowId: "a", triggerId: "t", data: null, allowRecursive: true };
@@ -71,6 +71,9 @@ describe("Scheduler.fireFrom (вызов триггера другого фло�
     await expect(scheduler.fireFrom(Array(10).fill("a"), { ...self, maxDepth: 12 })).resolves.toBeUndefined();
     await expect(scheduler.fireFrom(Array(20).fill("a"), { ...self, maxDepth: 20 })).rejects.toThrow(/limit 20/);
     await expect(scheduler.fireFrom(Array(25).fill("a"), { ...self, maxDepth: 99 })).rejects.toThrow(/limit 20/);
+    // maxDepth 0 — без ограничения (и сверх потолка 20), в логе предупреждение
+    await expect(scheduler.fireFrom(Array(100).fill("a"), { ...self, maxDepth: 0 })).resolves.toBeUndefined();
+    expect(logs.some((l) => /unlimited/.test(l))).toBe(true);
     scheduler.stop();
   });
 

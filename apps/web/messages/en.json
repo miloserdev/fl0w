@@ -198,7 +198,8 @@
       "timeoutMs": "Timeout, ms"
     },
     "merge": {
-      "mode": "Mode"
+      "mode": "Mode",
+      "wait": "When to run"
     },
     "every": {
       "interval": "Interval",
@@ -432,7 +433,7 @@
       "triggerId": "Trigger",
       "data": "Data (empty — whole input)",
       "allowRecursive": "Allow recursive call",
-      "maxDepth": "Max call chain depth"
+      "maxDepth": "Max call chain depth (0 — unlimited)"
     }
   },
   "run": {
@@ -678,6 +679,10 @@
       "pink": "Pink",
       "purple": "Purple",
       "gray": "Gray"
+    },
+    "wait": {
+      "all": "all — wait for every connected input",
+      "any": "any — run on any input that arrives"
     }
   },
   "issues": {

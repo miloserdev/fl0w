@@ -135,6 +135,14 @@ export abstract class Block {
   /** d.ts окружения для автокомплита в редакторе кода (только у блоков с `editor: "code"` параметром). */
   static codeTypes = "";
 
+  /**
+   * Когда запускать ноду: `all` — когда готовы ВСЕ подключённые входы (по умолчанию); `any` — когда пришёл хотя бы один
+   * (остальные ветки не пошли — например, после Branch). Решает сам блок по параметрам (Merge).
+   */
+  static waitMode(_params: Record<string, Json>): "all" | "any" {
+    return "all";
+  }
+
   abstract run(
     inputs: Record<string, Json>,
     params: Record<string, Json>,

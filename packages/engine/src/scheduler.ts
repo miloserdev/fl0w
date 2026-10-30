@@ -7,7 +7,7 @@ import { validateFlow, type Registry } from "./validate";
 
 /** Сколько флоу может быть в цепочке вызовов (A вызвал B вызвал C …). */
 const MAX_CALL_DEPTH = 5;
-/** Жёсткий потолок, даже если блок просит больше (`maxDepth`). */
+/** Жёсткий потолок, даже если блок просит больше (`maxDepth`; 0 — без ограничения, в логе предупреждение). */
 const MAX_CALL_DEPTH_HARD = 20;
 
 export type SchedulerRun = (
@@ -274,8 +274,13 @@ export class Scheduler {
     if (chain.includes(req.flowId) && !req.allowRecursive) {
       return Promise.reject(new Error(`Recursive call: flow "${req.flowId}" is already in the call chain (${[...chain, req.flowId].join(" → ")})`));
     }
-    const limit = Math.min(req.maxDepth ?? MAX_CALL_DEPTH, MAX_CALL_DEPTH_HARD);
-    if (chain.length >= limit) return Promise.reject(new Error(`Call chain is too deep (limit ${limit} flows; raise maxDepth up to ${MAX_CALL_DEPTH_HARD} if intended)`));
+    // maxDepth 0 — без ограничения (выбор автора флоу); иначе предел, но не выше жёсткого потолка
+    const unlimited = req.maxDepth === 0;
+    const limit = unlimited ? Infinity : Math.min(req.maxDepth ?? MAX_CALL_DEPTH, MAX_CALL_DEPTH_HARD);
+    if (unlimited && chain.length >= MAX_CALL_DEPTH_HARD && chain.length % MAX_CALL_DEPTH_HARD === 0) {
+      this.log(`flow ${chain[0]}: call chain has reached ${chain.length} flows with maxDepth 0 (unlimited) — unpublish the flow to stop it`);
+    }
+    if (chain.length >= limit) return Promise.reject(new Error(`Call chain is too deep (limit ${limit} flows; raise maxDepth up to ${MAX_CALL_DEPTH_HARD}, or set 0 for unlimited, if intended)`));
     const node = target.nodes.find((n) => n.id === req.triggerId);
     if (!node || !this.deps.registry[node.type]?.isTrigger) {
       return Promise.reject(new Error(`Flow "${req.flowId}" has no trigger "${req.triggerId}"`));
