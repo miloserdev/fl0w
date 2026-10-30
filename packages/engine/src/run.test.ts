@@ -12,7 +12,7 @@ describe("runFlow", () => {
   it("демо Source → Transform → Result даёт результат и события по нодам", async () => {
     const { events, done } = await collect(demo);
     expect(done).toEqual({ event: "flow:done", result: { n: 1, tagged: true } });
-    expect(events.map((e) => (e.event === "flow:done" ? e.event : `${e.event}:${e.nodeId}`))).toEqual([
+    expect(events.map((e) => (e.event === "flow:done" ? e.event : "nodeId" in e ? `${e.event}:${e.nodeId}` : e.event))).toEqual([
       "node:start:src",
       "node:done:src",
       "node:start:tr",

@@ -34,6 +34,8 @@ export type RunState = {
   nodeDetails: Record<string, NodeDetail>;
   result?: Json;
   error?: string;
+  /** Запуск на паузе: новые ноды не стартуют, работающие доделываются. */
+  paused?: boolean;
 };
 
 export const IDLE_RUN: RunState = { status: "idle", nodes: {}, nodeErrors: {}, logs: [], logsDropped: 0, nodeDetails: {} };
@@ -89,14 +91,16 @@ export function reduceRun(state: RunState, e: RunnerEvent, allNodeIds: string[])
         nodeErrors: { ...state.nodeErrors, [e.nodeId]: `killed: ${e.reason}` },
         logs: [...state.logs, { nodeId: e.nodeId, message: `killed: ${e.reason}` }].slice(-MAX_LOG_LINES),
       };
+    case "run:paused":
+      return { ...state, paused: e.paused };
     case "flow:done": {
       // ноды, ещё «идущие» к концу запуска, оборваны (shoot-вызов, отмена) — пульсировать им больше нечем
       const settled = Object.fromEntries(Object.entries(state.nodes).map(([id, st]) => [id, st === "running" ? "skipped" : st])) as typeof state.nodes;
-      if (e.error !== undefined) return { ...state, nodes: settled, status: "error", error: e.error };
+      if (e.error !== undefined) return { ...state, nodes: settled, status: "error", error: e.error, paused: false };
       // при успехе ноды, до которых данные не дошли (невзятая ветка), помечаем как пропущенные
       const nodes = { ...settled };
       for (const id of allNodeIds) nodes[id] ??= "skipped";
-      return { ...state, status: "done", nodes, result: e.result };
+      return { ...state, status: "done", nodes, result: e.result, paused: false };
     }
   }
 }
@@ -105,12 +109,15 @@ export function reduceRun(state: RunState, e: RunnerEvent, allNodeIds: string[])
 export function useRun() {
   const [state, setState] = useState<RunState>(IDLE_RUN);
   const controller = useRef<AbortController | null>(null);
+  const runId = useRef<string | null>(null);
 
   const run = useCallback(async (flow: Flow, opts?: { from?: { nodeId: string; seeds: Record<string, Record<string, Json>> }; trigger?: string }) => {
     const from = opts?.from;
     controller.current?.abort();
     const ac = new AbortController();
     controller.current = ac;
+    const id = crypto.randomUUID();
+    runId.current = id;
     const ids = flow.nodes.filter((n) => !isLayoutBlock(n.type)).map((n) => n.id);
     setState((s) => ({ ...IDLE_RUN, status: "running", nodeDetails: s.nodeDetails }));
 
@@ -121,7 +128,7 @@ export function useRun() {
       const res = await fetch("/api/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ flow, ...(from ? { from: from.nodeId, seeds: from.seeds } : {}), ...(opts?.trigger ? { trigger: opts.trigger } : {}) }),
+        body: JSON.stringify({ runId: id, flow, ...(from ? { from: from.nodeId, seeds: from.seeds } : {}), ...(opts?.trigger ? { trigger: opts.trigger } : {}) }),
         signal: ac.signal,
       });
       if (!res.ok || !res.body) {
@@ -153,8 +160,13 @@ export function useRun() {
   }, []);
 
   const stop = useCallback(() => controller.current?.abort(), []);
+  const control = useCallback((action: "pause" | "resume") => {
+    if (runId.current) void fetch("/api/run/control", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ runId: runId.current, action }) }).catch(() => {});
+  }, []);
+  const pause = useCallback(() => control("pause"), [control]);
+  const resume = useCallback(() => control("resume"), [control]);
   // keepDetails: закрыть панель результата, не теряя данные нод для отладки
   const reset = useCallback((keepDetails = false) => setState((s) => ({ ...IDLE_RUN, nodeDetails: keepDetails ? s.nodeDetails : {} })), []);
 
-  return { state, run, stop, reset };
+  return { state, run, stop, pause, resume, reset };
 }

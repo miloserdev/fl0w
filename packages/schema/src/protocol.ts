@@ -20,6 +20,8 @@ export const runnerCommandSchema = z.object({
   seeds: z.record(z.string(), z.record(z.string(), jsonSchema)).optional(),
 });
 export type RunnerCommand = z.infer<typeof runnerCommandSchema>;
+/** web → runner: управление идущим запуском. */
+export type RunnerControl = { cmd: "pause" | "resume" };
 
 /** runner → web */
 export const runnerEventSchema = z.discriminatedUnion("event", [
@@ -44,6 +46,8 @@ export const runnerEventSchema = z.discriminatedUnion("event", [
    * остановлен. Вызывающему это не сообщается — но в ленте видно.
    */
   z.object({ event: z.literal("node:killed"), nodeId: z.string(), reason: z.string() }),
+  /** Запуск поставлен на паузу / снят с неё: новые ноды не стартуют, работающие доделываются. */
+  z.object({ event: z.literal("run:paused"), paused: z.boolean() }),
   z.object({
     event: z.literal("flow:done"),
     result: jsonSchema.optional(),

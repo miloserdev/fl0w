@@ -42,7 +42,7 @@ const alive = (pid: number) => {
 describe("runFlowInProcess (реальный раннер)", () => {
   it("демо Source → Result: результат и события по нодам", async () => {
     const { events, done } = await run();
-    expect(events.map((e) => (e.event === "flow:done" ? e.event : `${e.event}:${e.nodeId}`))).toEqual([
+    expect(events.map((e) => (e.event === "flow:done" ? e.event : "nodeId" in e ? `${e.event}:${e.nodeId}` : e.event))).toEqual([
       "node:start:src",
       "node:done:src",
       "node:start:res",
@@ -158,5 +158,55 @@ describe("runFlowInProcess (устойчивость)", () => {
     const { done } = await run({ runnerPath: path.join(dir, "missing.mjs"), execArgv: [] });
     expect(done).toHaveLength(1);
     expect(done[0]).toMatchObject({ error: expect.stringMatching(/Runner exited unexpectedly/) });
+  });
+});
+
+describe("пауза запуска (реальный раннер)", () => {
+  const slow = flow(
+    [node("src", "source", { json: { n: 1 } }), node("w", "wait", { unit: "seconds", amount: 0.15 }), node("res", "result")],
+    [edge("src", "w"), edge("w", "res")],
+  );
+
+  it("пауза не даёт стартовать следующей ноде, работающая доделывается; продолжение завершает запуск", async () => {
+    const events: RunnerEvent[] = [];
+    let ctl: { pause: () => void; resume: () => void } | undefined;
+    const t0 = Date.now();
+    const finished = runFlowInProcess(
+      slow,
+      (e) => {
+        events.push(e);
+        if (e.event === "node:start" && e.nodeId === "w") ctl!.pause();
+      },
+      { onControl: (c) => (ctl = c) },
+    );
+    await new Promise((r) => setTimeout(r, 1200));
+    const names = events.map((e) => e.event + ("nodeId" in e ? `:${e.nodeId}` : ""));
+    expect(names).toContain("run:paused");
+    expect(names).toContain("node:done:w");
+    expect(names).not.toContain("node:start:res");
+    expect(events.some((e) => e.event === "flow:done")).toBe(false);
+    ctl!.resume();
+    await finished;
+    expect(events.at(-1)).toMatchObject({ event: "flow:done" });
+    expect(events.map((e) => e.event === "node:start" && e.nodeId)).toContain("res");
+    expect(Date.now() - t0).toBeGreaterThan(1200);
+  });
+
+  it("остановка на паузе завершает запуск ошибкой Aborted", async () => {
+    const ac = new AbortController();
+    const events: RunnerEvent[] = [];
+    let ctl: { pause: () => void; resume: () => void } | undefined;
+    const finished = runFlowInProcess(
+      slow,
+      (e) => {
+        events.push(e);
+        if (e.event === "node:start" && e.nodeId === "w") ctl!.pause();
+      },
+      { onControl: (c) => (ctl = c), signal: ac.signal },
+    );
+    await new Promise((r) => setTimeout(r, 1000));
+    ac.abort();
+    await finished;
+    expect(events.at(-1)).toMatchObject({ event: "flow:done", error: "Aborted" });
   });
 });

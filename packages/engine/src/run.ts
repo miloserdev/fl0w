@@ -13,6 +13,7 @@ import { jsonSchema, type Flow, type Json, type RunnerEvent } from "@fl0w/schema
 import { z } from "zod";
 import { buildResources, dataView } from "./resources";
 import { closure, participatingNodes, startNodes } from "./participants";
+import { PauseGate } from "./pause-gate";
 import { toposort } from "./toposort";
 import { formatIssues, validateFlow, type Registry } from "./validate";
 
@@ -53,6 +54,8 @@ export type RunOptions = {
   validated?: boolean;
   loopBreak?: () => void;
   shots?: Set<unknown>;
+  /** Пауза: пока включена, новые ноды не стартуют (запущенные доделываются). Вложенные запуски наследуют затвор. */
+  gate?: PauseGate;
 };
 
 /**
@@ -187,7 +190,7 @@ export async function runFlow(
         if (e.event === "flow:done") done = e;
         else if (sameFlow && !isCancellation(e)) await onEvent(e);
       },
-      { registry, signal: abort.signal, trigger: target.triggerId, triggerData: req.data, callChain, resolveCall: opts.resolveCall },
+      { registry, signal: abort.signal, trigger: target.triggerId, triggerData: req.data, callChain, resolveCall: opts.resolveCall, gate: opts.gate },
     );
     return done.error !== undefined ? failed(done.error) : { ok: true, result: done.result ?? null };
   };
@@ -327,7 +330,7 @@ export async function runFlow(
         if (e.event === "flow:done") done = e;
         else if (forward && !isCancellation(e)) await onEvent(e);
       },
-      { registry, signal: runSignal, trigger: opts.trigger, triggerData: opts.triggerData, callChain, resolveCall: opts.resolveCall, scope: body, seeds, validated: true, loopBreak: () => (broke = true), shots },
+      { registry, signal: runSignal, trigger: opts.trigger, triggerData: opts.triggerData, callChain, resolveCall: opts.resolveCall, scope: body, seeds, validated: true, loopBreak: () => (broke = true), shots, gate: opts.gate },
     );
     if (n === LOOP_EVENT_ITERATIONS) await onEvent({ event: "node:log", nodeId: loopId, message: `events of the iterations after ${LOOP_EVENT_ITERATIONS} are not shown` });
     if (done === undefined) return { ok: false, error: "The loop body ended without a result" };
@@ -485,6 +488,7 @@ export async function runFlow(
       if (signal.aborted) fail("Aborted");
       // запускаем всё, что готово; пропущенные ноды сразу определяют свои выходы («пусто») — это может открыть следующие
       let progress = true;
+      let heldBack = false;
       while (progress && failure === undefined) {
         progress = false;
         for (const id of topo.order) {
@@ -502,6 +506,10 @@ export async function runFlow(
             continue;
           }
           if (running.size >= MAX_PARALLEL) break;
+          if (opts.gate?.paused) {
+            heldBack = true;
+            break;
+          }
           unresolved.delete(id);
           const p: Promise<void> = execNode(id).finally(() => {
             resolved.add(id);
@@ -511,8 +519,9 @@ export async function runFlow(
           progress = true;
         }
       }
-      if (failure !== undefined || running.size === 0) break;
-      await Promise.race(running);
+      if (failure !== undefined || (running.size === 0 && !heldBack)) break;
+      // на паузе ждём и снятия паузы/отмены, а не только завершения работающих нод
+      await Promise.race([...running, ...(heldBack ? [opts.gate!.untilResumed(signal)] : [])]);
     }
     // после сбоя даём оборванным нодам мгновение остановиться, но не зависаем на них
     if (failure !== undefined && running.size > 0) await Promise.race([Promise.allSettled([...running]), new Promise((r) => setTimeout(r, 2000))]);

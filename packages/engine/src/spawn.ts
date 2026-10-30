@@ -5,7 +5,7 @@
 import { fork, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { callResolveRequestSchema, runnerEventSchema, type CallResolveReply, type Flow, type Json, type RunnerCommand, type RunnerEvent } from "@fl0w/schema";
+import { callResolveRequestSchema, runnerEventSchema, type CallResolveReply, type Flow, type Json, type RunnerCommand, type RunnerControl, type RunnerEvent } from "@fl0w/schema";
 import type { SchedulerRun } from "./scheduler";
 
 export type ProcessRunOptions = {
@@ -38,6 +38,8 @@ export type ProcessRunOptions = {
   sandbox?: boolean;
   /** Отмена: убивает процесс и завершает запуск событием `flow:done` с ошибкой. */
   signal?: AbortSignal;
+  /** Получает управление идущим запуском: пауза/продолжение (после старта процесса; после завершения — no-op). */
+  onControl?: (control: { pause: () => void; resume: () => void }) => void;
   /** stderr процесса (лог блоков, падения). */
   onStderr?: (chunk: string) => void;
 };
@@ -115,6 +117,10 @@ export function runFlowInProcess(
     }
 
     const proc = child;
+    const sendControl = (cmd: RunnerControl["cmd"]) => () => {
+      if (!finished && proc.connected) proc.send({ cmd } satisfies RunnerControl);
+    };
+    opts.onControl?.({ pause: sendControl("pause"), resume: sendControl("resume") });
     proc.stderr?.setEncoding("utf8");
     proc.stderr?.on("data", (chunk: string) => {
       stderrTail = (stderrTail + chunk).slice(-STDERR_TAIL);

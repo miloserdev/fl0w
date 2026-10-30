@@ -99,3 +99,13 @@ describe("reduceRun: flow:done и оборванные ноды", () => {
     expect(failed.nodes).toEqual({ a: "done", b: "skipped" });
   });
 });
+
+describe("пауза запуска", () => {
+  it("run:paused включает и снимает флаг, flow:done не оставляет запуск на паузе", () => {
+    const running = { ...IDLE_RUN, status: "running" as const };
+    const paused = reduceRun(running, { event: "run:paused", paused: true }, []);
+    expect(paused.paused).toBe(true);
+    expect(reduceRun(paused, { event: "run:paused", paused: false }, []).paused).toBe(false);
+    expect(reduceRun(paused, { event: "flow:done", result: null }, []).paused).toBeFalsy();
+  });
+});

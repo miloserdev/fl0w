@@ -4,12 +4,14 @@ import { runFlowInProcess } from "@fl0w/engine/process";
 import type { Json, RunnerEvent } from "@fl0w/schema";
 import { engineDir } from "@/server/engine-dir";
 import { getRuntime, RUN_TIMEOUT_MS } from "@/server/runtime";
+import { isRunId, runControls } from "@/server/run-controls";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
  * POST /api/run  { flow, from?, seeds? } — from/seeds: перезапуск с ноды (данные предшественников из прошлого запуска)
+runId?: идентификатор для паузы через POST /api/run/control.
  * 400 { error, issues }  — флоу не прошёл валидацию (до запуска процесса).
  * 200 application/x-ndjson — по строке JSON на событие `RunnerEvent`; последняя — `flow:done`.
  * Разрыв соединения клиентом убивает процесс-раннер.
@@ -24,11 +26,11 @@ export async function POST(req: Request) {
     );
   }
 
-  const { from, seeds, trigger } = (body ?? {}) as { from?: unknown; seeds?: unknown; trigger?: unknown };
+  const { from, seeds, trigger, runId } = (body ?? {}) as { from?: unknown; seeds?: unknown; trigger?: unknown; runId?: unknown };
   const seedsOk =
     seeds === undefined ||
     (typeof seeds === "object" && seeds !== null && !Array.isArray(seeds) && Object.values(seeds).every((v) => typeof v === "object" && v !== null && !Array.isArray(v)));
-  if ((from !== undefined && typeof from !== "string") || (trigger !== undefined && typeof trigger !== "string") || !seedsOk) {
+  if ((from !== undefined && typeof from !== "string") || (trigger !== undefined && typeof trigger !== "string") || !seedsOk || (runId !== undefined && !isRunId(runId))) {
     return Response.json({ error: "Invalid from/seeds/trigger" }, { status: 400 });
   }
 
@@ -60,10 +62,14 @@ export async function POST(req: Request) {
         // кнопка «запустить» на ноде Manual: стартует только этот триггер, закрепления песочницы при этом действуют
         trigger: trigger as string | undefined,
         pins: true,
+        onControl: (c) => {
+          if (typeof runId === "string") runControls.set(runId, c);
+        },
         from: from as string | undefined,
         seeds: seeds as Record<string, Record<string, Json>> | undefined,
         onStderr: (chunk) => process.stderr.write(chunk),
       }).finally(() => {
+        if (typeof runId === "string") runControls.delete(runId);
         try {
           controller.close();
         } catch {

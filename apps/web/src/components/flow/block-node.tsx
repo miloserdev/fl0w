@@ -2,7 +2,7 @@
 
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { registry } from "@fl0w/blocks";
-import { Pin, Play, PowerOff, TriangleAlert } from "lucide-react";
+import { Pause, Pin, Play, PowerOff, Square, TriangleAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Tip } from "@/components/tip";
 import { Button } from "@/components/ui/button";
@@ -120,22 +120,49 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNodeType>) {
         </Tip>
       )}
       {cls?.manualStart && (
-        // как у триггеров в n8n: кнопка запуска слева от ноды — стартует именно этот триггер, остальные молчат
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          className="nodrag nopan absolute top-1/2 -left-9 size-7 -translate-y-1/2 rounded-full"
-          disabled={triggerRun.disabled || data.disabled === true}
-          title={t("runTrigger")}
-          aria-label={t("runTrigger")}
-          onClick={(e) => {
-            e.stopPropagation();
-            triggerRun.run(id);
-          }}
-        >
-          <Play className="size-3.5" />
-        </Button>
+        // как у триггеров в n8n: кнопка запуска слева от ноды — стартует именно этот триггер, остальные молчат.
+        // Пока идёт пробный запуск, вместо неё — пауза/продолжение и остановка.
+        <div className="nodrag nopan absolute top-1/2 right-full mr-2 flex -translate-y-1/2 gap-1">
+          {triggerRun.running ? (
+            <>
+              <Button
+                type="button"
+                variant={triggerRun.paused ? "secondary" : "outline"}
+                size="icon"
+                className="size-7 rounded-full"
+                title={triggerRun.paused ? t("resumeRun") : t("pauseRun")}
+                aria-label={triggerRun.paused ? t("resumeRun") : t("pauseRun")}
+                aria-pressed={triggerRun.paused}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (triggerRun.paused) triggerRun.resume();
+                  else triggerRun.pause();
+                }}
+              >
+                {triggerRun.paused ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}
+              </Button>
+              <Button type="button" variant="outline" size="icon" className="size-7 rounded-full" title={t("stopRun")} aria-label={t("stopRun")} onClick={(e) => { e.stopPropagation(); triggerRun.stop(); }}>
+                <Square className="size-3.5" />
+              </Button>
+            </>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="size-7 rounded-full"
+              disabled={triggerRun.disabled || data.disabled === true}
+              title={t("runTrigger")}
+              aria-label={t("runTrigger")}
+              onClick={(e) => {
+                e.stopPropagation();
+                triggerRun.run(id);
+              }}
+            >
+              <Play className="size-3.5" />
+            </Button>
+          )}
+        </div>
       )}
       {data.disabled && (
         <Tip label={t("disabled")}>

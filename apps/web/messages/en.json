@@ -120,7 +120,10 @@
     "runTrigger": "Run this trigger",
     "disabled": "Node is disabled",
     "groupLock": "Lock the group (cannot be moved)",
-    "groupUnlock": "Unlock the group"
+    "groupUnlock": "Unlock the group",
+    "stopRun": "Stop the run",
+    "pauseRun": "Pause (no new nodes start, running ones finish)",
+    "resumeRun": "Resume the run"
   },
   "errors": {
     "invalidFlow": "The flow has errors and cannot run:",

@@ -129,7 +129,7 @@ function Editor() {
   const [addOpen, setAddOpen] = useState(false);
   const [restored, setRestored] = useState(false);
   const wrapper = useRef<HTMLDivElement>(null);
-  const { state: runState, run, stop, reset: resetRun } = useRun();
+  const { state: runState, run, stop, pause, resume, reset: resetRun } = useRun();
   const [watchOn, setWatchOn] = useState(false);
   const { server, busy: publishBusy, save: saveToServer } = usePublish(meta.id);
 
@@ -368,7 +368,15 @@ function Editor() {
   };
 
   // кнопка запуска на ноде Manual: недоступна, пока идёт запуск или включено наблюдение
-  const triggerRunApi: TriggerRunApi = { run: (nodeId) => onRun(undefined, nodeId), disabled: runState.status === "running" || watching };
+  const triggerRunApi: TriggerRunApi = {
+    run: (nodeId) => onRun(undefined, nodeId),
+    disabled: runState.status === "running" || watching,
+    running: runState.status === "running" && !watching,
+    paused: runState.paused === true,
+    pause,
+    resume,
+    stop,
+  };
 
   const onSave = () => {
     const flow = fromReactFlow(nodes, edges, meta);
