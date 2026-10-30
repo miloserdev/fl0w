@@ -314,10 +314,18 @@ export class CodeTool extends ToolBlock {
       name: toolName(params["name"], "custom_tool"),
       description: String(params["description"] ?? ""),
       inputSchema: params["inputSchema"] ?? { type: "object", properties: {} },
-      call: async (args) => {
+      call: async (args, signal) => {
+        // отмена хозяина (Code Agent) останавливает и код инструмента — раньше он дожидался собственного таймаута
         const ac = new AbortController();
-        const out = await new CodeBlock().run({ in0: args }, { code, timeoutMs }, { signal: ac.signal, log: () => {} });
-        return out["out0"] ?? null;
+        if (signal?.aborted) throw new Error("Aborted");
+        const onAbort = () => ac.abort();
+        signal?.addEventListener("abort", onAbort, { once: true });
+        try {
+          const out = await new CodeBlock().run({ in0: args }, { code, timeoutMs }, { signal: ac.signal, log: () => {} });
+          return out["out0"] ?? null;
+        } finally {
+          signal?.removeEventListener("abort", onAbort);
+        }
       },
     };
   }

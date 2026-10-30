@@ -426,7 +426,7 @@ export async function runFlow(
       // после подстановки параметры проверяются ещё раз — например, число из выражения должно быть числом
       if (paramsError !== undefined) throw paramsError;
       // инструменты и память, подключённые к ресурсным портам этой ноды
-      const res = buildResources(flow, registry, id, inputs, ctx.log);
+      const res = buildResources(flow, registry, id, inputs, ctx.log, runSignal);
       ctx.tools = res.tools;
       ctx.memory = res.memory;
       const issues = validateParams(cls.params, params);

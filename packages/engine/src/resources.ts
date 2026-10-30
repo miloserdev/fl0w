@@ -39,6 +39,7 @@ export function buildResources(
   hostId: string,
   hostInputs: Record<string, Json>,
   log: (msg: string) => void,
+  signal?: AbortSignal,
 ): { tools: ToolHandle[]; memory: MemoryHandle[] } {
   const tools: ToolHandle[] = [];
   const memory: MemoryHandle[] = [];
@@ -62,7 +63,7 @@ export function buildResources(
         ...tool,
         async call(args) {
           try {
-            const out = await tool.call(args);
+            const out = await tool.call(args, signal);
             log(`tool ${tool.name}(${short(args)}) → ${short(out)}`);
             return out;
           } catch (err) {
@@ -72,7 +73,7 @@ export function buildResources(
         },
       });
     } else {
-      memory.push((new cls() as MemoryBlock).createMemory(params));
+      memory.push((new cls() as MemoryBlock).createMemory(params, signal));
     }
   }
   return { tools, memory };

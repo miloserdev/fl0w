@@ -1,5 +1,5 @@
 import type { Json, ParamSchema } from "@fl0w/schema";
-import { Block } from "./block";
+import { Block, type RunContext } from "./block";
 import { textOf, valueOf, withOutputField } from "./value-io";
 
 const ALGORITHMS = ["md5", "sha1", "sha256", "sha384", "sha512"];
@@ -53,9 +53,15 @@ export class Crypto extends Block {
     { name: "includeInput", type: "boolean", default: false },
   ];
 
-  async run(inputs: Record<string, Json>, params: Record<string, Json>) {
+  async run(inputs: Record<string, Json>, params: Record<string, Json>, ctx?: RunContext) {
     // node-only API — только внутри тела run (SPEC §3)
     const nodeCrypto = await import(/* webpackIgnore: true */ /* turbopackIgnore: true */ "node:crypto");
+    // scrypt — в пуле потоков, а не `scryptSync`: тяжёлый вывод ключа не блокирует event loop и проверяет отмену запуска
+    const derive = (pass: string, salt: Buffer, signal?: AbortSignal): Promise<Buffer> =>
+      new Promise((resolve, reject) => {
+        if (signal?.aborted) return reject(new Error("Aborted"));
+        nodeCrypto.scrypt(pass, salt, 32, (err, key) => (err ? reject(err) : signal?.aborted ? reject(new Error("Aborted")) : resolve(key)));
+      });
     const input = inputs["in0"];
     const action = String(params["action"] ?? "hash");
     const algorithm = String(params["algorithm"] ?? "sha256");
@@ -86,7 +92,7 @@ export class Crypto extends Block {
         if (secret === "") throw new Error('Crypto: "secret" (passphrase) is required to encrypt');
         const salt = nodeCrypto.randomBytes(16);
         const iv = nodeCrypto.randomBytes(12);
-        const cipher = nodeCrypto.createCipheriv("aes-256-gcm", nodeCrypto.scryptSync(secret, salt, 32), iv);
+        const cipher = nodeCrypto.createCipheriv("aes-256-gcm", await derive(secret, salt, ctx?.signal), iv);
         const body = Buffer.concat([cipher.update(text(), "utf8"), cipher.final()]);
         result = [VERSION, salt, iv, cipher.getAuthTag(), body].map((p) => (typeof p === "string" ? p : p.toString("base64url"))).join(".");
         break;
@@ -98,7 +104,7 @@ export class Crypto extends Block {
         try {
           const decipher = nodeCrypto.createDecipheriv(
             "aes-256-gcm",
-            nodeCrypto.scryptSync(secret, Buffer.from(salt, "base64url"), 32),
+            await derive(secret, Buffer.from(salt, "base64url"), ctx?.signal),
             Buffer.from(iv, "base64url"),
           );
           decipher.setAuthTag(Buffer.from(tag, "base64url"));

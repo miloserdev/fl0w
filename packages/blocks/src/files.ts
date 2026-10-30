@@ -1,5 +1,5 @@
 import type { Json, ParamSchema } from "@fl0w/schema";
-import { Block } from "./block";
+import { Block, type RunContext } from "./block";
 import { globBase, globToRegExp, hasGlob } from "./glob";
 import { resolveTemplates } from "./json-path";
 import { mapLimit } from "./list-utils";
@@ -48,7 +48,7 @@ export class Files extends Block {
     { name: "overwrite", type: "boolean", default: true },
   ];
 
-  async run(inputs: Record<string, Json>, params: Record<string, Json>) {
+  async run(inputs: Record<string, Json>, params: Record<string, Json>, ctx?: RunContext) {
     const fs = await import(/* webpackIgnore: true */ /* turbopackIgnore: true */ "node:fs/promises");
     const nodePath = await import(/* webpackIgnore: true */ /* turbopackIgnore: true */ "node:path");
     const input = inputs["in0"];
@@ -61,8 +61,14 @@ export class Files extends Block {
     const rel = (rawPath === "" ? "" : textOf(valueOf(input, rawPath))).replace(/\\/g, "/").replace(/^\.\//, "");
     if (rel === "" && op !== "list") throw new Error('Files: "path" is required');
 
+    // отмена запуска: проверяется между операциями с диском, а чтение/запись получают сам signal
+    const signal = ctx?.signal;
+    const alive = () => {
+      if (signal?.aborted) throw new Error("Aborted");
+    };
     const toRel = (abs: string) => nodePath.relative(base, abs).split(nodePath.sep).join("/");
     const info = async (abs: string): Promise<FileInfo> => {
+      alive();
       const st = await fs.lstat(abs);
       return {
         path: toRel(abs),
@@ -81,6 +87,7 @@ export class Files extends Block {
       let seen = 0;
       const walk = async (dir: string): Promise<void> => {
         for (const e of await fs.readdir(dir, { withFileTypes: true })) {
+          alive();
           if (++seen > MAX_WALK_ENTRIES) throw new Error("Files: too many entries to scan, narrow the pattern");
           const abs = nodePath.join(dir, e.name);
           const isDir = e.isDirectory();
@@ -105,7 +112,7 @@ export class Files extends Block {
         const meta = await info(abs);
         if (meta.type !== "file") throw new Error(`Files: "${meta.path}" is not a file`);
         if (meta.size > MAX_FILE_BYTES) throw new Error(`Files: "${meta.path}" is larger than ${MAX_FILE_BYTES} bytes`);
-        const bytes = await fs.readFile(abs);
+        const bytes = await fs.readFile(abs, { signal });
         let content: Json;
         if (format === "base64") content = bytes.toString("base64");
         else if (format === "json") {
@@ -153,9 +160,11 @@ export class Files extends Block {
       if (exists && params["overwrite"] === false) throw new Error(`Files: "${rel}" already exists`);
       // через временный файл: читатель не увидит наполовину записанный результат
       const tmp = `${abs}.${process.pid}.tmp`;
-      await fs.writeFile(tmp, bytes);
+      alive();
+      await fs.writeFile(tmp, bytes, { signal });
       await fs.rename(tmp, abs);
     } else {
+      alive();
       await fs.appendFile(abs, bytes);
     }
     const meta = await info(abs);

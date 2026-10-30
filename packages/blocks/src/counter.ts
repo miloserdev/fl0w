@@ -37,7 +37,7 @@ export class Counter extends Block {
       const next = op === "reset" ? 0 : stored + 1;
       data[key] = next;
       return next;
-    });
+    }, ctx?.signal);
     ctx?.display?.(String(value));
     return { out0: inputs["in0"] ?? null };
   }

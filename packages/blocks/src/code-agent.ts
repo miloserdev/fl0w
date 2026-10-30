@@ -105,6 +105,7 @@ export class CodeAgent extends CodeBlock {
     // как и в fetch-мосте: функции не бросают и не отклоняются, ошибка — внутри строки
     const guard = (fn: (payload: Record<string, Json>) => Promise<Json>) => async (raw: string): Promise<string> => {
       try {
+        if (ctx.signal.aborted) throw new Error("Aborted"); // запуск отменён: новые вызовы инструментов и памяти не начинаем
         const result = await fn(JSON.parse(raw) as Record<string, Json>);
         return JSON.stringify({ result: result ?? null });
       } catch (e) {

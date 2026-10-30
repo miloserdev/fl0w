@@ -23,7 +23,8 @@ export abstract class MemoryBlock extends Block {
   static override category = "memory";
   static override ports = { inputs: [], outputs: [{ id: "memory", kind: "memory" as const }] };
 
-  abstract createMemory(params: Record<string, Json>): MemoryHandle;
+  /** `signal` — отмена запуска хозяина: ожидание замка банка прекращается. */
+  abstract createMemory(params: Record<string, Json>, signal?: AbortSignal): MemoryHandle;
 
   async run(): Promise<Record<string, Json>> {
     throw new Error("A memory bank is a sub-node: connect it to the memory port of another block");

@@ -36,7 +36,8 @@ export type ToolHandle = {
   description: string;
   /** Описание аргументов (JSON Schema-подобный объект) — для подсказок и будущего LLM-агента. */
   inputSchema: Json;
-  call(args: Json): Promise<Json>;
+  /** `signal` — отмена запуска хозяина: код инструмента останавливается вместе с ним. */
+  call(args: Json, signal?: AbortSignal): Promise<Json>;
 };
 
 /** Банк памяти, подключённый к ноде (sub-node вида memory): ключ → JSON; драйвер хранения скрыт за интерфейсом. */

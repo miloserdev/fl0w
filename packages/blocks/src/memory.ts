@@ -14,8 +14,8 @@ const LOCK_WAIT_MS = 10_000;
 /** Драйвер хранения: все операции атомарны относительно друг друга (в том числе между процессами-раннерами). */
 export interface MemoryDriver {
   /** Выполнить изменение над копией данных банка и сохранить результат; читающие видят либо старое, либо новое состояние. */
-  read(): Promise<Record<string, Json>>;
-  update<T>(fn: (data: Record<string, Json>) => T): Promise<T>;
+  read(signal?: AbortSignal): Promise<Record<string, Json>>;
+  update<T>(fn: (data: Record<string, Json>) => T, signal?: AbortSignal): Promise<T>;
 }
 
 /** Имя банка: безопасное имя файла — без путей, точек и регистра-зависимых сюрпризов. */
@@ -58,7 +58,7 @@ export function createJsonDriver(bank: string): MemoryDriver {
     return data as Record<string, Json>;
   };
 
-  const withLock = async <T>(fs: typeof import("node:fs/promises"), file: string, fn: () => Promise<T>): Promise<T> => {
+  const withLock = async <T>(fs: typeof import("node:fs/promises"), file: string, fn: () => Promise<T>, signal?: AbortSignal): Promise<T> => {
     const lock = `${file}.lock`;
     const start = Date.now();
     for (;;) {
@@ -68,6 +68,7 @@ export function createJsonDriver(bank: string): MemoryDriver {
         break;
       } catch (e) {
         if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+        if (signal?.aborted) throw new Error("Aborted", { cause: e }); // ждать замок дальше нет смысла: запуск отменён
         // «мёртвый» замок (процесс убит посреди записи) снимаем по давности
         const st = await fs.stat(lock).catch(() => null);
         if (st && Date.now() - st.mtimeMs > LOCK_STALE_MS) await fs.rm(lock, { force: true });
@@ -83,14 +84,16 @@ export function createJsonDriver(bank: string): MemoryDriver {
   };
 
   return {
-    async read() {
+    async read(signal?: AbortSignal) {
+      if (signal?.aborted) throw new Error("Aborted");
       const { fs, file } = await paths();
       return load(fs, file);
     },
-    update<T>(fn: (data: Record<string, Json>) => T): Promise<T> {
+    update<T>(fn: (data: Record<string, Json>) => T, signal?: AbortSignal): Promise<T> {
       // очередь внутри процесса + lock-файл между процессами
       const run = async (): Promise<T> => {
         const { fs, file } = await paths();
+        if (signal?.aborted) throw new Error("Aborted");
         return withLock(fs, file, async () => {
           const data = await load(fs, file);
           const result = fn(data);
@@ -102,7 +105,7 @@ export function createJsonDriver(bank: string): MemoryDriver {
           await fs.writeFile(tmp, text, { mode: 0o600 });
           await fs.rename(tmp, file);
           return result;
-        });
+        }, signal);
       };
       const prev = queues.get(bank) ?? Promise.resolve();
       const next = prev.then(run, run);
@@ -114,7 +117,7 @@ export function createJsonDriver(bank: string): MemoryDriver {
 }
 
 /** Банк памяти поверх драйвера: ключ → JSON. */
-export function createMemoryHandle(name: string, driverName: string, driver: MemoryDriver): MemoryHandle {
+export function createMemoryHandle(name: string, driverName: string, driver: MemoryDriver, signal?: AbortSignal): MemoryHandle {
   const checkValue = (v: Json) => {
     if (JSON.stringify(v).length > MEMORY_LIMITS.valueBytes) throw new Error(`Value is too large (max ${MEMORY_LIMITS.valueBytes} bytes)`);
   };
@@ -130,16 +133,16 @@ export function createMemoryHandle(name: string, driverName: string, driver: Mem
     driver: driverName,
     async get(key) {
       checkKey(key);
-      return clone(own(await driver.read(), key));
+      return clone(own(await driver.read(signal), key));
     },
     async set(key, value) {
       checkKey(key);
       checkValue(value);
-      await driver.update((d) => void (d[key] = clone(value)));
+      await driver.update((d) => void (d[key] = clone(value)), signal);
     },
-    delete: async (key) => (checkKey(key), driver.update((d) => Object.hasOwn(d, key) && delete d[key])),
+    delete: async (key) => (checkKey(key), driver.update((d) => Object.hasOwn(d, key) && delete d[key], signal)),
     async keys() {
-      return Object.keys(await driver.read());
+      return Object.keys(await driver.read(signal));
     },
     async append(key, value, max) {
       checkKey(key);
@@ -154,12 +157,12 @@ export function createMemoryHandle(name: string, driverName: string, driver: Mem
         }
         d[key] = list;
         return clone(list);
-      });
+      }, signal);
     },
     async clear() {
       await driver.update((d) => {
         for (const k of Object.keys(d)) delete d[k];
-      });
+      }, signal);
     },
   };
 }
@@ -180,12 +183,12 @@ export class MemoryBank extends MemoryBlock {
     { name: "name", type: "string", required: true, default: "default" },
   ];
 
-  createMemory(params: Record<string, Json>): MemoryHandle {
+  createMemory(params: Record<string, Json>, signal?: AbortSignal): MemoryHandle {
     const driver = String(params["driver"] ?? "json");
     const name = String(params["name"] ?? "default").trim();
     const make = Object.hasOwn(MEMORY_DRIVERS, driver) ? MEMORY_DRIVERS[driver] : undefined;
     if (!make) throw new Error(`Unknown memory driver "${driver}" (available: ${Object.keys(MEMORY_DRIVERS).join(", ")})`);
     assertBankName(name);
-    return createMemoryHandle(name, driver, make(name));
+    return createMemoryHandle(name, driver, make(name), signal);
   }
 }
