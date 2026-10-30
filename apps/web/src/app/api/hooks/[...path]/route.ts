@@ -1,4 +1,4 @@
-import { registry } from "@fl0w/blocks";
+import { normalizeWebhookPath, registry } from "@fl0w/blocks";
 import { SchedulerBusyError } from "@fl0w/engine/server";
 import type { Flow, Json, RunnerEvent } from "@fl0w/schema";
 import { PayloadTooLarge, readBody } from "@/server/read-body";
@@ -52,8 +52,24 @@ async function handle(req: Request, { params }: Ctx): Promise<Response> {
   const rt = getRuntime();
   await rt.start();
 
-  const hook = rt.scheduler.findWebhook(req.method, path.map(decodeURIComponent).join("/"));
-  if (!hook) return Response.json({ error: "No webhook is registered for this path" }, { status: 404 });
+  const hookPath = path.map(decodeURIComponent).join("/");
+  const hook = rt.scheduler.findWebhook(req.method, hookPath);
+  if (!hook) {
+    // Вебхук регистрируется только у ОПУБЛИКОВАННОГО флоу. Если такой путь есть у сохранённого черновика — говорим об этом прямо.
+    const normalized = normalizeWebhookPath(hookPath);
+    const drafts = (await rt.store.list()).filter(
+      (f) => f.status !== "published" && f.nodes.some((n) => registry[n.type]?.webhook(n.params)?.path === normalized),
+    );
+    return Response.json(
+      {
+        error: "No webhook is registered for this path",
+        ...(drafts.length > 0
+          ? { hint: `A Webhook with this path exists in ${drafts.map((f) => `"${f.name}" (${f.id})`).join(", ")}, but the flow is not published — publish it (the editor's Run does not register webhooks)` }
+          : {}),
+      },
+      { status: 404 },
+    );
+  }
 
   let body: Json = null;
   try {
