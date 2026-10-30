@@ -33,8 +33,13 @@ describe("layoutSize / layoutNodeProps", () => {
     expect(layoutSize("note", { width: "x" })).toEqual({ width: 220, height: 140 });
   });
   it("группа лежит под остальными, обычный блок не затронут", () => {
-    expect(layoutNodeProps("group", {}).zIndex).toBeLessThan(0);
-    expect(layoutNodeProps("note", {}).zIndex).toBeUndefined();
+    // слои: группа < заметка < блоки (0): ни заметка, ни группа не перекрывают ноды
+    const group = layoutNodeProps("group", {}).zIndex!;
+    const note = layoutNodeProps("note", {}).zIndex!;
+    expect(group).toBeLessThan(note);
+    expect(note).toBeLessThan(0);
+    expect(layoutNodeProps("source", {}).zIndex).toBeUndefined();
+    expect(layoutNodeProps("log", {}).zIndex).toBeUndefined(); // Log — обычная нода, не оформление
     expect(layoutNodeProps("noop", {})).toEqual({});
   });
   it("неизвестный цвет — серый", () => {

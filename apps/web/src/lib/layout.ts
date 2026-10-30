@@ -69,14 +69,20 @@ export function layoutSize(blockType: string, params: Record<string, Json>): { w
   };
 }
 
+/** Слои холста: группы под заметками, заметки под блоками (у блоков zIndex 0). */
+const LAYER_GROUP = -2;
+const LAYER_NOTE = -1;
+
 /** Свойства ноды React Flow, которые зависят от вида блока оформления (пусто — для обычного блока). */
 export function layoutNodeProps(blockType: string, params: Record<string, Json>): Partial<Pick<Node, "width" | "height" | "zIndex" | "dragHandle" | "style">> {
   if (!isResizableBlock(blockType)) return {};
   const size = layoutSize(blockType, params);
   if (blockType === "group") {
     // под остальными; клики по пустой рамке проходят к холсту — группу берут за заголовок
-    return { ...size, zIndex: -1, dragHandle: ".fl-group-title", style: { pointerEvents: "none" } };
+    return { ...size, zIndex: LAYER_GROUP, dragHandle: ".fl-group-title", style: { pointerEvents: "none" } };
   }
+  // заметка лежит ПОД блоками (но над группами): иначе свежая или большая заметка перекрывала бы ноды
+  if (isLayoutBlock(blockType)) return { ...size, zIndex: LAYER_NOTE };
   return size;
 }
 

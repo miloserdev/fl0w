@@ -100,8 +100,9 @@ describe("блоки оформления", () => {
     const back = fromReactFlow([{ ...node, width: 410.4, height: 222 }], [], { id: "f", name: "f" });
     expect(back.nodes[0]!.params).toEqual({ text: "hi", color: "pink", width: 410, height: 222 });
   });
-  it("группа получает отрицательный zIndex и свой тип; у блока размера в params не появляется", () => {
-    expect(toReactFlow(mk("group", { title: "A" })).nodes[0]).toMatchObject({ type: "layout-group", zIndex: -1, width: 420, height: 260 });
+  it("группа и заметка получают отрицательный zIndex (под блоками) и свой тип; у блока размера в params не появляется", () => {
+    expect(toReactFlow(mk("group", { title: "A" })).nodes[0]).toMatchObject({ type: "layout-group", zIndex: -2, width: 420, height: 260 });
+    expect(toReactFlow(mk("note", { text: "t" })).nodes[0]).toMatchObject({ type: "layout-note", zIndex: -1, width: 220, height: 140 });
     const block = toReactFlow(mk("noop", {})).nodes[0]!;
     expect(block.type).toBe("block");
     expect(fromReactFlow([block], [], { id: "f", name: "f" }).nodes[0]!.params).toEqual({});
