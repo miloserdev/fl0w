@@ -303,7 +303,7 @@ export class CodeTool extends ToolBlock {
     descriptionParam("Custom tool written in code."),
     { name: "inputSchema", type: "json", default: { type: "object", properties: {} } },
     { name: "code", type: "string", required: true, default: TOOL_CODE, editor: "code", expressions: false },
-    { name: "timeoutMs", type: "number", default: 10000, min: 1 },
+    { name: "timeoutMs", type: "number", default: 10000, min: 1, max: 300_000 },
   ];
   static codeTypes = CodeBlock.codeTypes;
 

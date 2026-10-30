@@ -58,7 +58,7 @@ export class HttpRequest extends Block {
     let text: string;
     try {
       res = await fetch(url, { method, headers, body, signal });
-      text = await res.text();
+      text = await readCapped(res, MAX_RESPONSE_BYTES);
     } catch (e) {
       if (ctx.signal.aborted) throw new Error("Aborted", { cause: e });
       if (e instanceof Error && e.name === "TimeoutError") {
@@ -77,4 +77,27 @@ export class HttpRequest extends Block {
       throw new Error("Response is not valid JSON");
     }
   }
+}/** Предел размера тела ответа: больше — ошибка, а не память процесса (`Content-Length` проверяется сразу, поток режется по ходу чтения). */
+export const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
+
+async function readCapped(res: Response, limit: number): Promise<string> {
+  const declared = Number(res.headers.get("content-length") ?? 0);
+  if (declared > limit) throw new Error(`Response is larger than ${limit} bytes`);
+  if (!res.body) return "";
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > limit) {
+      await reader.cancel();
+      throw new Error(`Response is larger than ${limit} bytes`);
+    }
+    chunks.push(value);
+  }
+  return new TextDecoder().decode(Buffer.concat(chunks));
 }
+
+

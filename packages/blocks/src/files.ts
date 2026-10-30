@@ -2,12 +2,16 @@ import type { Json, ParamSchema } from "@fl0w/schema";
 import { Block } from "./block";
 import { globBase, globToRegExp, hasGlob } from "./glob";
 import { resolveTemplates } from "./json-path";
+import { mapLimit } from "./list-utils";
 import { filesBaseDir, resolveInside } from "./sandbox";
 import { textOf, valueOf } from "./value-io";
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_GLOB_FILES = 1000;
 const MAX_WALK_ENTRIES = 20_000;
+/** Предел суммарного размера файлов за одно чтение по маске и числа одновременно открытых файлов / запросов `lstat`. */
+const MAX_TOTAL_READ_BYTES = 50 * 1024 * 1024;
+const FS_CONCURRENCY = 16;
 
 type FileInfo = { path: string; name: string; type: "file" | "dir"; size: number; modifiedAt: string };
 
@@ -89,10 +93,11 @@ export class Files extends Block {
     };
 
     if (op === "list") {
-      if (hasGlob(rel)) return { out0: await Promise.all((await matching(rel, true)).map(info)) };
+      if (hasGlob(rel)) return { out0: await mapLimit(await matching(rel, true), FS_CONCURRENCY, info) };
       const dir = await resolveInside(base, rel);
       const entries = await fs.readdir(dir);
-      return { out0: await Promise.all(entries.sort().map((n) => info(nodePath.join(dir, n)))) };
+      if (entries.length > MAX_WALK_ENTRIES) throw new Error(`Files: the directory has too many entries (${entries.length}; at most ${MAX_WALK_ENTRIES}) — narrow it with a pattern`);
+      return { out0: await mapLimit(entries.sort(), FS_CONCURRENCY, (n) => info(nodePath.join(dir, n))) };
     }
 
     if (op === "read") {
@@ -114,7 +119,11 @@ export class Files extends Block {
       };
       if (hasGlob(rel)) {
         const paths = (await matching(rel, false)).slice(0, MAX_GLOB_FILES);
-        return { out0: await Promise.all(paths.map(readOne)) };
+        // суммарный размер проверяем ДО чтения (по метаданным), чтобы не набрать гигабайты в память
+        const sizes = await mapLimit(paths, FS_CONCURRENCY, async (p) => (await info(p)).size);
+        const total = sizes.reduce<number>((a, b) => a + (typeof b === "number" ? b : 0), 0);
+        if (total > MAX_TOTAL_READ_BYTES) throw new Error(`Files: the matching files are ${total} bytes in total (at most ${MAX_TOTAL_READ_BYTES}) — narrow the pattern`);
+        return { out0: await mapLimit(paths, FS_CONCURRENCY, readOne) };
       }
       const abs = await resolveInside(base, rel);
       try {

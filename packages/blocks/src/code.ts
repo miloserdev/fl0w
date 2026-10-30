@@ -102,7 +102,7 @@ export class CodeBlock extends Block {
   static ports = { inputs: [{ id: "in0" }], outputs: [{ id: "out0" }] };
   static params: ParamSchema[] = [
     { name: "code", type: "string", required: true, default: DEFAULT_CODE, editor: "code", expressions: false },
-    { name: "timeoutMs", type: "number", default: 10000 },
+    { name: "timeoutMs", type: "number", default: 10000, min: 1, max: 300_000 },
   ];
   static codeTypes = CODE_ENV_TYPES;
 

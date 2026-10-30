@@ -95,7 +95,7 @@ export class CodeAgent extends CodeBlock {
   };
   static override params: ParamSchema[] = [
     { name: "code", type: "string", required: true, default: DEFAULT_CODE, editor: "code", expressions: false },
-    { name: "timeoutMs", type: "number", default: 10000 },
+    { name: "timeoutMs", type: "number", default: 10000, min: 1, max: 300_000 },
   ];
   static override codeTypes = CODE_AGENT_ENV_TYPES;
 
