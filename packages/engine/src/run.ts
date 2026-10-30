@@ -147,12 +147,15 @@ export async function runFlow(
     }
     const limit = Math.min(req.maxDepth ?? DEFAULT_CALL_DEPTH, MAX_CALL_DEPTH);
     if (callChain.length >= limit) return failed(`Call chain is too deep (limit ${limit} flows; raise maxDepth, at most ${MAX_CALL_DEPTH})`);
-    // события вложенного запуска наружу не идут (id нод двух флоу могут совпадать) — нужен только итог
+    // Вложенный запуск ТОГО ЖЕ флоу (отдельный граф со своим phone-incoming) показывает свои ноды на том же холсте — его события идут
+    // наружу, чтобы было видно, что incoming отработал. События ДРУГОГО флоу не пересылаются (id нод двух флоу могут совпасть): нужен лишь итог.
+    const sameFlow = calleeId === flow.id;
     let done: { result?: Json; error?: string } = { error: "The called flow ended without a result" };
     await runFlow(
       target.flow,
-      (e) => {
+      async (e) => {
         if (e.event === "flow:done") done = e;
+        else if (sameFlow) await onEvent(e);
       },
       { registry, signal: abort.signal, trigger: target.triggerId, triggerData: req.data, callChain, resolveCall: opts.resolveCall },
     );

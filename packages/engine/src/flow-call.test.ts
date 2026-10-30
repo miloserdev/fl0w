@@ -303,3 +303,30 @@ describe("песочница: память отдельная от рабоче�
     }
   });
 });
+
+describe("события вложенного запуска", () => {
+  const two = (ids: { callee: string }): [Flow, Flow] => {
+    const callerFlow: Flow = { ...flow([node("m0", "manual"), node("p", "run_flow", { channelId: "ch", data: { v: 1 } }), node("r", "result")], [edge("m0", "p"), edge("p", "r")]), id: "A" };
+    const calleeFlow = callee(ids.callee, "ch", [code("cc", "return { out0: { ok: 1 } }")]);
+    return [callerFlow, calleeFlow];
+  };
+  const started = (r: { events: RunnerEvent[] }) => r.events.flatMap((e) => (e.event === "node:start" ? [e.nodeId] : []));
+
+  it("тот же флоу: ноды вызванного графа видны в ленте (incoming и его цепочка подсвечиваются на холсте)", async () => {
+    const one: Flow = {
+      ...flow([node("m0", "manual"), node("p", "run_flow", { channelId: "ch", data: { v: 1 } }), node("r", "result"), node("in", "call_trigger", { channelId: "ch" }), code("cc", "return { out0: 1 }"), node("r2", "result")], [edge("m0", "p"), edge("p", "r"), edge("in", "cc"), edge("cc", "r2")]),
+      id: "A",
+    };
+    const r = await collect(one, { registry, resolveCall: resolverFor(one) });
+    expect(r.done?.error).toBeUndefined();
+    expect(started(r)).toEqual(expect.arrayContaining(["m0", "p", "in", "cc", "r2", "r"]));
+    expect(ev(r.events, "flow:done")).toHaveLength(1); // итог один — внутренний не пересылается
+  });
+
+  it("другой флоу: события не пересылаются (id нод двух флоу могут совпасть), приходит только итог", async () => {
+    const [a, b] = two({ callee: "B" });
+    const r = await collect(a, { registry, resolveCall: resolverFor(a, b) });
+    expect(started(r)).toEqual(["m0", "p", "r"]);
+    expect(r.done?.result).toEqual({ ok: 1 });
+  });
+});
