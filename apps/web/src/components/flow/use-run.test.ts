@@ -63,3 +63,16 @@ describe("Watch: новый запуск обновляет только зад�
     expect(s.nodes).toEqual({ a: "done", b: "done" });
   });
 });
+
+describe("Watch: сброс ветки запуска", () => {
+  it("ноды ветки (involved) начинают с чистого листа, остальные сохраняют статус и ошибку", () => {
+    let s = reduceRun(IDLE_RUN, { event: "node:start", nodeId: "a" }, ids);
+    s = reduceRun(s, { event: "node:done", nodeId: "a", output: {} }, ids);
+    s = reduceRun(s, { event: "node:start", nodeId: "b" }, ids);
+    s = reduceRun(s, { event: "node:error", nodeId: "b", error: "boom" }, ids);
+    const next = beginWatchRun(s, ["a"]);
+    expect(next.nodes).toEqual({ b: "error" });
+    expect(next.nodeErrors).toEqual({ b: "boom" });
+    expect(next.nodeDetails["a"]).toBeDefined(); // данные нод не стираются
+  });
+});

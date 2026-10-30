@@ -289,6 +289,10 @@ describe("Scheduler: вебхуки", () => {
     expect(seen.map((e) => e.event)).toEqual(["node:start", "flow:done"]);
     expect(msgs.map((m) => (m.type === "run:event" ? m.event.event : m.type))).toEqual(["run:start", "node:start", "flow:done"]);
     expect(hub.lastRun("a")?.status).toBe("done");
+    // ветка запуска (триггер и достижимые ноды) уходит в run:start — по ней Watch сбрасывает состояние только этих нод
+    expect(msgs[0]).toMatchObject({ type: "run:start", trigger: "w" });
+    const start = msgs[0];
+    expect(start?.type === "run:start" ? start.nodes : undefined).toContain("w");
   });
 
   it("лимит параллельных запусков проверяется синхронно и освобождается после завершения", async () => {

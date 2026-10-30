@@ -16,6 +16,21 @@ describe("RunHub", () => {
     expect(got[0]).toMatchObject({ type: "run:start", runId, flowId: "f", trigger: "t1" });
   });
 
+  it("run:start несёт ноды ветки запуска — и живым подписчикам, и при воспроизведении", () => {
+    const hub = new RunHub();
+    const live: WatchMessage[] = [];
+    hub.subscribe("f", (m) => live.push(m));
+    hub.startRun("f", "t1", ["t1", "a", "b"]);
+    const late: WatchMessage[] = [];
+    hub.subscribe("f", (m) => late.push(m));
+    expect(live[0]).toMatchObject({ type: "run:start", nodes: ["t1", "a", "b"] });
+    expect(late[0]).toMatchObject({ type: "run:start", nodes: ["t1", "a", "b"] });
+    hub.startRun("g", null);
+    const bare: WatchMessage[] = [];
+    hub.subscribe("g", (m) => bare.push(m));
+    expect(bare[0]).not.toHaveProperty("nodes");
+  });
+
   it("новый подписчик сразу получает последний запуск с начала", () => {
     const hub = new RunHub();
     const runId = hub.startRun("f", "t1");

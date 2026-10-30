@@ -36,11 +36,14 @@ export type RunState = {
 export const IDLE_RUN: RunState = { status: "idle", nodes: {}, nodeErrors: {}, logs: [], logsDropped: 0, nodeDetails: {} };
 
 /**
- * Начало нового запуска в Watch: статусы, ошибки и данные нод прошлых запусков сохраняются — обновляются только те ноды,
- * которые новый запуск реально затронет (дёрнули один вебхук — остальные ветки не «гаснут»). Лента и результат — заново.
+ * Начало нового запуска в Watch: статусы и ошибки нод ветки запуска (`involved` — триггер и всё после него) сбрасываются,
+ * остальные ноды остаются как были (дёрнули один вебхук — другие ветки не «гаснут»). Данные нод (вкладка «Данные») хранятся
+ * до перезаписи на старте ноды. Без `involved` ничего не сбрасывается. Лента и результат — заново.
  */
-export function beginWatchRun(s: RunState): RunState {
-  return { ...IDLE_RUN, status: "running", nodes: s.nodes, nodeErrors: s.nodeErrors, nodeDetails: s.nodeDetails };
+export function beginWatchRun(s: RunState, involved?: string[]): RunState {
+  const drop = <T,>(r: Record<string, T>) => (involved ? Object.fromEntries(Object.entries(r).filter(([id]) => !involved.includes(id))) : r);
+  // ветка запуска (триггер и всё после него) начинается с чистого листа, остальные ноды остаются как были
+  return { ...IDLE_RUN, status: "running", nodes: drop(s.nodes), nodeErrors: drop(s.nodeErrors), nodeDetails: s.nodeDetails };
 }
 
 /** Применяет событие запуска к состоянию (общий редьюсер для ручного запуска и Watch). */

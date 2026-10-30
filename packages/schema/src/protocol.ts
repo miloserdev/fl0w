@@ -50,6 +50,8 @@ export const watchMessageSchema = z.discriminatedUnion("type", [
     runId: z.string(),
     flowId: z.string(),
     trigger: z.string().nullable(),
+    /** Ноды, участвующие в запуске (ветка от триггера); нет — запуск затрагивает весь флоу. */
+    nodes: z.array(z.string()).optional(),
     at: z.string(),
   }),
   z.object({ type: z.literal("run:event"), runId: z.string(), event: runnerEventSchema }),

@@ -3,6 +3,8 @@ import type { RunnerEvent, WatchMessage } from "@fl0w/schema";
 export type RunSummary = {
   runId: string;
   trigger: string | null;
+  /** Ноды, участвующие в запуске (ветка от триггера): UI сбрасывает состояние именно их. */
+  nodes?: string[];
   startedAt: string;
   finishedAt?: string;
   status: "running" | "done" | "error";
@@ -40,12 +42,12 @@ export class RunHub {
     }
   }
 
-  startRun(flowId: string, trigger: string | null): string {
+  startRun(flowId: string, trigger: string | null, nodes?: string[]): string {
     const c = this.channel(flowId);
     const runId = `run_${Date.now().toString(36)}_${(++this.seq).toString(36)}`;
     const startedAt = new Date().toISOString();
-    c.last = { runId, trigger, startedAt, status: "running", events: [] };
-    this.emit(c, { type: "run:start", runId, flowId, trigger, at: startedAt });
+    c.last = { runId, trigger, nodes, startedAt, status: "running", events: [] };
+    this.emit(c, { type: "run:start", runId, flowId, trigger, ...(nodes ? { nodes } : {}), at: startedAt });
     return runId;
   }
 
@@ -72,7 +74,7 @@ export class RunHub {
     const c = this.channel(flowId);
     const rec = c.last;
     if (rec) {
-      listener({ type: "run:start", runId: rec.runId, flowId, trigger: rec.trigger, at: rec.startedAt });
+      listener({ type: "run:start", runId: rec.runId, flowId, trigger: rec.trigger, ...(rec.nodes ? { nodes: rec.nodes } : {}), at: rec.startedAt });
       for (const event of rec.events) listener({ type: "run:event", runId: rec.runId, event });
     }
     c.listeners.add(listener);

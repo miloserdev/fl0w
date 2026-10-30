@@ -2,6 +2,7 @@ import type { FileWatchSpec, LifecycleReason, TelegramSpec } from "@fl0w/blocks"
 import type { Flow, Json, RunnerEvent } from "@fl0w/schema";
 import type { RunHub } from "./hub";
 import type { FlowStore } from "./store";
+import { participatingNodes } from "./participants";
 import { validateFlow, type Registry } from "./validate";
 
 export type SchedulerRun = (
@@ -357,7 +358,7 @@ export class Scheduler {
     opts?: { errorRun?: boolean },
   ): Promise<void> {
     const { hub } = this.deps;
-    const runId = hub.startRun(flow.id, nodeId);
+    const runId = hub.startRun(flow.id, nodeId, [...participatingNodes(flow, this.deps.registry, nodeId)]);
     const started = Date.now();
     let failedNode: string | null = null;
     let nodeMessage: string | undefined;
