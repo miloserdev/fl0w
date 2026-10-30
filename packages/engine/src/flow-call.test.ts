@@ -183,7 +183,7 @@ describe("Scheduler.fireFrom: песочница («Запустить» в ре
     const { scheduler, logs } = setup(idle);
     const call = { flowId: "draft", triggerId: "c", data: null, allowRecursive: true, maxDepth: 0 };
     await expect(scheduler.fireFrom(Array(19).fill("draft"), call, sandbox())).resolves.toBeUndefined();
-    await expect(scheduler.fireFrom(Array(20).fill("draft"), call, sandbox())).rejects.toThrow(/too deep \(limit 20/);
+    await expect(scheduler.fireFrom(Array(20).fill("draft"), call, sandbox())).rejects.toThrow(/too deep \(limit 20 flows\)\. The sandbox/);
     expect(logs.some((l) => /unlimited/.test(l))).toBe(false);
     scheduler.stop();
   });

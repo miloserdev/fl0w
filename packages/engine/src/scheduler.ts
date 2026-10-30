@@ -313,7 +313,11 @@ export class Scheduler {
     if (unlimited && chain.length >= MAX_CALL_DEPTH_HARD && chain.length % MAX_CALL_DEPTH_HARD === 0) {
       this.log(`flow ${chain[0]}: call chain has reached ${chain.length} flows with maxDepth 0 (unlimited) — unpublish the flow to stop it`);
     }
-    if (chain.length >= limit) return `Call chain is too deep (limit ${limit} flows; raise maxDepth up to ${MAX_CALL_DEPTH_HARD}, or set 0 for unlimited, if intended)`;
+    if (chain.length >= limit) {
+      return sandbox
+        ? `Call chain is too deep (limit ${limit} flows). The sandbox (Run) awaits nested runs, so maxDepth 0 does not remove the limit here — a published flow can run an unlimited chain`
+        : `Call chain is too deep (limit ${limit} flows; raise maxDepth up to ${MAX_CALL_DEPTH_HARD}, or set 0 for unlimited, if intended)`;
+    }
     return null;
   }
 
