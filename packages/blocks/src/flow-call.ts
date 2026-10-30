@@ -1,5 +1,5 @@
 import type { Json, ParamSchema, PortsDef } from "@fl0w/schema";
-import { Block, type RunContext } from "./block";
+import { Block, triggerPayload, type RunContext } from "./block";
 
 /**
  * Пара вызовов — вызов одного флоу из другого по каналу `channelId` (связь строго 1:1). Сам вызов исполняется внутри запуска
@@ -20,8 +20,8 @@ export class CallTrigger extends Block {
   static callOnly = true;
 
   async run(_inputs: Record<string, Json>, _params: Record<string, Json>, ctx: RunContext) {
-    // данные вызова; без них (не должно случаться — старт только вызовом) — пустой объект
-    return { out0: ctx.triggerData ?? {} };
+    // данные вызова как есть (в том числе null); без вызова Collector не стартует
+    return { out0: triggerPayload(ctx, "Incoming Call") };
   }
 }
 

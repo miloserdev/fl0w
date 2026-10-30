@@ -270,7 +270,7 @@ describe("HttpRequest", () => {
 });
 
 describe("реестр и метаданные", () => {
-  it("52 блока: MVP + аналоги core-нод n8n + Telegram + Code Agent, инструменты и банк памяти", () => {
+  it("50 блоков: MVP + аналоги core-нод n8n + Telegram + Code Agent, инструменты и банк памяти", () => {
     expect(Object.keys(registry).sort()).toEqual([
       "activation_trigger", "aggregate", "branch", "call_trigger", "code", "code_agent", "compare_datasets", "counter", "crypto", "datetime", "error_trigger", "every",
       "files", "filter", "group", "http_request", "jwt", "limit", "local_file_trigger", "log", "loop", "loop_break", "manual", "memory_bank", "merge", "noop", "note", "remove_duplicates",

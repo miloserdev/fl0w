@@ -1,5 +1,5 @@
 import type { Json, ParamSchema } from "@fl0w/schema";
-import { Block, type RunContext } from "./block";
+import { Block, triggerPayload, type RunContext } from "./block";
 import { stringList } from "./list-utils";
 
 /**
@@ -25,13 +25,6 @@ export class ErrorTrigger extends Block {
   }
 
   async run(_inputs: Record<string, Json>, _params: Record<string, Json>, ctx: RunContext) {
-    return {
-      out0: ctx.triggerData ?? {
-        flow: { id: "flow_example", name: "example" },
-        run: { id: "run_example", trigger: "trigger" },
-        error: { message: "Example error", node: "node" },
-        at: new Date().toISOString(),
-      },
-    };
+    return { out0: triggerPayload(ctx, "Error Trigger") };
   }
 }

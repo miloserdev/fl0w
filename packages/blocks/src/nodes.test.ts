@@ -626,11 +626,10 @@ describe("Webhook / Respond to Webhook", () => {
     expect(Webhook.webhook({ path: "x" })).toEqual({ path: "x", method: "POST" });
     expect(() => Webhook.webhook({ path: "a b" })).toThrow(/Invalid webhook path/);
   });
-  it("run отдаёт данные запроса, а при ручном запуске — пример", async () => {
+  it("run отдаёт данные запроса; без события — ошибка, придуманного запроса нет", async () => {
     const payload = { method: "POST", path: "x", query: { a: "1" }, headers: {}, body: { ok: true } };
     expect(await out0(Webhook, undefined, { path: "x" }, { triggerData: payload })).toEqual(payload);
-    expect(await out0(Webhook, undefined, { path: "x", method: "GET" })).toMatchObject({ method: "GET", path: "x", query: {}, body: null });
-    expect(await out0(Webhook, undefined, { path: "x", method: "ANY" })).toMatchObject({ method: "POST" });
+    await expect(out0(Webhook, undefined, { path: "x", method: "GET" })).rejects.toThrow(/Webhook has no event data/);
   });
   it("триггер-свойства", () => {
     expect([Webhook.isTrigger, Webhook.autoTrigger, Webhook.ports.inputs.length]).toEqual([true, true, 0]);

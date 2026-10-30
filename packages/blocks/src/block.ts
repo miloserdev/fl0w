@@ -196,3 +196,12 @@ export abstract class Block {
     ctx: RunContext,
   ): Promise<Record<string, Json>>;
 }
+
+/**
+ * Данные события, с которым сработал триггер. Триггер — точка входа, у которой есть только настоящее событие: придуманных «примеров»
+ * нет (они могли бы запустить цепочку с побочными эффектами). Без данных — ошибка; отладить без события можно закреплением (pin).
+ */
+export function triggerPayload(ctx: RunContext, who: string): Json {
+  if (ctx.triggerData === undefined) throw new Error(`${who} has no event data: it starts only from its event (or with pinned data in a manual run)`);
+  return ctx.triggerData;
+}

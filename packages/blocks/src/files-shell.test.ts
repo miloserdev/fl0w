@@ -12,6 +12,7 @@ import { LocalFileTrigger } from "./local-file-trigger";
 import { resolveParams } from "./params";
 import { registry } from "./registry";
 import { FILES_DIR_ENV, assertRelativePath, filesBaseDir, resolveInside } from "./sandbox";
+import { Webhook } from "./webhook";
 import { SHELL_ALLOW_ENV, Shell } from "./shell";
 
 type Cls = { new (): Block; params: import("@fl0w/schema").ParamSchema[] };
@@ -343,10 +344,10 @@ describe("триггеры: файлы, ошибки, жизненный цик�
     expect(() => LocalFileTrigger.fileWatch({ event: "rename" })).toThrow(/Unknown event/);
   });
 
-  it("Local File Trigger: run отдаёт данные события или пример", async () => {
+  it("Local File Trigger: run отдаёт данные события; без события — ошибка", async () => {
     const data = { event: "change", path: "inbox/a.csv", name: "a.csv", size: 3, modifiedAt: "2024-01-01T00:00:00.000Z" };
     expect(await out0(LocalFileTrigger, undefined, {}, { triggerData: data })).toEqual(data);
-    expect(await out0(LocalFileTrigger, undefined, { path: "inbox" })).toMatchObject({ event: "add", path: "inbox/example.txt", name: "example.txt" });
+    await expect(out0(LocalFileTrigger, undefined, { path: "inbox" })).rejects.toThrow(/Local File Trigger has no event data/);
   });
 
   it("Error Trigger: область и данные", async () => {
@@ -356,7 +357,7 @@ describe("триггеры: файлы, ошибки, жизненный цик�
     expect(() => ErrorTrigger.errorScope({ flows: [1] })).toThrow(/list of strings/);
     const data = { flow: { id: "f", name: "n" }, run: { id: "r", trigger: "t" }, error: { message: "m", node: "x" }, at: "now" };
     expect(await out0(ErrorTrigger, undefined, {}, { triggerData: data })).toEqual(data);
-    expect(await out0(ErrorTrigger, undefined, {})).toMatchObject({ error: { message: "Example error" } });
+    await expect(out0(ErrorTrigger, undefined, {})).rejects.toThrow(/Error Trigger has no event data/);
   });
 
   it("Activation / Workflow Trigger: события по флагам", () => {
@@ -375,5 +376,26 @@ describe("триггеры: файлы, ошибки, жизненный цик�
       if (!["activation_trigger", "workflow_trigger"].includes(cls.type)) expect(cls.lifecycle({}), cls.type).toBeNull();
       if (cls.type !== "error_trigger") expect(cls.errorScope({}), cls.type).toBeNull();
     }
+  });
+});
+
+describe("триггеры: придуманных событий нет", () => {
+  it("без triggerData каждый триггер события отвечает ошибкой, с данными — отдаёт их как есть (включая null у Incoming Call)", async () => {
+    const cases: [typeof Webhook | typeof LocalFileTrigger | typeof ErrorTrigger | typeof ActivationTrigger | typeof WorkflowTrigger, Record<string, Json>, string][] = [
+      [Webhook, { path: "x" }, "Webhook"],
+      [LocalFileTrigger, { path: "in" }, "Local File Trigger"],
+      [ErrorTrigger, {}, "Error Trigger"],
+      [ActivationTrigger, {}, "Activation Trigger"],
+      [WorkflowTrigger, {}, "Workflow Trigger"],
+    ];
+    for (const [cls, params, who] of cases) {
+      await expect(out0(cls as never, undefined, params), who).rejects.toThrow(new RegExp(`${who} has no event data`));
+      expect(await out0(cls as never, undefined, params, { triggerData: { e: 1 } }), who).toEqual({ e: 1 });
+    }
+    const { CallTrigger } = await import("./flow-call");
+    const { TelegramTrigger } = await import("./telegram-trigger");
+    await expect(out0(CallTrigger as never, undefined, { channelId: "c" })).rejects.toThrow(/Incoming Call has no event data/);
+    expect(await out0(CallTrigger as never, undefined, { channelId: "c" }, { triggerData: null })).toBeNull();
+    await expect(out0(TelegramTrigger as never, undefined, {})).rejects.toThrow(/Telegram Trigger has no event data/);
   });
 });

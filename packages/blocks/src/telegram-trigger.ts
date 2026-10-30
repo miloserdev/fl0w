@@ -1,5 +1,5 @@
 import type { Json, ParamSchema } from "@fl0w/schema";
-import { Block, type RunContext, type TelegramSpec } from "./block";
+import { Block, triggerPayload, type RunContext, type TelegramSpec } from "./block";
 import { stringList } from "./list-utils";
 import { resolveSecret } from "./secrets";
 import { TELEGRAM_TOKEN_ENV } from "./telegram";
@@ -108,17 +108,6 @@ export class TelegramTrigger extends Block {
   }
 
   async run(_inputs: Record<string, Json>, _params: Record<string, Json>, ctx: RunContext) {
-    return {
-      out0: ctx.triggerData ?? {
-        update_id: 1,
-        message: {
-          message_id: 1,
-          date: Math.floor(Date.now() / 1000),
-          chat: { id: 123456789, type: "private", first_name: "Example" },
-          from: { id: 123456789, is_bot: false, first_name: "Example" },
-          text: "Hello from Telegram",
-        },
-      },
-    };
+    return { out0: triggerPayload(ctx, "Telegram Trigger") };
   }
 }

@@ -1,8 +1,7 @@
 import type { Json, ParamSchema } from "@fl0w/schema";
-import { Block, type LifecycleSpec, type RunContext } from "./block";
+import { Block, triggerPayload, type LifecycleSpec, type RunContext } from "./block";
 
-const sample = (ctx: RunContext): Json =>
-  ctx.triggerData ?? { event: "publish", at: new Date().toISOString(), flow: { id: "flow_example", name: "example" } };
+const payload = (ctx: RunContext, who: string): Json => triggerPayload(ctx, who);
 
 /**
  * Activation Trigger: срабатывает на события жизненного цикла ЭТОГО флоу — публикация, обновление
@@ -32,7 +31,7 @@ export class ActivationTrigger extends Block {
   }
 
   async run(_inputs: Record<string, Json>, _params: Record<string, Json>, ctx: RunContext) {
-    return { out0: sample(ctx) };
+    return { out0: payload(ctx, "Activation Trigger") };
   }
 }
 
@@ -59,6 +58,6 @@ export class WorkflowTrigger extends Block {
   }
 
   async run(_inputs: Record<string, Json>, _params: Record<string, Json>, ctx: RunContext) {
-    return { out0: sample(ctx) };
+    return { out0: payload(ctx, "Workflow Trigger") };
   }
 }

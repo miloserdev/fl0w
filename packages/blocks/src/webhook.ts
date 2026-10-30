@@ -1,5 +1,5 @@
 import type { Json, ParamSchema } from "@fl0w/schema";
-import { Block, type RunContext } from "./block";
+import { Block, triggerPayload, type RunContext } from "./block";
 
 export const WEBHOOK_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "ANY"] as const;
 const PATH = /^[A-Za-z0-9._~-]+(\/[A-Za-z0-9._~-]+)*$/;
@@ -51,14 +51,6 @@ export class Webhook extends Block {
   }
 
   async run(_inputs: Record<string, Json>, params: Record<string, Json>, ctx: RunContext) {
-    return {
-      out0: ctx.triggerData ?? {
-        method: String(params["method"] ?? "POST") === "ANY" ? "POST" : String(params["method"] ?? "POST"),
-        path: String(params["path"] ?? ""),
-        query: {},
-        headers: {},
-        body: null,
-      },
-    };
+    return { out0: triggerPayload(ctx, "Webhook") };
   }
 }

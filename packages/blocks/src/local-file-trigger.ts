@@ -1,5 +1,5 @@
 import type { Json, ParamSchema } from "@fl0w/schema";
-import { Block, type FileWatchSpec, type RunContext } from "./block";
+import { Block, triggerPayload, type FileWatchSpec, type RunContext } from "./block";
 import { assertRelativePath } from "./sandbox";
 
 /**
@@ -44,14 +44,6 @@ export class LocalFileTrigger extends Block {
   }
 
   async run(_inputs: Record<string, Json>, params: Record<string, Json>, ctx: RunContext) {
-    return {
-      out0: ctx.triggerData ?? {
-        event: "add",
-        path: `${String(params["path"] ?? "").replace(/\/+$/, "")}/example.txt`.replace(/^\//, ""),
-        name: "example.txt",
-        size: 0,
-        modifiedAt: new Date().toISOString(),
-      },
-    };
+    return { out0: triggerPayload(ctx, "Local File Trigger") };
   }
 }
