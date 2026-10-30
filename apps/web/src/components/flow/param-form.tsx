@@ -1,9 +1,12 @@
 "use client";
 
-import { isParamVisible, resolveParams } from "@fl0w/blocks";
+import { hasExpression, isParamVisible, resolveParams } from "@fl0w/blocks";
 import type { Json, ParamSchema } from "@fl0w/schema";
 import { useTranslations } from "next-intl";
+import { Braces } from "lucide-react";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -64,8 +67,14 @@ function JsonField({
 }
 
 /** Авто-UI настроек блока из `class.params`. */
+/** Типы, у которых виджет не принимает текст: для выражения нужен переключатель в текстовый режим. */
+const TOGGLEABLE = ["number", "boolean", "enum", "multienum"];
+
 export function ParamForm({ blockType, schema, values, onChange }: Props) {
   const t = useTranslations();
+  // режим «выражение» держится, пока поле редактируют: иначе виджет сменился бы обратно, как только в тексте
+  // не осталось `{{ }}` (например, при стирании)
+  const [exprMode, setExprMode] = useState<Record<string, boolean>>({});
 
   // параметры с editor: "code" правятся во вкладке кода, а не в форме
   const resolved = resolveParams(schema, values);
@@ -90,6 +99,8 @@ export function ParamForm({ blockType, schema, values, onChange }: Props) {
         const label = t.has(key) ? t(key) : (p.label ?? p.name);
         const value = values[p.name] ?? p.default;
         const missing = p.required && isEmpty(value);
+        const toggleable = TOGGLEABLE.includes(p.type);
+        const expr = toggleable && (exprMode[p.name] ?? hasExpression(value));
         const outOfRange =
           p.type === "number" &&
           typeof value === "number" &&
@@ -105,10 +116,41 @@ export function ParamForm({ blockType, schema, values, onChange }: Props) {
 
         return (
           <div key={p.name} className="flex flex-col gap-1.5">
-            <Label htmlFor={id}>
-              {label}
-              {p.required && <span className="text-destructive">*</span>}
-            </Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor={id}>
+                {label}
+                {p.required && <span className="text-destructive">*</span>}
+              </Label>
+              {toggleable && (
+                <Button
+                  type="button"
+                  variant={expr ? "secondary" : "ghost"}
+                  size="icon"
+                  className="size-6"
+                  aria-pressed={expr}
+                  title={expr ? t("inspector.fixedToggle") : t("inspector.expressionToggle")}
+                  aria-label={expr ? t("inspector.fixedToggle") : t("inspector.expressionToggle")}
+                  onClick={() => {
+                    setExprMode((m) => ({ ...m, [p.name]: !expr }));
+                    // в выражение — заготовка; обратно — значение по умолчанию (а не текст выражения в числовое поле)
+                    set(p.name, expr ? p.default : "{{ inputs.in0. }}");
+                  }}
+                >
+                  <Braces className="size-3.5" />
+                </Button>
+              )}
+            </div>
+
+            {expr && (
+              <Input
+                id={id}
+                value={typeof value === "string" ? value : ""}
+                spellCheck={false}
+                placeholder="{{ inputs.in0.field }}"
+                className="font-mono text-xs"
+                onChange={(e) => set(p.name, e.target.value)}
+              />
+            )}
 
             {p.type === "string" && p.multiline && (
               <Textarea
@@ -130,7 +172,7 @@ export function ParamForm({ blockType, schema, values, onChange }: Props) {
               />
             )}
 
-            {p.type === "number" && (
+            {p.type === "number" && !expr && (
               <Input
                 id={id}
                 type="number"
@@ -144,7 +186,7 @@ export function ParamForm({ blockType, schema, values, onChange }: Props) {
               />
             )}
 
-            {p.type === "boolean" && (
+            {p.type === "boolean" && !expr && (
               <Switch
                 id={id}
                 checked={value === true}
@@ -152,7 +194,7 @@ export function ParamForm({ blockType, schema, values, onChange }: Props) {
               />
             )}
 
-            {p.type === "enum" && (
+            {p.type === "enum" && !expr && (
               <Select
                 value={typeof value === "string" ? value : ""}
                 onValueChange={(v) => set(p.name, v)}
@@ -170,6 +212,26 @@ export function ParamForm({ blockType, schema, values, onChange }: Props) {
               </Select>
             )}
 
+            {p.type === "multienum" && !expr && (
+              <div id={id} role="group" className="flex max-h-56 flex-col gap-1.5 overflow-y-auto rounded-md border p-2">
+                {p.options.map((o) => {
+                  const selected = Array.isArray(value) ? (value as string[]) : [];
+                  const k = `paramOptions.${p.name}.${o.value}`;
+                  return (
+                    <label key={o.value} className="flex cursor-pointer items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={selected.includes(o.value)}
+                        onCheckedChange={(on) =>
+                          set(p.name, on === true ? [...selected, o.value] : selected.filter((x) => x !== o.value))
+                        }
+                      />
+                      {t.has(k) ? t(k) : (o.label ?? o.value)}
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+
             {p.type === "json" && (
               <JsonField id={id} value={value} onValid={(v) => set(p.name, v)} />
             )}
@@ -179,6 +241,7 @@ export function ParamForm({ blockType, schema, values, onChange }: Props) {
           </div>
         );
       })}
+      <p className="text-muted-foreground text-xs">{t("inspector.expressionsHint")}</p>
     </div>
   );
 }

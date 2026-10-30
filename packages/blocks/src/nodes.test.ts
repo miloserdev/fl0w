@@ -4,20 +4,22 @@ import type { Json } from "@fl0w/schema";
 import { Aggregate } from "./aggregate";
 import type { Block, RunContext } from "./block";
 import { CompareDatasets } from "./compare-datasets";
+import { CodeBlock } from "./code";
 import { Crypto } from "./crypto";
 import { DateTime } from "./datetime";
 import { Filter } from "./filter";
-import { cloneJson, deletePath, interpolate, resolveTemplates, setPath, toList } from "./json-path";
+import { cloneJson, deletePath, hasExpression, interpolate, resolveInputsExpressions, resolveTemplates, setPath, toList } from "./json-path";
 import { Jwt } from "./jwt";
 import { Limit } from "./limit";
 import { compareJson, stableKey } from "./list-utils";
 import { ManualTrigger } from "./manual";
 import { NoOp } from "./noop";
-import { resolveParams } from "./params";
+import { resolveParamExpressions, resolveParams, validateParams } from "./params";
 import { RemoveDuplicates } from "./remove-duplicates";
 import { RenameKeys } from "./rename-keys";
 import { RespondToWebhook } from "./respond-to-webhook";
 import { SetFields } from "./set";
+import { Shell } from "./shell";
 import { Sort } from "./sort";
 import { SplitOut } from "./split-out";
 import { StopAndError } from "./stop-and-error";
@@ -649,5 +651,60 @@ describe("cloneJson", () => {
     const b = cloneJson(a);
     (b.x[1] as { y: number }).y = 9;
     expect(a).toEqual({ x: [1, { y: 2 }] });
+  });
+});
+
+describe("resolveInputsExpressions / resolveParamExpressions / hasExpression", () => {
+  const inputs = { in0: { n: 5, s: "text", o: { k: [1, 2] } }, in1: ["x"] } as unknown as Record<string, Json>;
+  it("целое выражение — с типом, в тексте — строкой", () => {
+    expect(resolveInputsExpressions("{{ inputs.in0.n }}", inputs)).toBe(5);
+    expect(resolveInputsExpressions("{{inputs.in0.o}}", inputs)).toEqual({ k: [1, 2] });
+    expect(resolveInputsExpressions("n={{ inputs.in0.n }}, s={{ inputs.in0.s }}, o={{ inputs.in0.o.k }}", inputs)).toBe('n=5, s=text, o=[1,2]');
+    expect(resolveInputsExpressions("{{ inputs.in1.0 }}", inputs)).toBe("x");
+    expect(resolveInputsExpressions("{{ inputs }}", inputs)).toEqual(inputs);
+  });
+  it("нет значения: null / пустая строка; чужие шаблоны не трогаются", () => {
+    expect(resolveInputsExpressions("{{ inputs.in9.x }}", inputs)).toBeNull();
+    expect(resolveInputsExpressions("[{{ inputs.in0.nope }}]", inputs)).toBe("[]");
+    expect(resolveInputsExpressions("{{ n }} {{ $json.n }} {{ inputsX.in0 }}", inputs)).toBe("{{ n }} {{ $json.n }} {{ inputsX.in0 }}");
+  });
+  it("пробелы вокруг выражения — часть текста (тип не сохраняется)", () => {
+    expect(resolveInputsExpressions("{{ inputs.in0.n }}\n", inputs)).toBe("5\n");
+    expect(resolveInputsExpressions(" {{ inputs.in0.n }}", inputs)).toBe(" 5");
+  });
+  it("рекурсия по массивам и объектам; остальные типы не меняются", () => {
+    expect(resolveInputsExpressions({ a: ["{{ inputs.in0.n }}", 1, true, null, { b: "{{ inputs.in0.s }}" }] }, inputs)).toEqual({ a: [5, 1, true, null, { b: "text" }] });
+  });
+  it("не путает путь с опасными ключами (прототип недоступен)", () => {
+    expect(resolveInputsExpressions("{{ inputs.in0.__proto__ }}", inputs)).toBeNull();
+    expect(resolveInputsExpressions("{{ inputs.in0.constructor }}", inputs)).toBeNull();
+  });
+  it("resolveParamExpressions пропускает параметры с expressions: false", () => {
+    const schema = [{ name: "code", type: "string", expressions: false }, { name: "x", type: "string" }] as import("@fl0w/schema").ParamSchema[];
+    expect(resolveParamExpressions(schema, { code: "{{ inputs.in0.n }}", x: "{{ inputs.in0.n }}", extra: "{{ inputs.in0.s }}" }, inputs)).toEqual({
+      code: "{{ inputs.in0.n }}",
+      x: 5,
+      extra: "text",
+    });
+    expect(CodeBlock.params.find((p) => p.name === "code")?.expressions).toBe(false);
+    expect(Shell.params.find((p) => p.name === "script")?.expressions).toBe(false);
+  });
+  it("hasExpression", () => {
+    expect(hasExpression("{{ x }}")).toBe(true);
+    expect(hasExpression("a {{inputs.in0.x}} b")).toBe(true);
+    expect(hasExpression("{ x }")).toBe(false);
+    expect(hasExpression(5)).toBe(false);
+    expect(hasExpression(undefined)).toBe(false);
+  });
+  it("validateParams: выражения откладывают проверку типа только при allowExpressions", () => {
+    const schema = [
+      { name: "n", type: "number", min: 1 },
+      { name: "f", type: "boolean" },
+      { name: "m", type: "enum", options: [{ value: "a" }] },
+    ] as import("@fl0w/schema").ParamSchema[];
+    const v = { n: "{{ inputs.in0.n }}", f: "{{ inputs.in0.f }}", m: "{{ inputs.in0.m }}" };
+    expect(validateParams(schema, v).map((i) => i.code).sort()).toEqual(["enum", "type", "type"]);
+    expect(validateParams(schema, v, { allowExpressions: true })).toEqual([]);
+    expect(validateParams(schema, { n: "abc" }, { allowExpressions: true }).map((i) => i.code)).toEqual(["type"]); // не выражение — проверяется
   });
 });

@@ -98,6 +98,27 @@ class Chatty extends Block {
   }
 }
 
+/** Возвращает свои (уже разрешённые движком) параметры — для проверки выражений `{{ inputs… }}`. */
+class Echo extends Block {
+  static type = "echo";
+  static label = "Echo";
+  static icon = "box";
+  static category = "test";
+  static ports = { inputs: [{ id: "in0" }, { id: "in1" }], outputs: [{ id: "out0" }] };
+  static params: ParamSchema[] = [
+    { name: "a", type: "string" },
+    { name: "n", type: "number", min: 0 },
+    { name: "flag", type: "boolean" },
+    { name: "mode", type: "enum", options: [{ value: "x" }, { value: "y" }] },
+    { name: "list", type: "json" },
+    { name: "need", type: "string", required: true, default: "ok" },
+    { name: "raw", type: "string", expressions: false },
+  ];
+  async run(_i: Record<string, Json>, params: Record<string, Json>) {
+    return { out0: params };
+  }
+}
+
 /** Фиксирует момент, когда блок реально начал выполняться. */
 class Probe extends Block {
   static type = "probe";
@@ -125,6 +146,7 @@ export const testRegistry: Record<string, BlockClass> = {
   slow: Slow,
   chatty: Chatty,
   probe: Probe,
+  echo: Echo,
 };
 
 export function node(id: string, type: string, params: Record<string, Json> = {}): Flow["nodes"][number] {

@@ -29,7 +29,7 @@ export class Shell extends Block {
   static category = "io";
   static ports = { inputs: [{ id: "in0" }], outputs: [{ id: "out0" }] };
   static params: ParamSchema[] = [
-    { name: "script", type: "string", multiline: true, required: true, default: 'echo "hello"' },
+    { name: "script", type: "string", multiline: true, required: true, default: 'echo "hello"', expressions: false },
     // позиционные параметры $1, $2…; строки поддерживают «{{ путь }}» из входа
     { name: "args", type: "json", default: [] },
     // переменные окружения { ИМЯ: значение } (значения поддерживают шаблоны)

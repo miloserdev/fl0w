@@ -114,7 +114,10 @@
     "tabCode": "Code",
     "codeHint": "Function body. inputs, params, log and fetch are available. Return '{ out0: … }'.",
     "close": "Close block window",
-    "outOfRange": "Out of range: {range}"
+    "outOfRange": "Out of range: {range}",
+    "expressionToggle": "Expression: data from the previous node",
+    "fixedToggle": "Back to a fixed value",
+    "expressionsHint": "Any parameter can use data from the previous node: '{{ inputs.in0.field }}'. For numbers, switches and lists use the curly-braces button."
   },
   "params": {
     "source": {

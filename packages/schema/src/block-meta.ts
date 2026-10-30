@@ -18,6 +18,11 @@ const paramBase = {
   label: z.string().optional(),
   required: z.boolean().optional(),
   default: jsonSchema.optional(),
+  /**
+   * false — движок НЕ подставляет в значение выражения `{{ inputs… }}` (код пользователя, скрипт Shell:
+   * там `{{` — часть языка, а подстановка в скрипт была бы внедрением команд). По умолчанию подставляет.
+   */
+  expressions: z.boolean().optional(),
   /** "code" — параметр редактируется во вкладке кода (Monaco, JS), а не в авто-форме. */
   editor: z.literal("code").optional(),
   /**
@@ -40,6 +45,12 @@ export const paramSchemaSchema = z.discriminatedUnion("type", [
   z.object({
     ...paramBase,
     type: z.literal("enum"),
+    options: z.array(z.object({ value: z.string(), label: z.string().optional() })).min(1),
+  }),
+  // выбор нескольких значений из списка (галочки); значение — массив строк
+  z.object({
+    ...paramBase,
+    type: z.literal("multienum"),
     options: z.array(z.object({ value: z.string(), label: z.string().optional() })).min(1),
   }),
   z.object({ ...paramBase, type: z.literal("json") }),

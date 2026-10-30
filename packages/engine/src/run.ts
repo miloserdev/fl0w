@@ -1,4 +1,11 @@
-import { getNodePorts, registry as defaultRegistry, resolveParams, type RunContext } from "@fl0w/blocks";
+import {
+  getNodePorts,
+  registry as defaultRegistry,
+  resolveParamExpressions,
+  resolveParams,
+  validateParams,
+  type RunContext,
+} from "@fl0w/blocks";
 import { jsonSchema, type Flow, type Json, type RunnerEvent } from "@fl0w/schema";
 import { z } from "zod";
 import { participatingNodes } from "./participants";
@@ -118,7 +125,11 @@ export async function runFlow(
           onEvent({ event: "node:log", nodeId: id, message });
         },
       };
-      const params = resolveParams(cls.params, node.params);
+      // выражения `{{ inputs.in0.поле }}` подставляются во ВСЕ параметры (кроме expressions: false) до запуска блока;
+      // после подстановки параметры проверяются ещё раз — например, число из выражения должно быть числом
+      const params = resolveParamExpressions(cls.params, resolveParams(cls.params, node.params), inputs);
+      const issues = validateParams(cls.params, params);
+      if (issues.length > 0) throw new Error(`Invalid parameters after resolving expressions: ${issues.map((i) => i.message).join("; ")}`);
       const raw = await new cls().run(inputs, params, ctx);
       if (signal.aborted) throw new Error("Aborted");
 

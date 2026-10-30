@@ -1,4 +1,5 @@
 import type { Json, ParamSchema } from "@fl0w/schema";
+import { hasExpression, resolveInputsExpressions } from "./json-path";
 
 export type ParamIssue = {
   param: string;
@@ -7,7 +8,7 @@ export type ParamIssue = {
 };
 
 function isEmpty(v: Json | undefined): boolean {
-  return v === undefined || v === null || v === "";
+  return v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0);
 }
 
 /** Значения нода + default'ы из схемы для отсутствующих ключей. */
@@ -29,10 +30,35 @@ export function isParamVisible(p: ParamSchema, resolved: Record<string, Json>): 
   return typeof v === "string" && p.showWhen.in.includes(v);
 }
 
+/**
+ * Значения параметров с подставленными выражениями `{{ inputs… }}` (кроме параметров с `expressions: false`).
+ * Вызывается движком перед запуском блока.
+ */
+export function resolveParamExpressions(
+  schema: readonly ParamSchema[],
+  values: Record<string, Json>,
+  inputs: Record<string, Json>,
+): Record<string, Json> {
+  const out: Record<string, Json> = {};
+  for (const [k, v] of Object.entries(values)) {
+    out[k] = schema.find((p) => p.name === k)?.expressions === false ? v : resolveInputsExpressions(v, inputs);
+  }
+  return out;
+}
+
+export type ValidateOptions = {
+  /**
+   * Значение-выражение (`{{ … }}`) в числовом, булевом, enum и multienum параметре не проверяется по типу и диапазону:
+   * его значение появится только при запуске, а после подстановки движок проверяет параметры ещё раз.
+   */
+  allowExpressions?: boolean;
+};
+
 /** Проверка значений по `class.params`: required, типы, enum-опции. Неизвестные ключи игнорируются. */
 export function validateParams(
   schema: readonly ParamSchema[],
   values: Record<string, Json>,
+  options: ValidateOptions = {},
 ): ParamIssue[] {
   const resolved = resolveParams(schema, values);
   const issues: ParamIssue[] = [];
@@ -46,6 +72,7 @@ export function validateParams(
       }
       continue;
     }
+    if (options.allowExpressions && p.type !== "string" && p.type !== "json" && hasExpression(v)) continue;
     switch (p.type) {
       case "string":
         if (typeof v !== "string") issues.push(typeIssue(p.name, "a string"));
@@ -72,6 +99,21 @@ export function validateParams(
           });
         }
         break;
+      case "multienum": {
+        if (!Array.isArray(v) || v.some((x) => typeof x !== "string")) {
+          issues.push(typeIssue(p.name, "a list of strings"));
+          break;
+        }
+        const unknown = (v as string[]).filter((x) => !p.options.some((o) => o.value === x));
+        if (unknown.length > 0) {
+          issues.push({
+            param: p.name,
+            code: "enum",
+            message: `Parameter "${p.name}" contains unknown values: ${unknown.join(", ")}`,
+          });
+        }
+        break;
+      }
       case "json":
         break;
     }

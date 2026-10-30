@@ -98,6 +98,40 @@ export function interpolate(template: string, data: Json | undefined): Json {
   });
 }
 
+// Выражения уровня ноды: `{{ inputs.in0.поле }}` — данные со входных портов (как $json в n8n). Подставляет движок
+// перед запуском блока в ЛЮБОЙ параметр; относительные шаблоны `{{ поле }}` остаются блокам (они работают по элементам списка).
+const INPUTS_TEMPLATE = /\{\{\s*(inputs(?:\.[^{}\s]+)?)\s*\}\}/g;
+const WHOLE_INPUTS_TEMPLATE = /^\{\{\s*(inputs(?:\.[^{}\s]+)?)\s*\}\}$/;
+
+/** Есть ли в значении выражение `{{ … }}` (проверка параметров откладывает типизацию до запуска). */
+export function hasExpression(v: Json | undefined): boolean {
+  return typeof v === "string" && /\{\{[^{}]*\}\}/.test(v);
+}
+
+/**
+ * Подставляет `{{ inputs.портх.путь }}` во все строки значения. Строка из одного выражения сохраняет тип
+ * (число, объект…), внутри текста значение приводится к строке; нет значения — `null` / пустая строка.
+ * Остальные `{{ … }}` не трогаются.
+ */
+export function resolveInputsExpressions(value: Json, inputs: Record<string, Json>): Json {
+  const root = { inputs } as unknown as Json;
+  const walk = (v: Json): Json => {
+    if (typeof v === "string") {
+      const whole = WHOLE_INPUTS_TEMPLATE.exec(v);
+      if (whole) return getPath(root, whole[1]!) ?? null;
+      return v.replace(INPUTS_TEMPLATE, (_m, path: string) => {
+        const x = getPath(root, path);
+        if (x === undefined || x === null) return "";
+        return typeof x === "string" ? x : JSON.stringify(x);
+      });
+    }
+    if (Array.isArray(v)) return v.map(walk);
+    if (isPlainObject(v)) return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x)]));
+    return v;
+  };
+  return walk(value);
+}
+
 /** Рекурсивно подставляет шаблоны во все строки значения. */
 export function resolveTemplates(value: Json, data: Json | undefined): Json {
   if (typeof value === "string") return interpolate(value, data);
