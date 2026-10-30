@@ -13,6 +13,7 @@ export class RespondToWebhook extends Block {
   static icon = "corner-up-left";
   static category = "io";
   static ports = { inputs: [{ id: "in0" }], outputs: [] };
+  static override serviceOutputs = ["response"] as const; // HTTP-ответ: его читает хост по событию node:done
   static params: ParamSchema[] = [
     { name: "status", type: "number", required: true, default: 200, min: 100, max: 599 },
     { name: "body", type: "json", default: null },

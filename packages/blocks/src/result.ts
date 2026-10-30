@@ -8,6 +8,7 @@ export class ResultBlock extends Block {
   static icon = "flag";
   static category = "io";
   static ports = { inputs: [{ id: "in0" }], outputs: [] };
+  static override serviceOutputs = ["in0"] as const; // для ленты: что получил Result
   static params = [];
   static defaultCss = "";
 

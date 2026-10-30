@@ -142,6 +142,11 @@ export abstract class Block {
    * итерациям, а не в основном потоке). null — обычный блок.
    */
   static bodyPort: string | null = null;
+  /**
+   * Служебные ключи результата `run`, которых нет среди портов: их читает сам движок или хост (Result отдаёт `in0` для ленты,
+   * Respond to Webhook — `response` для HTTP-ответа). Любой другой ключ вне объявленных портов — ошибка блока.
+   */
+  static serviceOutputs: readonly string[] = [];
   /** Порты, зависящие от параметров (например, `err` только в режиме await); null — использовать `ports`. */
   static portsFor(_params: Record<string, Json>): PortsDef | null {
     return null;

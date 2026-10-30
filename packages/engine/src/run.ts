@@ -437,6 +437,15 @@ export async function runFlow(
       const parsed = outputsSchema.safeParse(raw);
       if (!parsed.success) throw new Error("Block returned a non-JSON output");
       const output = parsed.data;
+      // ключ результата, которого нет среди портов (опечатка, правило за пределами портов Switch, код без portsOverride), — ошибка,
+      // а не молчаливое «ветка не пошла»
+      const declared = new Set([...getNodePorts(cls, node.portsOverride, params).outputs.map((p) => p.id), ...cls.serviceOutputs]);
+      const undeclared = Object.keys(output).filter((k) => !declared.has(k));
+      if (undeclared.length > 0) {
+        throw new Error(
+          `The block returned data for ${undeclared.length > 1 ? "ports" : "port"} ${undeclared.map((k) => `"${k}"`).join(", ")} that ${undeclared.length > 1 ? "do" : "does"} not exist (output ports: ${[...declared].join(", ") || "none"}). Add the port to the node or fix the key`,
+        );
+      }
 
       for (const e of outgoing.get(id) ?? []) {
         const value = output[e.sourcePort];
