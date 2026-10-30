@@ -53,6 +53,10 @@ export const fireRequestSchema = z.object({
   flowId: z.string(),
   triggerId: z.string(),
   data: jsonSchema,
+  /** Разрешить вызов флоу, уже стоящего в цепочке вызовов (в том числе самого себя); глубину по-прежнему ограничивает `maxDepth`. */
+  allowRecursive: z.boolean().optional(),
+  /** Предел длины цепочки вызовов; по умолчанию 5, не больше 20. */
+  maxDepth: z.number().int().min(1).max(20).optional(),
 });
 export type FireRequest = z.infer<typeof fireRequestSchema>;
 /** web → runner: ответ на `fire`; `error` — причина отказа (цель не опубликована, рекурсия, занято…). */

@@ -430,7 +430,9 @@
     "run_flow": {
       "flowId": "Flow (published)",
       "triggerId": "Trigger",
-      "data": "Data (empty — whole input)"
+      "data": "Data (empty — whole input)",
+      "allowRecursive": "Allow recursive call",
+      "maxDepth": "Max call chain depth"
     }
   },
   "run": {

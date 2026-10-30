@@ -52,6 +52,9 @@ export type MemoryHandle = {
   clear(): Promise<void>;
 };
 
+/** Просьба блока запустить триггер другого флоу (см. `RunContext.fire`). */
+export type FireCall = { flowId: string; triggerId: string; data: Json; allowRecursive?: boolean; maxDepth?: number };
+
 export interface RunContext {
   log(msg: string): void;
   signal: AbortSignal;
@@ -64,7 +67,7 @@ export interface RunContext {
    * Запустить триггер другого опубликованного флоу с данными (fire-and-forget: возвращается, когда цель приняла запуск,
    * а не когда он закончился). Бросает, если цель недоступна, это рекурсия или цель занята. Нет в окружениях без сервера.
    */
-  fire?: (req: { flowId: string; triggerId: string; data: Json }) => Promise<void>;
+  fire?: (req: FireCall) => Promise<void>;
 }
 
 /**

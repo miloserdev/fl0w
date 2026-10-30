@@ -16,7 +16,7 @@ function send(event: RunnerEvent | FireRequest): Promise<void> {
 // запросы «запустить другой флоу» ждут ответа родителя: сопоставляем по id
 const pendingFires = new Map<string, { resolve: () => void; reject: (e: Error) => void }>();
 let fireSeq = 0;
-const fire = (req: { flowId: string; triggerId: string; data: Json }): Promise<void> =>
+const fire = (req: Omit<FireRequest, "event" | "id">): Promise<void> =>
   new Promise((resolve, reject) => {
     const id = String(++fireSeq);
     pendingFires.set(id, { resolve, reject });

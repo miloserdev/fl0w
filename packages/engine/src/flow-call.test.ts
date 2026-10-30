@@ -58,6 +58,22 @@ describe("Scheduler.fireFrom (вызов триггера другого фло�
     scheduler.stop();
   });
 
+  it("allowRecursive разрешает вызов флоу из цепочки (в том числе самого себя), но глубину ограничивает maxDepth", async () => {
+    const { scheduler } = setup(idle);
+    scheduler.sync(pub("a"));
+    scheduler.sync(pub("b"));
+    const self = { flowId: "a", triggerId: "t", data: null, allowRecursive: true };
+    await expect(scheduler.fireFrom(["a"], self)).resolves.toBeUndefined();
+    await expect(scheduler.fireFrom(["a", "b", "a"], { ...self, flowId: "b" })).resolves.toBeUndefined();
+    // по умолчанию глубина 5; своя — через maxDepth, но не выше жёсткого потолка 20
+    await expect(scheduler.fireFrom(["a", "a", "a", "a", "a"], self)).rejects.toThrow(/too deep \(limit 5/);
+    await expect(scheduler.fireFrom(["a", "a", "a"], { ...self, maxDepth: 3 })).rejects.toThrow(/limit 3/);
+    await expect(scheduler.fireFrom(Array(10).fill("a"), { ...self, maxDepth: 12 })).resolves.toBeUndefined();
+    await expect(scheduler.fireFrom(Array(20).fill("a"), { ...self, maxDepth: 20 })).rejects.toThrow(/limit 20/);
+    await expect(scheduler.fireFrom(Array(25).fill("a"), { ...self, maxDepth: 99 })).rejects.toThrow(/limit 20/);
+    scheduler.stop();
+  });
+
   it("занятый планировщик (лимит параллельных запусков) — отказ с понятным текстом", async () => {
     let release!: () => void;
     const gate = new Promise<void>((r) => (release = r));
@@ -104,7 +120,7 @@ describe("блок Run Flow в настоящем процессе-раннер�
   it("по умолчанию отдаёт весь вход; ответ хозяина превращается в успех", async () => {
     const reqs: Req[] = [];
     const r = await run(f("other"), async (q) => void reqs.push(q));
-    expect(reqs).toEqual([{ flowId: "other", triggerId: "t", data: { v: 1 } }]);
+    expect(reqs).toEqual([{ flowId: "other", triggerId: "t", data: { v: 1 }, allowRecursive: false, maxDepth: 5 }]);
     expect(r.done?.result).toEqual({ fired: true, flowId: "other", triggerId: "t" });
   });
 
@@ -112,6 +128,22 @@ describe("блок Run Flow в настоящем процессе-раннер�
     const reqs: Req[] = [];
     await run(f("other", { picked: "{{ inputs.in0.v }}" }), async (q) => void reqs.push(q));
     expect(reqs[0]!.data).toEqual({ picked: 1 });
+  });
+
+  it("allowRecursive и maxDepth из параметров блока доходят до хозяина", async () => {
+    const reqs: (Req & { allowRecursive?: boolean; maxDepth?: number })[] = [];
+    const fl = flow(
+      [node("s", "source", { json: { v: 1 } }), node("c", "run_flow", { flowId: "x", triggerId: "t", allowRecursive: true, maxDepth: 7 }), node("r", "result")],
+      [edge("s", "c"), edge("c", "r")],
+    );
+    await run(fl, async (q) => void reqs.push(q));
+    expect(reqs[0]).toMatchObject({ flowId: "x", allowRecursive: true, maxDepth: 7 });
+    const plain = await (async () => {
+      const got: Record<string, unknown>[] = [];
+      await run(f("x"), async (q) => void got.push(q));
+      return got[0]!;
+    })();
+    expect(plain["allowRecursive"]).toBe(false); // по умолчанию рекурсия запрещена
   });
 
   it("отказ хозяина (рекурсия, не опубликован…) — ошибка ноды с его текстом", async () => {

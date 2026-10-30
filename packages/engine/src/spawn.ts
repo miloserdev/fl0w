@@ -5,6 +5,7 @@
 import { fork, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import type { FireCall } from "@fl0w/blocks";
 import { fireRequestSchema, runnerEventSchema, type FireReply, type Flow, type Json, type RunnerCommand, type RunnerEvent } from "@fl0w/schema";
 import type { SchedulerRun } from "./scheduler";
 
@@ -28,7 +29,7 @@ export type ProcessRunOptions = {
   from?: string;
   seeds?: Record<string, Record<string, Json>>;
   /** Запуск триггера другого флоу по просьбе блока Run Flow; отказ — исключение (его текст увидит блок). Без него блок падает с понятной ошибкой. */
-  onFire?: (req: { flowId: string; triggerId: string; data: Json }) => Promise<void>;
+  onFire?: (req: FireCall) => Promise<void>;
   /** Отмена: убивает процесс и завершает запуск событием `flow:done` с ошибкой. */
   signal?: AbortSignal;
   /** stderr процесса (лог блоков, падения). */
@@ -116,14 +117,14 @@ export function runFlowInProcess(
       if (finished) return;
       const fireReq = fireRequestSchema.safeParse(raw);
       if (fireReq.success) {
-        const { id, flowId, triggerId, data } = fireReq.data;
+        const { id, event: _event, ...call } = fireReq.data;
         const reply = (error?: string) => {
           if (!finished && proc.connected) proc.send({ cmd: "fire:result", id, ...(error !== undefined ? { error } : {}) } satisfies FireReply);
         };
         if (!opts.onFire) reply("Calling other flows is not available here");
         else {
           void Promise.resolve()
-            .then(() => opts.onFire!({ flowId, triggerId, data }))
+            .then(() => opts.onFire!(call))
             .then(() => reply(), (e: unknown) => reply(e instanceof Error ? e.message : String(e)));
         }
         return;

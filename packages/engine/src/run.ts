@@ -4,6 +4,7 @@ import {
   resolveParamExpressions,
   resolveParams,
   validateParams,
+  type FireCall,
   type RunContext,
 } from "@fl0w/blocks";
 import { jsonSchema, type Flow, type Json, type RunnerEvent } from "@fl0w/schema";
@@ -30,7 +31,7 @@ export type RunOptions = {
   from?: string;
   seeds?: Record<string, Record<string, Json>>;
   /** Запуск триггера другого флоу (блок Run Flow); без него блок отвечает ошибкой. */
-  fire?: (req: { flowId: string; triggerId: string; data: Json }) => Promise<void>;
+  fire?: (req: FireCall) => Promise<void>;
 };
 
 // защита от потока логов из пользовательского кода: IPC и UI не должны захлебнуться

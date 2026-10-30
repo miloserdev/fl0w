@@ -1,4 +1,4 @@
-import type { FileWatchSpec, LifecycleReason, TelegramSpec } from "@fl0w/blocks";
+import type { FileWatchSpec, FireCall, LifecycleReason, TelegramSpec } from "@fl0w/blocks";
 import type { Flow, Json, RunnerEvent } from "@fl0w/schema";
 import type { RunHub } from "./hub";
 import type { FlowStore } from "./store";
@@ -7,11 +7,13 @@ import { validateFlow, type Registry } from "./validate";
 
 /** Сколько флоу может быть в цепочке вызовов (A вызвал B вызвал C …). */
 const MAX_CALL_DEPTH = 5;
+/** Жёсткий потолок, даже если блок просит больше (`maxDepth`). */
+const MAX_CALL_DEPTH_HARD = 20;
 
 export type SchedulerRun = (
   flow: Flow,
   onEvent: (e: RunnerEvent) => void,
-  opts: { trigger: string; triggerData?: Json; onFire?: (req: { flowId: string; triggerId: string; data: Json }) => Promise<void> },
+  opts: { trigger: string; triggerData?: Json; onFire?: (req: FireCall) => Promise<void> },
 ) => Promise<void>;
 
 /** Подписка на изменения файлов: возвращает функцию отписки. Реализация — `createFileWatcher` (file-watch.ts). */
@@ -263,16 +265,17 @@ export class Scheduler {
 
   /**
    * Запуск триггера другого флоу по просьбе блока Run Flow (fire-and-forget). `chain` — флоу, уже участвующие в цепочке
-   * вызовов (последний — вызывающий). Бросает с понятной причиной: цель не опубликована, нет такого триггера, рекурсия,
+   * вызовов (последний — вызывающий). Бросает с понятной причиной: цель не опубликована, нет такого триггера, рекурсия (если не `allowRecursive`),
    * слишком длинная цепочка, цель занята.
    */
-  fireFrom(chain: string[], req: { flowId: string; triggerId: string; data: Json }): Promise<void> {
+  fireFrom(chain: string[], req: FireCall): Promise<void> {
     const target = this.flows.get(req.flowId);
     if (!target) return Promise.reject(new Error(`Flow "${req.flowId}" is not published`));
-    if (chain.includes(req.flowId)) {
+    if (chain.includes(req.flowId) && !req.allowRecursive) {
       return Promise.reject(new Error(`Recursive call: flow "${req.flowId}" is already in the call chain (${[...chain, req.flowId].join(" → ")})`));
     }
-    if (chain.length >= MAX_CALL_DEPTH) return Promise.reject(new Error(`Call chain is too deep (more than ${MAX_CALL_DEPTH} flows)`));
+    const limit = Math.min(req.maxDepth ?? MAX_CALL_DEPTH, MAX_CALL_DEPTH_HARD);
+    if (chain.length >= limit) return Promise.reject(new Error(`Call chain is too deep (limit ${limit} flows; raise maxDepth up to ${MAX_CALL_DEPTH_HARD} if intended)`));
     const node = target.nodes.find((n) => n.id === req.triggerId);
     if (!node || !this.deps.registry[node.type]?.isTrigger) {
       return Promise.reject(new Error(`Flow "${req.flowId}" has no trigger "${req.triggerId}"`));
