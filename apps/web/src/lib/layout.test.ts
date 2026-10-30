@@ -41,3 +41,17 @@ describe("layoutSize / layoutNodeProps", () => {
     expect(layoutPalette("nope")).toBe(layoutPalette("gray"));
   });
 });
+
+describe("Log как изменяемый по размеру блок", () => {
+  it("рисуется терминалом, размер ограничен схемой его параметров (не заметочными границами) и не считается оформлением", async () => {
+    const { nodeTypeFor } = await import("./flow-convert");
+    const { isLayoutBlock, isResizableBlock, layoutSize } = await import("./layout");
+    expect(nodeTypeFor("log")).toBe("terminal");
+    expect(isResizableBlock("log")).toBe(true);
+    expect(isLayoutBlock("log")).toBe(false); // участвует в запуске, в отличие от заметок и групп
+    expect(layoutSize("log", { width: 10, height: 10 })).toEqual({ width: 160, height: 80 });
+    expect(layoutSize("log", {})).toEqual({ width: 360, height: 160 });
+    expect(layoutSize("note", { width: 100, height: 70 })).toEqual({ width: 100, height: 70 });
+    expect(isResizableBlock("counter")).toBe(false);
+  });
+});

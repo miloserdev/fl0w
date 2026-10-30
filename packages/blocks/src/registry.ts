@@ -36,6 +36,8 @@ import { Source } from "./source";
 import { Transform } from "./transform";
 import { GroupFrame, StickyNote } from "./layout";
 import { CallTrigger, RunFlow } from "./flow-call";
+import { Counter } from "./counter";
+import { Log } from "./log";
 import { CodeAgent } from "./code-agent";
 import { MemoryBank } from "./memory";
 import { CalculatorTool, CodeTool, DateTimeTool, RandomTool } from "./tools";
@@ -59,6 +61,7 @@ export const registry: Record<string, BlockClass> = {
   respond_to_webhook: RespondToWebhook,
   files: Files,
   shell: Shell,
+  log: Log,
   result: ResultBlock,
   // приложения
   telegram: Telegram,
@@ -74,6 +77,7 @@ export const registry: Record<string, BlockClass> = {
   summarize: Summarize,
   rename_keys: RenameKeys,
   datetime: DateTime,
+  counter: Counter,
   crypto: Crypto,
   jwt: Jwt,
   code: CodeBlock,

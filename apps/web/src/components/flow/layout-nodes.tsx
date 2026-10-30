@@ -12,7 +12,7 @@ const MIN_WIDTH = 80;
 const MIN_HEIGHT = 60;
 
 /** Рамка для изменения размера: видна у выделенной ноды; итоговый размер записывается в params. */
-function Resizer({ id, selected }: { id: string; selected?: boolean }) {
+export function Resizer({ id, selected }: { id: string; selected?: boolean }) {
   const { updateNodeData } = useReactFlow();
   return (
     <NodeResizer

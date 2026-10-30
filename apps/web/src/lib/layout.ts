@@ -7,6 +7,11 @@ export function isLayoutBlock(blockType: string): boolean {
   return registry[blockType]?.layout === true;
 }
 
+/** Блок, размер которого задаёт пользователь (тянет за уголок): заметки, группы, Log. Размер живёт в params.width/height. */
+export function isResizableBlock(blockType: string): boolean {
+  return registry[blockType]?.resizable === true;
+}
+
 /** Прямоугольник ноды в координатах холста. */
 export type Box = { id: string; x: number; y: number; width: number; height: number };
 
@@ -40,9 +45,16 @@ export function nodesInsideGroup(group: Box, others: Box[]): string[] {
 
 const LAYOUT_LIMITS = { width: { min: 80, max: 4000 }, height: { min: 60, max: 4000 } } as const;
 
-function dim(value: Json | undefined, fallback: number, key: "width" | "height"): number {
+/** Нижние границы размера блока — из схемы его параметров (у Log выше, чем у заметки). */
+function limit(blockType: string, key: "width" | "height") {
+  const p = registry[blockType]?.params.find((x) => x.name === key);
+  return p && p.type === "number" ? { min: p.min ?? LAYOUT_LIMITS[key].min, max: p.max ?? LAYOUT_LIMITS[key].max } : LAYOUT_LIMITS[key];
+}
+
+function dim(value: Json | undefined, fallback: number, key: "width" | "height", blockType: string): number {
   const v = typeof value === "number" && Number.isFinite(value) ? value : fallback;
-  return Math.round(Math.min(LAYOUT_LIMITS[key].max, Math.max(LAYOUT_LIMITS[key].min, v)));
+  const { min, max } = limit(blockType, key);
+  return Math.round(Math.min(max, Math.max(min, v)));
 }
 
 /** Размер блока оформления из params (с границами из схемы); без значений — размер по умолчанию класса. */
@@ -52,14 +64,14 @@ export function layoutSize(blockType: string, params: Record<string, Json>): { w
     return p && p.type === "number" && typeof p.default === "number" ? p.default : fb;
   };
   return {
-    width: dim(params.width, def("width", 220), "width"),
-    height: dim(params.height, def("height", 140), "height"),
+    width: dim(params.width, def("width", 220), "width", blockType),
+    height: dim(params.height, def("height", 140), "height", blockType),
   };
 }
 
 /** Свойства ноды React Flow, которые зависят от вида блока оформления (пусто — для обычного блока). */
 export function layoutNodeProps(blockType: string, params: Record<string, Json>): Partial<Pick<Node, "width" | "height" | "zIndex" | "dragHandle" | "style">> {
-  if (!isLayoutBlock(blockType)) return {};
+  if (!isResizableBlock(blockType)) return {};
   const size = layoutSize(blockType, params);
   if (blockType === "group") {
     // под остальными; клики по пустой рамке проходят к холсту — группу берут за заголовок

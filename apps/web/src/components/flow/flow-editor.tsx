@@ -51,13 +51,15 @@ import {
   type FlowMeta,
 } from "@/lib/flow-convert";
 import { canConnect } from "@/lib/connection";
-import { isLayoutBlock, layoutNodeProps, layoutPalette, layoutSize, nodeBox, nodesInsideGroup } from "@/lib/layout";
+import { isLayoutBlock, isResizableBlock, layoutNodeProps, layoutPalette, layoutSize, nodeBox, nodesInsideGroup } from "@/lib/layout";
 import { FLOATING } from "@/lib/floating";
 import { issueNodeIds, useIssueText } from "@/lib/issue-text";
 import { cn } from "@/lib/utils";
 import { AddBlockDialog } from "./add-block-dialog";
 import { BlockNode } from "./block-node";
 import { GroupNode, NoteNode } from "./layout-nodes";
+import { NodeLogsProvider } from "./node-logs";
+import { TerminalNode } from "./terminal-node";
 import { Inspector } from "./inspector";
 import { NodeIssuesProvider } from "./node-issues";
 import { NodeDataPanel } from "./node-data-panel";
@@ -67,7 +69,7 @@ import { usePublish } from "./use-publish";
 import { useRun } from "./use-run";
 import { useWatch } from "./use-watch";
 
-const nodeTypes = { block: BlockNode, "layout-note": NoteNode, "layout-group": GroupNode };
+const nodeTypes = { block: BlockNode, "layout-note": NoteNode, "layout-group": GroupNode, terminal: TerminalNode };
 
 const noopSubscribe = () => () => {};
 
@@ -181,7 +183,7 @@ function Editor() {
       : { x: jitter, y: jitter };
     const params = defaultParams(blockType);
     // блоки оформления центрируются по своему размеру, обычные — по примерному
-    const half = isLayoutBlock(blockType)
+    const half = isResizableBlock(blockType)
       ? { x: layoutSize(blockType, params).width / 2, y: layoutSize(blockType, params).height / 2 }
       : NODE_HALF;
     setNodes((ns) => [
@@ -210,7 +212,7 @@ function Editor() {
           if (n.id !== id) return n;
           const next = { ...n, data: { ...n.data, ...patch } };
           // размер блока оформления из окна параметров → в саму ноду (хранится в params, рисуется по node.width/height)
-          return patch.params && isLayoutBlock(n.data.blockType)
+          return patch.params && isResizableBlock(n.data.blockType)
             ? { ...next, ...layoutSize(n.data.blockType, patch.params) }
             : next;
         }),
@@ -249,6 +251,8 @@ function Editor() {
   const watching = watchOn && published;
   const watch = useWatch(meta.id, watching, server?.nodeIds ?? []);
   const view = watching ? watch.state : runState;
+  // строки лога по нодам — для терминальных нод (Log) на холсте
+  const nodeLogs = useMemo(() => Object.fromEntries(Object.entries(view.nodeDetails).map(([id, d]) => [id, d.logs])), [view.nodeDetails]);
 
   const onPublish = async () => {
     const checked = validateFlow(fromReactFlow(nodes, edges, meta), registry);
@@ -377,6 +381,7 @@ function Editor() {
   return (
     <div ref={wrapper} className="relative h-dvh w-full overflow-hidden">
       <NodeIssuesProvider value={nodeIssues}>
+        <NodeLogsProvider value={nodeLogs}>
         <RunStatusProvider value={view.nodes}>
           <ReactFlow
             nodes={nodes}
@@ -423,6 +428,7 @@ function Editor() {
             <MiniMap pannable zoomable position="bottom-right" nodeColor={miniMapColor} />
           </ReactFlow>
         </RunStatusProvider>
+        </NodeLogsProvider>
       </NodeIssuesProvider>
 
       {nodes.length === 0 && (

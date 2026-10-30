@@ -92,6 +92,8 @@ export abstract class Block {
    * и не отдаёт данные. Движок такие ноды игнорирует.
    */
   static layout = false;
+  /** Размер ноды на холсте задаёт пользователь (params.width/height, тянут за уголок): заметки, группы, Log. */
+  static resizable = false;
   /** Триггер: нода без входов, с которой стартует запуск (по расписанию или вручную). */
   static isTrigger = false;
   /**

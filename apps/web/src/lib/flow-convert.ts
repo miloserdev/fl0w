@@ -1,6 +1,6 @@
 import type { Edge, Node } from "@xyflow/react";
 import { getNodePorts, isDataPort, portKind, registry } from "@fl0w/blocks";
-import { isLayoutBlock, layoutNodeProps, layoutSize } from "./layout";
+import { isLayoutBlock, isResizableBlock, layoutNodeProps, layoutSize } from "./layout";
 import type { Flow, FlowNode, Json, PortDef, PortKind, PortsDef } from "@fl0w/schema";
 
 export type BlockNodeData = {
@@ -12,7 +12,7 @@ export type BlockNodeData = {
   pinData?: Record<string, Json> | null;
 };
 /** Нода холста: обычный блок (`block`) или блок оформления (*/
-export type BlockNodeType = Node<BlockNodeData, "block" | "layout-note" | "layout-group">;
+export type BlockNodeType = Node<BlockNodeData, "block" | "layout-note" | "layout-group" | "terminal">;
 
 export type FlowMeta = Pick<Flow, "id" | "name">;
 
@@ -76,7 +76,8 @@ export function newFlowId(): string {
 }
 
 /** Тип ноды React Flow: у блоков оформления собственный отрисовщик, у остальных — `block`. */
-export function nodeTypeFor(blockType: string): "block" | "layout-note" | "layout-group" {
+export function nodeTypeFor(blockType: string): "block" | "layout-note" | "layout-group" | "terminal" {
+  if (blockType === "log") return "terminal"; // Log — обычный блок с портами, но на холсте чёрное окошко-терминал
   // имя `group` занято встроенным стилем React Flow (рамка, фон) — поэтому префикс
   if (!isLayoutBlock(blockType)) return "block";
   return blockType === "group" ? "layout-group" : "layout-note";
@@ -84,7 +85,7 @@ export function nodeTypeFor(blockType: string): "block" | "layout-note" | "layou
 
 /** Параметры блока оформления с актуальным размером ноды (тянут за уголок — размер живёт в node.width/height). */
 function paramsOf(n: BlockNodeType): Record<string, Json> {
-  if (!isLayoutBlock(n.data.blockType)) return n.data.params;
+  if (!isResizableBlock(n.data.blockType)) return n.data.params;
   const size = layoutSize(n.data.blockType, {
     width: n.width ?? n.data.params.width,
     height: n.height ?? n.data.params.height,

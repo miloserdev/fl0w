@@ -52,3 +52,5 @@ export { MEMORY_DIR_ENV, MEMORY_DRIVERS, MEMORY_LIMITS, MemoryBank, assertBankNa
 export { CalculatorTool, CodeTool, DateTimeTool, RandomTool, calculate, currentDateTime } from "./tools";
 export { GroupFrame, LAYOUT_COLORS, StickyNote } from "./layout";
 export { CallTrigger, RunFlow } from "./flow-call";
+export { Counter } from "./counter";
+export { LOG_LEVELS, Log } from "./log";

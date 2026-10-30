@@ -97,7 +97,9 @@
     "note": "Sticky Note",
     "group": "Group",
     "call_trigger": "Called by Flow",
-    "run_flow": "Run Flow"
+    "run_flow": "Run Flow",
+    "counter": "Counter",
+    "log": "Log"
   },
   "node": {
     "unknown": "Unknown block: {type}",
@@ -111,7 +113,9 @@
     "noteText": "Note text",
     "notePlaceholder": "Double-click to type",
     "groupTitle": "Group title",
-    "groupPlaceholder": "Group (double-click to name)"
+    "groupPlaceholder": "Group (double-click to name)",
+    "terminalTitle": "terminal",
+    "terminalIdle": "waiting for a run…"
   },
   "errors": {
     "invalidFlow": "The flow has errors and cannot run:",
@@ -434,6 +438,20 @@
       "data": "Data (empty — whole input)",
       "allowRecursive": "Allow recursive call",
       "maxDepth": "Max call chain depth (0 — unlimited)"
+    },
+    "counter": {
+      "name": "Counter name",
+      "operation": "Operation",
+      "step": "Step",
+      "start": "Initial value",
+      "field": "Result field",
+      "includeInput": "Keep input fields"
+    },
+    "log": {
+      "message": "Message (empty — whole input)",
+      "level": "Level",
+      "width": "Width, px",
+      "height": "Height, px"
     }
   },
   "run": {
@@ -560,7 +578,11 @@
       "sendMessage": "Message: send text",
       "sendPhoto": "Message: send photo",
       "sendSticker": "Message: send sticker",
-      "sendVideo": "Message: send video"
+      "sendVideo": "Message: send video",
+      "increment": "increment",
+      "decrement": "decrement",
+      "reset": "reset to initial",
+      "get": "get — read only"
     },
     "part": {
       "year": "year",
@@ -683,6 +705,11 @@
     "wait": {
       "all": "all — wait for every connected input",
       "any": "any — run on any input that arrives"
+    },
+    "level": {
+      "info": "info",
+      "warn": "warn",
+      "error": "error"
     }
   },
   "issues": {

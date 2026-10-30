@@ -18,6 +18,7 @@ const sizeParams = (w: number, h: number): ParamSchema[] => [
 
 abstract class LayoutBlock extends Block {
   static override layout = true;
+  static override resizable = true;
   static override category = "layout";
   static override ports = { inputs: [], outputs: [] };
 
