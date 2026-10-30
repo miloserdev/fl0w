@@ -7,7 +7,9 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",
-    "test": "pnpm -r test"
+    "test": "pnpm -r test",
+    "check": "pnpm typecheck && pnpm lint && pnpm test",
+    "verify": "pnpm check && pnpm --filter @fl0w/web build"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
