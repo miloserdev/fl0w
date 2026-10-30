@@ -173,5 +173,5 @@ export function sandboxEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.Proces
 }
 
 export function processSchedulerRun(base: Pick<ProcessRunOptions, "engineDir" | "timeoutMs" | "execArgv"> = {}): SchedulerRun {
-  return (flow, onEvent, { trigger, triggerData, onFire, sandbox }) => runFlowInProcess(flow, onEvent, { ...base, trigger, triggerData, onFire, sandbox });
+  return (flow, onEvent, { trigger, triggerData, onFire, sandbox, signal }) => runFlowInProcess(flow, onEvent, { ...base, trigger, triggerData, onFire, sandbox, signal });
 }

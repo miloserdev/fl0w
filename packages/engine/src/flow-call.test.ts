@@ -179,6 +179,31 @@ describe("Scheduler.fireFrom: песочница («Запустить» в ре
     scheduler.stop();
   });
 
+  it("в песочнице maxDepth 0 («без ограничения») не действует: вложенные запуски дожидаются и держат процессы — потолок 20", async () => {
+    const { scheduler, logs } = setup(idle);
+    const call = { flowId: "draft", triggerId: "c", data: null, allowRecursive: true, maxDepth: 0 };
+    await expect(scheduler.fireFrom(Array(19).fill("draft"), call, sandbox())).resolves.toBeUndefined();
+    await expect(scheduler.fireFrom(Array(20).fill("draft"), call, sandbox())).rejects.toThrow(/too deep \(limit 20/);
+    expect(logs.some((l) => /unlimited/.test(l))).toBe(false);
+    scheduler.stop();
+  });
+
+  it("отмена ленты (signal) доходит до вложенных запусков и не даёт стартовать новым", async () => {
+    const ac = new AbortController();
+    const signals: (AbortSignal | undefined)[] = [];
+    const { scheduler } = setup(async (_f, onEvent, o) => {
+      signals.push(o.signal);
+      onEvent({ event: "flow:done", result: 1 });
+    });
+    const call = { flowId: "draft", triggerId: "c", data: null, allowRecursive: true };
+    await scheduler.fireFrom(["draft"], call, sandbox({ signal: ac.signal }));
+    expect(signals).toEqual([ac.signal]);
+    ac.abort();
+    await expect(scheduler.fireFrom(["draft"], call, sandbox({ signal: ac.signal }))).rejects.toThrow(/Aborted/);
+    expect(signals).toHaveLength(1); // новый запуск не стартовал
+    scheduler.stop();
+  });
+
   it("вложенный вызов остаётся в песочнице (цепочка продолжается без публикации)", async () => {
     const depth: number[] = [];
     const flags: (boolean | undefined)[] = [];

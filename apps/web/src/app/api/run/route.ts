@@ -58,6 +58,7 @@ export async function POST(req: Request) {
           getRuntime().scheduler.fireFrom([checked.flow.id], req, {
             flow: checked.flow,
             resolve: (id) => getRuntime().store.get(id),
+            signal: abort.signal,
             onEvent: (e) => {
               if (e.event !== "flow:done") emit(e);
             },

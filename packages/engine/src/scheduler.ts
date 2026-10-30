@@ -14,6 +14,8 @@ export type LocalFlow = {
   /** Другие флоу песочницы по id — сохранённые копии (черновик или опубликованный), а не рабочие запущенные; нет — null. */
   resolve?: (flowId: string) => Promise<Flow | null>;
   onEvent?: (e: RunnerEvent) => void;
+  /** Отмена пробного запуска (клиент закрыл ленту / нажал «Стоп»): вложенные запуски тоже останавливаются. */
+  signal?: AbortSignal;
 };
 
 /** Сколько флоу может быть в цепочке вызовов (A вызвал B вызвал C …). */
@@ -24,7 +26,7 @@ const MAX_CALL_DEPTH_HARD = 20;
 export type SchedulerRun = (
   flow: Flow,
   onEvent: (e: RunnerEvent) => void,
-  opts: { trigger: string; triggerData?: Json; onFire?: (req: FireCall) => Promise<void>; sandbox?: boolean },
+  opts: { trigger: string; triggerData?: Json; onFire?: (req: FireCall) => Promise<void>; sandbox?: boolean; signal?: AbortSignal },
 ) => Promise<void>;
 
 /** Подписка на изменения файлов: возвращает функцию отписки. Реализация — `createFileWatcher` (file-watch.ts). */
@@ -300,13 +302,14 @@ export class Scheduler {
   }
 
   /** Рекурсия и глубина цепочки вызовов; возвращает причину отказа или null. */
-  private checkChain(chain: string[], req: FireCall): string | null {
+  private checkChain(chain: string[], req: FireCall, sandbox = false): string | null {
     if (chain.includes(req.flowId) && !req.allowRecursive) {
       return `Recursive call: flow "${req.flowId}" is already in the call chain (${[...chain, req.flowId].join(" → ")})`;
     }
     // maxDepth 0 — без ограничения (выбор автора флоу); иначе предел, но не выше жёсткого потолка
-    const unlimited = req.maxDepth === 0;
-    const limit = unlimited ? Infinity : Math.min(req.maxDepth ?? MAX_CALL_DEPTH, MAX_CALL_DEPTH_HARD);
+    // в песочнице вложенные запуски ДОЖИДАЮТСЯ — каждое звено держит процесс, поэтому «без ограничения» там не действует (потолок)
+    const unlimited = req.maxDepth === 0 && !sandbox;
+    const limit = unlimited ? Infinity : Math.min(req.maxDepth === 0 ? MAX_CALL_DEPTH_HARD : (req.maxDepth ?? MAX_CALL_DEPTH), MAX_CALL_DEPTH_HARD);
     if (unlimited && chain.length >= MAX_CALL_DEPTH_HARD && chain.length % MAX_CALL_DEPTH_HARD === 0) {
       this.log(`flow ${chain[0]}: call chain has reached ${chain.length} flows with maxDepth 0 (unlimited) — unpublish the flow to stop it`);
     }
@@ -322,7 +325,8 @@ export class Scheduler {
   private async fireSandbox(chain: string[], req: FireCall, local: LocalFlow): Promise<void> {
     const target = req.flowId === local.flow.id ? local.flow : await local.resolve?.(req.flowId);
     if (!target) throw new Error(`Flow "${req.flowId}" is not saved on the server (the sandbox runs saved copies — save it first; publishing is not required)`);
-    const refused = this.checkChain(chain, req);
+    if (local.signal?.aborted) throw new Error("Aborted");
+    const refused = this.checkChain(chain, req, true);
     if (refused) throw new Error(refused);
     const node = target.nodes.find((n) => n.id === req.triggerId);
     if (!node || !this.deps.registry[node.type]?.isTrigger) throw new Error(`Flow "${req.flowId}" has no trigger "${req.triggerId}"`);
@@ -451,7 +455,7 @@ export class Scheduler {
     try {
       // цепочка вызовов: флоу, из которых нас вызвали, плюс мы сами — по ней Run Flow отсекает рекурсию
       const chain = [...(opts?.chain ?? []), flow.id];
-      await this.deps.run(flow, emit, { trigger: nodeId, triggerData, sandbox, onFire: (req) => this.fireFrom(chain, req, opts?.local) });
+      await this.deps.run(flow, emit, { trigger: nodeId, triggerData, sandbox, signal: opts?.local?.signal, onFire: (req) => this.fireFrom(chain, req, opts?.local) });
     } catch (e) {
       // run не должен бросать, но если бросил — запуск обязан закрыться событием
       emit({
