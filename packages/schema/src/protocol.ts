@@ -14,6 +14,8 @@ export const runnerCommandSchema = z.object({
   /** Данные срабатывания триггера (тело вебхука и т.п.): получает только нода-триггер через ctx. */
   triggerData: jsonSchema.optional(),
   /** Перезапуск с ноды: исполняется она и всё после неё, остальным нужным нодам выдаются `seeds` (данные прошлого запуска). */
+  /** Закрепления (pin data) действуют, даже когда задан `trigger` (запуск одного триггера из песочницы). Плановые запуски без флага. */
+  pins: z.boolean().optional(),
   from: z.string().optional(),
   seeds: z.record(z.string(), z.record(z.string(), jsonSchema)).optional(),
 });

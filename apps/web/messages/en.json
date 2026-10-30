@@ -116,7 +116,8 @@
     "notePlaceholder": "Double-click to type",
     "groupTitle": "Group title",
     "groupPlaceholder": "Group (double-click to name)",
-    "terminalIdle": "waiting for a run…"
+    "terminalIdle": "waiting for a run…",
+    "runTrigger": "Run this trigger"
   },
   "errors": {
     "invalidFlow": "The flow has errors and cannot run:",

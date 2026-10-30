@@ -106,7 +106,8 @@ export function useRun() {
   const [state, setState] = useState<RunState>(IDLE_RUN);
   const controller = useRef<AbortController | null>(null);
 
-  const run = useCallback(async (flow: Flow, from?: { nodeId: string; seeds: Record<string, Record<string, Json>> }) => {
+  const run = useCallback(async (flow: Flow, opts?: { from?: { nodeId: string; seeds: Record<string, Record<string, Json>> }; trigger?: string }) => {
+    const from = opts?.from;
     controller.current?.abort();
     const ac = new AbortController();
     controller.current = ac;
@@ -120,7 +121,7 @@ export function useRun() {
       const res = await fetch("/api/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ flow, ...(from ? { from: from.nodeId, seeds: from.seeds } : {}) }),
+        body: JSON.stringify({ flow, ...(from ? { from: from.nodeId, seeds: from.seeds } : {}), ...(opts?.trigger ? { trigger: opts.trigger } : {}) }),
         signal: ac.signal,
       });
       if (!res.ok || !res.body) {

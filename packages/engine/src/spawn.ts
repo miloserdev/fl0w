@@ -27,6 +27,8 @@ export type ProcessRunOptions = {
   /** Перезапуск с ноды и данные прошлого запуска для её предшественников (см. RunOptions.from). */
   from?: string;
   seeds?: Record<string, Record<string, Json>>;
+  /** Закрепления действуют и при заданном `trigger` (песочница запускает один триггер кнопкой на ноде). */
+  pins?: boolean;
   /**
    * Найти флоу с incoming call на канале (по просьбе блока outgoing call): раннер исполняет его вложенным запуском в своём
    * процессе, поэтому ему нужно само определение. Отказ — исключение (текст увидит блок). Без него outgoing call падает с понятной ошибкой.
@@ -158,7 +160,7 @@ export function runFlowInProcess(
       finish({ error: `Runner exited unexpectedly (${how})${tail ? `: ${tail}` : ""}` });
     });
 
-    proc.send({ cmd: "run", flow, trigger: opts.trigger, triggerData: opts.triggerData, from: opts.from, seeds: opts.seeds } satisfies RunnerCommand, (err) => {
+    proc.send({ cmd: "run", flow, trigger: opts.trigger, triggerData: opts.triggerData, from: opts.from, seeds: opts.seeds, pins: opts.pins } satisfies RunnerCommand, (err) => {
       if (err) finish({ error: `Failed to send command to runner: ${err.message}` });
     });
   });

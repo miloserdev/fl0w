@@ -33,6 +33,11 @@ export type RunOptions = {
   from?: string;
   seeds?: Record<string, Record<string, Json>>;
   /**
+   * Закрепления (pin data) действуют. По умолчанию — только когда `trigger` не задан (ручной запуск); песочница, запускающая ОДИН
+   * триггер кнопкой на ноде, передаёт `pins: true`. Плановые запуски опубликованного флоу закреплений не применяют никогда.
+   */
+  pins?: boolean;
+  /**
    * Найти флоу с incoming call на канале (его даёт хост: опубликованные копии или сохранённые в песочнице). Нет канала или он
    * неоднозначен — бросает с причиной. Без опции блок outgoing call отвечает ошибкой.
    */
@@ -249,7 +254,7 @@ export async function runFlow(
   const results: [string, Json][] = [];
 
   // Перезапуск с ноды: rerun — исполняемые (она и всё после), needed — они плюс все их предшественники
-  const manual = opts.trigger === undefined; // закрепления (pin) действуют только в ручных запусках; плановые идут по триггеру
+  const manual = opts.pins ?? opts.trigger === undefined; // закрепления (pin) действуют только в ручных запусках; плановые идут по триггеру
   let rerun: Set<string> | undefined;
   let needed: Set<string> | undefined;
   if (opts.from !== undefined) {

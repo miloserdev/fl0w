@@ -2,14 +2,16 @@
 
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { registry } from "@fl0w/blocks";
-import { Pin, TriangleAlert } from "lucide-react";
+import { Pin, Play, TriangleAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Tip } from "@/components/tip";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { getPorts, splitPorts, type BlockNodeType } from "@/lib/flow-convert";
 import { scopeCss } from "@/lib/scope-css";
 import { BlockIcon } from "./block-icon";
 import { useNodeDisplay } from "./node-logs";
+import { useTriggerRun } from "./trigger-run";
 import { useNodeIssues } from "./node-issues";
 import { useNodeRunStatus } from "./run-status";
 import { useBlockLabel } from "./use-block-label";
@@ -46,6 +48,7 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNodeType>) {
   const portLabel = (portId: string, fallback?: string) =>
     tPorts.has(`${data.blockType}.${portId}`) ? tPorts(`${data.blockType}.${portId}`) : fallback;
   const runStatus = useNodeRunStatus(id);
+  const triggerRun = useTriggerRun();
   // нода может просить показать на себе короткий текст вместо иконки (число у Counter)
   const display = useNodeDisplay(id);
   const issues = useNodeIssues(id);
@@ -113,6 +116,24 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNodeType>) {
             <span className="sr-only">{t("pinned")}</span>
           </span>
         </Tip>
+      )}
+      {cls?.manualStart && (
+        // как у триггеров в n8n: кнопка запуска слева от ноды — стартует именно этот триггер, остальные молчат
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="nodrag nopan absolute top-1/2 -left-9 size-7 -translate-y-1/2 rounded-full"
+          disabled={triggerRun.disabled}
+          title={t("runTrigger")}
+          aria-label={t("runTrigger")}
+          onClick={(e) => {
+            e.stopPropagation();
+            triggerRun.run(id);
+          }}
+        >
+          <Play className="size-3.5" />
+        </Button>
       )}
       {runStatus && <span className="sr-only">{t(`status.${runStatus}`)}</span>}
 

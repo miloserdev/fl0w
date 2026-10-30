@@ -24,12 +24,12 @@ export async function POST(req: Request) {
     );
   }
 
-  const { from, seeds } = (body ?? {}) as { from?: unknown; seeds?: unknown };
+  const { from, seeds, trigger } = (body ?? {}) as { from?: unknown; seeds?: unknown; trigger?: unknown };
   const seedsOk =
     seeds === undefined ||
     (typeof seeds === "object" && seeds !== null && !Array.isArray(seeds) && Object.values(seeds).every((v) => typeof v === "object" && v !== null && !Array.isArray(v)));
-  if ((from !== undefined && typeof from !== "string") || !seedsOk) {
-    return Response.json({ error: "Invalid from/seeds" }, { status: 400 });
+  if ((from !== undefined && typeof from !== "string") || (trigger !== undefined && typeof trigger !== "string") || !seedsOk) {
+    return Response.json({ error: "Invalid from/seeds/trigger" }, { status: 400 });
   }
 
   const abort = new AbortController();
@@ -57,6 +57,9 @@ export async function POST(req: Request) {
           const saved = await getRuntime().store.list();
           return findIncoming([checked.flow, ...saved.filter((f) => f.id !== checked.flow.id)], channelId);
         },
+        // кнопка «запустить» на ноде Manual: стартует только этот триггер, закрепления песочницы при этом действуют
+        trigger: trigger as string | undefined,
+        pins: true,
         from: from as string | undefined,
         seeds: seeds as Record<string, Record<string, Json>> | undefined,
         onStderr: (chunk) => process.stderr.write(chunk),

@@ -60,6 +60,7 @@ import { AddBlockDialog } from "./add-block-dialog";
 import { BlockNode } from "./block-node";
 import { GroupNode, NoteNode } from "./layout-nodes";
 import { CurrentFlowProvider } from "./flow-picker";
+import { TriggerRunProvider, type TriggerRunApi } from "./trigger-run";
 import { NodeLogsProvider } from "./node-logs";
 import { TerminalNode } from "./terminal-node";
 import { Inspector } from "./inspector";
@@ -355,7 +356,7 @@ function Editor() {
     [setEdges, getNodes],
   );
 
-  const onRun = (from?: string) => {
+  const onRun = (from?: string, trigger?: string) => {
     const checked = validateFlow(fromReactFlow(nodes, edges, meta), registry);
     if (!checked.ok) {
       setError({ title: t("errors.invalidFlow"), items: checked.issues.map(issueText) });
@@ -363,8 +364,11 @@ function Editor() {
     }
     setError(null);
     // перезапуск с ноды: предшественники берут выходы из последнего запуска
-    void run(checked.flow, from ? { nodeId: from, seeds: collectSeeds(runState.nodeDetails) } : undefined);
+    void run(checked.flow, { ...(from ? { from: { nodeId: from, seeds: collectSeeds(runState.nodeDetails) } } : {}), ...(trigger ? { trigger } : {}) });
   };
+
+  // кнопка запуска на ноде Manual: недоступна, пока идёт запуск или включено наблюдение
+  const triggerRunApi: TriggerRunApi = { run: (nodeId) => onRun(undefined, nodeId), disabled: runState.status === "running" || watching };
 
   const onSave = () => {
     const flow = fromReactFlow(nodes, edges, meta);
@@ -398,6 +402,7 @@ function Editor() {
   return (
     <div ref={wrapper} className="relative h-dvh w-full overflow-hidden">
       <NodeIssuesProvider value={nodeIssues}>
+        <TriggerRunProvider value={triggerRunApi}>
         <CurrentFlowProvider value={meta.id}>
         <NodeLogsProvider value={nodeLogs}>
         <RunStatusProvider value={view.nodes}>
@@ -448,6 +453,7 @@ function Editor() {
         </RunStatusProvider>
         </NodeLogsProvider>
         </CurrentFlowProvider>
+        </TriggerRunProvider>
       </NodeIssuesProvider>
 
       {nodes.length === 0 && (

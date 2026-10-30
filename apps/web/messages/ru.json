@@ -116,7 +116,8 @@
     "notePlaceholder": "Двойной клик — ввести текст",
     "groupTitle": "Заголовок группы",
     "groupPlaceholder": "Группа (двойной клик — название)",
-    "terminalIdle": "ждёт запуска…"
+    "terminalIdle": "ждёт запуска…",
+    "runTrigger": "Запустить этот триггер"
   },
   "errors": {
     "invalidFlow": "Флоу содержит ошибки и не может быть запущен:",

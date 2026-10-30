@@ -7,6 +7,7 @@ export class ManualTrigger extends Block {
   static icon = "mouse-pointer-click";
   static category = "trigger";
   static isTrigger = true;
+  static manualStart = true;
   static ports = { inputs: [], outputs: [{ id: "out0" }] };
   static params = [];
 
