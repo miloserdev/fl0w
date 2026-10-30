@@ -27,6 +27,26 @@ export type RunOptions = {
 // защита от потока логов из пользовательского кода: IPC и UI не должны захлебнуться
 const MAX_LOGS_PER_NODE = 1000;
 const MAX_LOG_LENGTH = 10_000;
+/** Предел размера входов/параметров ноды в событии node:start (JSON-символов на одно значение). */
+const MAX_DEBUG_JSON = 50_000;
+
+/** Значение для отладочного события: слишком большое заменяется описанием, чтобы не раздувать ленту и память вкладки. */
+function capDebug(value: Json): Json {
+  const text = JSON.stringify(value) ?? "null";
+  return text.length <= MAX_DEBUG_JSON ? value : `… truncated: ${text.length} characters, first ${MAX_DEBUG_JSON / 10}: ${text.slice(0, MAX_DEBUG_JSON / 10)}`;
+}
+/** Имена параметров, значения которых не показываем в ленте: токены, пароли, ключи (ссылки `env:` безопасны и остаются). */
+const SECRET_KEY = /token|secret|passw|passphrase|api[-_]?key|authori[sz]ation|credential|cookie/i;
+function maskSecrets(value: Json): Json {
+  if (Array.isArray(value)) return value.map(maskSecrets);
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([k, v]) => [k, SECRET_KEY.test(k) && typeof v === "string" && v !== "" && !v.startsWith("env:") ? "***" : maskSecrets(v)]),
+    );
+  }
+  return value;
+}
+const capRecord = (r: Record<string, Json>) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, capDebug(v)]));
 
 /** Тип финального блока (SPEC §5.6): нода без выходов, её вход — результат запуска. */
 const RESULT_TYPE = "result";
@@ -110,7 +130,15 @@ export async function runFlow(
     const inputs: Record<string, Json> = {};
     for (const e of edges) inputs[e.targetPort] = edgeValues.get(e.id)!;
 
-    await onEvent({ event: "node:start", nodeId: id });
+    // выражения `{{ inputs.inN.путь }}` подставляются во ВСЕ параметры (кроме expressions: false) до запуска блока
+    let params: Record<string, Json> = {};
+    let paramsError: unknown;
+    try {
+      params = resolveParamExpressions(cls.params, resolveParams(cls.params, node.params), inputs);
+    } catch (e) {
+      paramsError = e;
+    }
+    await onEvent({ event: "node:start", nodeId: id, input: capRecord(inputs), params: capRecord(maskSecrets(params) as Record<string, Json>) });
     // после завершения ноды её ctx.log молчит: код может жить в фоне и писать после flow:done
     let live = true;
     let logged = 0;
@@ -125,9 +153,8 @@ export async function runFlow(
           onEvent({ event: "node:log", nodeId: id, message });
         },
       };
-      // выражения `{{ inputs.in0.поле }}` подставляются во ВСЕ параметры (кроме expressions: false) до запуска блока;
       // после подстановки параметры проверяются ещё раз — например, число из выражения должно быть числом
-      const params = resolveParamExpressions(cls.params, resolveParams(cls.params, node.params), inputs);
+      if (paramsError !== undefined) throw paramsError;
       const issues = validateParams(cls.params, params);
       if (issues.length > 0) throw new Error(`Invalid parameters after resolving expressions: ${issues.map((i) => i.message).join("; ")}`);
       const raw = await new cls().run(inputs, params, ctx);

@@ -43,7 +43,7 @@ export function useWatch(flowId: string, enabled: boolean, nodeIds: string[]) {
               const parsed = watchMessageSchema.safeParse(JSON.parse(line));
               if (!parsed.success) continue;
               const m = parsed.data;
-              if (m.type === "run:start") setState({ ...IDLE_RUN, status: "running" });
+              if (m.type === "run:start") setState((s) => ({ ...IDLE_RUN, status: "running", nodeDetails: s.nodeDetails }));
               else if (m.type === "run:event") setState((s) => reduceRun(s, m.event, idsRef.current));
             }
           }

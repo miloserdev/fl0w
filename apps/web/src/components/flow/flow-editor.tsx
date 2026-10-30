@@ -372,12 +372,12 @@ function Editor() {
       )}
 
       {selectedNode && (
-        <Inspector node={selectedNode} onChange={updateNodeData} onClose={() => selectNode(null)} />
+        <Inspector node={selectedNode} detail={view.nodeDetails[selectedNode.id]} onChange={updateNodeData} onClose={() => selectNode(null)} />
       )}
       <RunPanel
         state={view}
         live={watching ? { connected: watch.connected } : undefined}
-        onClose={watching ? () => setWatchOn(false) : resetRun}
+        onClose={watching ? () => setWatchOn(false) : () => resetRun(true)}
       />
 
       <AddBlockDialog open={addOpen} onOpenChange={setAddOpen} onPick={addBlock} />

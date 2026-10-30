@@ -114,3 +114,47 @@ describe("выражения {{ inputs… }} в параметрах любых 
     });
   });
 });
+
+describe("node:start несёт данные ноды для отладки", () => {
+  const start = async (...a: Parameters<typeof run>) => {
+    const r = await run(...a);
+    return r.events.find((e) => e.event === "node:start" && e.nodeId === "b") as Extract<(typeof r.events)[number], { event: "node:start" }>;
+  };
+
+  it("вход и параметры после подстановки выражений", async () => {
+    const e = await start({ n: 5 }, echo({ n: "{{ inputs.in0.n }}", a: "text" }));
+    expect(e.input).toEqual({ in0: { n: 5 } });
+    expect(e.params).toMatchObject({ n: 5, a: "text" });
+  });
+
+  it("у источника вход пуст", async () => {
+    const r = await run({ x: 1 }, echo({}));
+    const e = r.events.find((x) => x.event === "node:start" && x.nodeId === "s");
+    expect(e).toMatchObject({ input: {} });
+  });
+
+  it("большое значение усекается, а не раздувает событие", async () => {
+    const e = await start({ big: "x".repeat(200_000) }, echo({}));
+    const text = JSON.stringify(e.input);
+    expect(text.length).toBeLessThan(10_000);
+    expect(text).toContain("truncated");
+  });
+
+  it("ошибка подстановки выражения по-прежнему падает на ноде, а не на старте события", async () => {
+    const r = await run({ n: "abc" }, echo({ n: "{{ inputs.in0.n }}" }));
+    expect(r.done?.error).toMatch(/Invalid parameters/);
+    expect(r.events.some((e) => e.event === "node:error" && e.nodeId === "b")).toBe(true);
+  });
+});
+
+describe("node:start скрывает секреты в параметрах", () => {
+  it("токены и пароли маскируются (в том числе во вложенных объектах), ссылки env: остаются", async () => {
+    const r = await run({ x: 1 }, echo({ list: { Authorization: "Bearer abc", nested: [{ password: "p" }], plain: "ok" }, a: "x" }));
+    const e = r.events.find((x) => x.event === "node:start" && x.nodeId === "b") as { params: Record<string, Json> };
+    expect(JSON.stringify(e.params)).not.toMatch(/Bearer abc|"p"/);
+    expect(e.params["list"]).toEqual({ Authorization: "***", nested: [{ password: "***" }], plain: "ok" });
+    const ref = await run({ x: 1 }, echo({ list: { token: "env:FL0W_SECRET_X" } }));
+    const e2 = ref.events.find((x) => x.event === "node:start" && x.nodeId === "b") as { params: Record<string, Json> };
+    expect(e2.params["list"]).toEqual({ token: "env:FL0W_SECRET_X" });
+  });
+});

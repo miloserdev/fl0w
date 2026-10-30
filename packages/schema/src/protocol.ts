@@ -18,7 +18,13 @@ export type RunnerCommand = z.infer<typeof runnerCommandSchema>;
 
 /** runner → web */
 export const runnerEventSchema = z.discriminatedUnion("event", [
-  z.object({ event: z.literal("node:start"), nodeId: z.string() }),
+  z.object({
+    event: z.literal("node:start"),
+    nodeId: z.string(),
+    /** Данные на входах ноды и её параметры после подстановки выражений (для отладки); большие значения усечены. */
+    input: z.record(z.string(), jsonSchema).optional(),
+    params: z.record(z.string(), jsonSchema).optional(),
+  }),
   z.object({ event: z.literal("node:log"), nodeId: z.string(), message: z.string() }),
   z.object({
     event: z.literal("node:done"),

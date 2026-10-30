@@ -217,7 +217,7 @@ describe("runFlow", () => {
       const { events } = await collect(demo);
       const i = events.findIndex((e) => e.event === "node:log");
       expect(events[i]).toEqual({ event: "node:log", nodeId: "tr", message: "transform:tag" });
-      expect(events[i - 1]).toEqual({ event: "node:start", nodeId: "tr" });
+      expect(events[i - 1]).toMatchObject({ event: "node:start", nodeId: "tr" });
       expect(events[i + 1]).toMatchObject({ event: "node:done", nodeId: "tr" });
     });
 

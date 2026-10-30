@@ -117,7 +117,15 @@
     "outOfRange": "Out of range: {range}",
     "expressionToggle": "Expression: data from the previous node",
     "fixedToggle": "Back to a fixed value",
-    "expressionsHint": "Any parameter can use data from the previous node: '{{ inputs.in0.field }}'. For numbers, switches and lists use the curly-braces button."
+    "expressionsHint": "Any parameter can use data from the previous node: '{{ inputs.in0.field }}'. For numbers, switches and lists use the curly-braces button.",
+    "tabData": "Data",
+    "dataEmpty": "This node did not take part in the last run. Run the flow to see its data here.",
+    "dataHint": "Last run in which the node took part. Large values are truncated.",
+    "dataError": "Error",
+    "dataInput": "Input",
+    "dataParams": "Parameters (after expressions)",
+    "dataOutput": "Output",
+    "dataLogs": "Log"
   },
   "params": {
     "source": {

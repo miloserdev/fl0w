@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { FLOATING } from "@/lib/floating";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { NodeDetail } from "./use-run";
 import type { BlockNodeData, BlockNodeType } from "@/lib/flow-convert";
 import { BlockIcon } from "./block-icon";
 import { CodeEditor } from "./code-editor";
@@ -20,10 +21,13 @@ import { useBlockLabel } from "./use-block-label";
  */
 export function Inspector({
   node,
+  detail,
   onChange,
   onClose,
 }: {
   node: BlockNodeType;
+  /** Данные ноды из последнего запуска (если она в нём участвовала). */
+  detail?: NodeDetail;
   onChange: (id: string, patch: Partial<BlockNodeData>) => void;
   onClose: () => void;
 }) {
@@ -56,6 +60,7 @@ export function Inspector({
           <TabsTrigger value="params">{t("tabParams")}</TabsTrigger>
           {codeParam && <TabsTrigger value="code">{t("tabCode")}</TabsTrigger>}
           <TabsTrigger value="css">{t("tabCss")}</TabsTrigger>
+          <TabsTrigger value="data">{t("tabData")}</TabsTrigger>
         </TabsList>
         <TabsContent value="params" className="min-h-0 overflow-y-auto">
           <div>
@@ -88,6 +93,22 @@ export function Inspector({
             </div>
           </TabsContent>
         )}
+        <TabsContent value="data" className="min-h-0 overflow-y-auto">
+          <div className="space-y-3 p-3">
+            {!detail ? (
+              <p className="text-muted-foreground text-sm">{t("dataEmpty")}</p>
+            ) : (
+              <>
+                <p className="text-muted-foreground text-xs">{t("dataHint")}</p>
+                {detail.error !== undefined && <DataBlock title={t("dataError")} text={detail.error} tone="error" />}
+                <DataBlock title={t("dataInput")} text={detail.input === undefined ? undefined : JSON.stringify(detail.input, null, 2)} />
+                <DataBlock title={t("dataParams")} text={detail.params === undefined ? undefined : JSON.stringify(detail.params, null, 2)} />
+                <DataBlock title={t("dataOutput")} text={detail.output === undefined ? undefined : JSON.stringify(detail.output, null, 2)} />
+                {detail.logs.length > 0 && <DataBlock title={t("dataLogs")} text={detail.logs.join("\n")} />}
+              </>
+            )}
+          </div>
+        </TabsContent>
         <TabsContent value="css" className="flex min-h-0 flex-col">
           <div className="flex items-center justify-between gap-2 px-3 py-2">
             <p className="text-muted-foreground text-xs">{t("cssHint")}</p>
@@ -117,5 +138,21 @@ export function Inspector({
         </TabsContent>
       </Tabs>
     </aside>
+  );
+}
+
+function DataBlock({ title, text, tone }: { title: string; text?: string; tone?: "error" }) {
+  return (
+    <section>
+      <h3 className="mb-1 text-xs font-medium">{title}</h3>
+      <pre
+        className={cn(
+          "bg-muted max-h-64 overflow-auto rounded-md p-2 font-mono text-xs break-words whitespace-pre-wrap",
+          tone === "error" && "text-destructive",
+        )}
+      >
+        {text ?? "—"}
+      </pre>
+    </section>
   );
 }
