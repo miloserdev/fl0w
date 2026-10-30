@@ -23,6 +23,8 @@ class Runtime {
     // Переменная выставляется в окружение сервера, поэтому её наследуют процессы-раннеры.
     const filesDir = process.env["FL0W_FILES_DIR"] ?? path.join(/* turbopackIgnore: true */ process.cwd(), ".data", "files");
     process.env["FL0W_FILES_DIR"] = filesDir;
+    // Каталог банков памяти (блок Memory Bank, драйвер json): рядом с данными флоу, наследуется процессами-раннерами.
+    process.env["FL0W_MEMORY_DIR"] ??= path.join(/* turbopackIgnore: true */ process.cwd(), ".data", "memory");
     this.scheduler = new Scheduler({
       store: this.store,
       hub: this.hub,

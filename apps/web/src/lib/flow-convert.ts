@@ -1,6 +1,6 @@
 import type { Edge, Node } from "@xyflow/react";
-import { getNodePorts, registry } from "@fl0w/blocks";
-import type { Flow, FlowNode, Json, PortsDef } from "@fl0w/schema";
+import { getNodePorts, isDataPort, portKind, registry } from "@fl0w/blocks";
+import type { Flow, FlowNode, Json, PortDef, PortKind, PortsDef } from "@fl0w/schema";
 
 export type BlockNodeData = {
   blockType: string;
@@ -16,6 +16,43 @@ export type FlowMeta = Pick<Flow, "id" | "name">;
 export function getPorts(blockType: string, override: PortsDef | null): PortsDef {
   const cls = registry[blockType];
   return cls ? getNodePorts(cls, override) : { inputs: [], outputs: [] };
+}
+
+/** Порты, разделённые на данные (по бокам) и ресурсные (снизу у хозяина, сверху у ресурса). */
+export function splitPorts(ports: PortsDef): {
+  dataIn: PortDef[];
+  dataOut: PortDef[];
+  resourceIn: PortDef[];
+  resourceOut: PortDef[];
+} {
+  return {
+    dataIn: ports.inputs.filter(isDataPort),
+    dataOut: ports.outputs.filter(isDataPort),
+    resourceIn: ports.inputs.filter((p) => !isDataPort(p)),
+    resourceOut: ports.outputs.filter((p) => !isDataPort(p)),
+  };
+}
+
+/** Вид порта по инстансу ноды; null — нет такого блока или порта. */
+export function nodePortKind(
+  blockType: string,
+  override: PortsDef | null,
+  side: "inputs" | "outputs",
+  portId: string | null | undefined,
+): PortKind | null {
+  const port = getPorts(blockType, override)[side].find((p) => p.id === portId);
+  return port ? portKind(port) : null;
+}
+
+/** Класс CSS ребра: ресурсные рёбра (источник — не порт данных) рисуются пунктиром. */
+export function edgeClassFor(kind: PortKind | null): string | undefined {
+  return kind && kind !== "data" ? `fl-edge-resource fl-edge-${kind}` : undefined;
+}
+
+/** Вид ребра по узлам флоу (для проставления className). */
+export function edgeClass(flow: Pick<Flow, "nodes">, source: string, sourcePort: string): string | undefined {
+  const n = flow.nodes.find((x) => x.id === source);
+  return n ? edgeClassFor(nodePortKind(n.type, n.portsOverride, "outputs", sourcePort)) : undefined;
 }
 
 export function defaultParams(blockType: string): Record<string, Json> {
@@ -53,6 +90,7 @@ export function toReactFlow(flow: Flow): { nodes: BlockNodeType[]; edges: Edge[]
       sourceHandle: e.sourcePort,
       target: e.target,
       targetHandle: e.targetPort,
+      className: edgeClass(flow, e.source, e.sourcePort),
     })),
   };
 }

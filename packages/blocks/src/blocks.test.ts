@@ -266,12 +266,13 @@ describe("HttpRequest", () => {
 });
 
 describe("реестр и метаданные", () => {
-  it("36 блоков: MVP + аналоги core-нод n8n + Telegram", () => {
+  it("42 блока: MVP + аналоги core-нод n8n + Telegram + Code Agent, инструменты и банк памяти", () => {
     expect(Object.keys(registry).sort()).toEqual([
-      "activation_trigger", "aggregate", "branch", "code", "compare_datasets", "crypto", "datetime", "error_trigger", "every",
-      "files", "filter", "http_request", "jwt", "limit", "local_file_trigger", "manual", "merge", "noop", "remove_duplicates",
+      "activation_trigger", "aggregate", "branch", "code", "code_agent", "compare_datasets", "crypto", "datetime", "error_trigger", "every",
+      "files", "filter", "http_request", "jwt", "limit", "local_file_trigger", "manual", "memory_bank", "merge", "noop", "remove_duplicates",
       "rename_keys", "respond_to_webhook", "result", "set", "shell", "sort", "source", "split_out", "stop_and_error",
-      "summarize", "switch", "telegram", "telegram_trigger", "transform", "wait", "webhook", "workflow_trigger",
+      "summarize", "switch", "telegram", "telegram_trigger", "tool_calculator", "tool_code", "tool_datetime", "tool_random",
+      "transform", "wait", "webhook", "workflow_trigger",
     ]);
   });
   it("ключ реестра = static type; метаданные заполнены", () => {
@@ -313,9 +314,11 @@ describe("реестр и метаданные", () => {
       expect(readFileSync(new URL(f, dir), "utf8"), f).not.toMatch(/^import .* from "node:/m);
     }
   });
-  it("только Code-блок имеет параметр-редактор кода", () => {
+  it("параметр-редактор кода только у блоков, исполняющих код из флоу (Code, Code Agent, Code Tool)", () => {
     const withEditor = Object.values(registry).filter((c) => c.params.some((p) => p.editor === "code"));
-    expect(withEditor.map((c) => c.type)).toEqual(["code"]);
+    expect(withEditor.map((c) => c.type).sort()).toEqual(["code", "code_agent", "tool_code"]);
+    // и только они помечены expressions: false — шаблоны в код не подставляются
+    for (const c of withEditor) expect(c.params.find((p) => p.editor === "code")?.expressions).toBe(false);
   });
 });
 

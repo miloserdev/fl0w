@@ -1,5 +1,6 @@
-import { getNodePorts, validateParams, type BlockClass } from "@fl0w/blocks";
+import { getNodePorts, portKind, validateParams, type BlockClass } from "@fl0w/blocks";
 import { flowSchema, type Flow } from "@fl0w/schema";
+import { dataView } from "./resources";
 import { toposort } from "./toposort";
 
 export type FlowIssueCode =
@@ -10,6 +11,7 @@ export type FlowIssueCode =
   | "unknown_node"
   | "unknown_port"
   | "port_occupied"
+  | "port_kind"
   | "cycle"
   | "param_required"
   | "param_type"
@@ -133,8 +135,21 @@ export function validateFlow(input: unknown, registry: Registry): ValidationResu
       });
     }
 
+    // соединяются только порты одного вида: данные с данными, инструмент с инструментом, память с памятью
+    const srcPort = src?.outputs.find((p) => p.id === e.sourcePort);
+    const dstPort = dst?.inputs.find((p) => p.id === e.targetPort);
+    if (srcPort && dstPort && portKind(srcPort) !== portKind(dstPort)) {
+      issues.push({
+        code: "port_kind",
+        edgeId: e.id,
+        nodeId: e.target,
+        port: e.targetPort,
+        message: `Edge "${e.id}": a ${portKind(srcPort)} output cannot be connected to a ${portKind(dstPort)} input`,
+      });
+    }
+
     const key = `${e.target}\u0000${e.targetPort}`;
-    if (usedInputs.has(key)) {
+    if (usedInputs.has(key) && !dstPort?.multiple) {
       issues.push({
         code: "port_occupied",
         edgeId: e.id,
@@ -146,7 +161,7 @@ export function validateFlow(input: unknown, registry: Registry): ValidationResu
     usedInputs.add(key);
   }
 
-  const topo = toposort(flow);
+  const topo = toposort(dataView(flow, registry));
   if (!topo.ok) {
     issues.push({
       code: "cycle",

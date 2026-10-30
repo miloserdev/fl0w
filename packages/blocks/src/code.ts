@@ -34,7 +34,7 @@ return { out0: inputs.in0 ?? null }
  * иначе объекты хост-реалма (`fetch.constructor.constructor("return process")()`) дали бы выход наружу.
  * Поэтому данные парсятся здесь, а fetch — обёртка над строковым мостом `host.fetch`.
  */
-const BOOTSTRAP = `(() => {
+const makeBootstrap = (extra: string) => `(() => {
   const host = __host;
   delete globalThis.__host;
   // встроенный console контекста — не часть env; пользователю дан log
@@ -73,6 +73,8 @@ const BOOTSTRAP = `(() => {
     };
   };
 
+  ${extra}
+
   return (r) => {
     if (r === null || typeof r !== "object" || Array.isArray(r)) {
       throw new TypeError("Code must return an object like { out0: <json> }");
@@ -103,6 +105,14 @@ export class CodeBlock extends Block {
     { name: "timeoutMs", type: "number", default: 10000 },
   ];
   static codeTypes = CODE_ENV_TYPES;
+
+  /**
+   * Расширение окружения кода для наследников (Code Agent): строковые функции моста `host` и код инициализации внутри
+   * vm-контекста (имеет доступ к `host`, объявленному выше). Через границу контекста ходят только строки.
+   */
+  protected bridge(_ctx: RunContext): { host: Record<string, unknown>; bootstrap: string } {
+    return { host: {}, bootstrap: "" };
+  }
 
   async run(inputs: Record<string, Json>, params: Record<string, Json>, ctx: RunContext) {
     // node-only API — только внутри тела run (SPEC §3, изоморфность модуля)
@@ -146,18 +156,20 @@ export class CodeBlock extends Block {
     };
 
     // env: единственное, что видит код. require / fs / process сюда НЕ попадают.
+    const extra = this.bridge(ctx);
     const host = {
       inputs: JSON.stringify(inputs),
       params: JSON.stringify(userParams),
       log: (msg: string) => ctx.log(msg),
       fetch: hostFetch,
+      ...extra.host,
     };
 
     // Прототип sandbox обязан быть null: иначе `globalThis.constructor` — это Object ХОСТА,
     // и `globalThis.constructor.constructor("return process")()` выдаёт process (классический escape).
     const sandbox = Object.assign(Object.create(null) as Record<string, unknown>, { __host: host });
     const context = vm.createContext(sandbox);
-    const serialize = vm.runInContext(BOOTSTRAP, context, { filename: "code-bootstrap.js" }) as (r: unknown) => string;
+    const serialize = vm.runInContext(makeBootstrap(extra.bootstrap), context, { filename: "code-bootstrap.js" }) as (r: unknown) => string;
     // тело пользователя начинается на первой строке — номера строк в ошибках совпадают с редактором
     const script = new vm.Script(`(async function () {${code}\n})()`, { filename: "code-block.js" });
 

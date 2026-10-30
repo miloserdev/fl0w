@@ -26,6 +26,7 @@ const issueCodes = Object.keys({
   unknown_node: 1,
   unknown_port: 1,
   port_occupied: 1,
+  port_kind: 1,
   cycle: 1,
   param_required: 1,
   param_type: 1,

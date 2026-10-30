@@ -8,6 +8,7 @@ import {
 } from "@fl0w/blocks";
 import { jsonSchema, type Flow, type Json, type RunnerEvent } from "@fl0w/schema";
 import { z } from "zod";
+import { buildResources, dataView } from "./resources";
 import { participatingNodes } from "./participants";
 import { toposort } from "./toposort";
 import { formatIssues, validateFlow, type Registry } from "./validate";
@@ -91,7 +92,9 @@ export async function runFlow(
   }
   const flow: Flow = validation.flow;
 
-  const topo = toposort(flow);
+  // порядок и ожидание входов — только по рёбрам данных; ресурсные рёбра (инструменты, память) читает хозяин
+  const dataFlow = dataView(flow, registry);
+  const topo = toposort(dataFlow);
   if (!topo.ok) {
     finish({ error: "Invalid flow: cycle" });
     return;
@@ -108,7 +111,7 @@ export async function runFlow(
   }
   const incoming = new Map<string, Flow["edges"]>();
   const outgoing = new Map<string, Flow["edges"]>();
-  for (const e of flow.edges) {
+  for (const e of dataFlow.edges) {
     incoming.set(e.target, [...(incoming.get(e.target) ?? []), e]);
     outgoing.set(e.source, [...(outgoing.get(e.source) ?? []), e]);
   }
@@ -126,6 +129,7 @@ export async function runFlow(
     }
 
     if (!participants.has(id)) continue; // нет связи со стартовой нодой
+    if (registry[nodes.get(id)!.type]?.resource) continue; // sub-node: её вызывает хозяин
     const node = nodes.get(id)!;
     // другие триггеры в этом запуске молчат: он начат от выбранного
     if (opts.trigger !== undefined && registry[node.type]!.isTrigger && id !== opts.trigger) continue;
@@ -164,6 +168,10 @@ export async function runFlow(
       };
       // после подстановки параметры проверяются ещё раз — например, число из выражения должно быть числом
       if (paramsError !== undefined) throw paramsError;
+      // инструменты и память, подключённые к ресурсным портам этой ноды
+      const res = buildResources(flow, registry, id, inputs, ctx.log);
+      ctx.tools = res.tools;
+      ctx.memory = res.memory;
       const issues = validateParams(cls.params, params);
       if (issues.length > 0) throw new Error(`Invalid parameters after resolving expressions: ${issues.map((i) => i.message).join("; ")}`);
       const raw = await new cls().run(inputs, params, ctx);

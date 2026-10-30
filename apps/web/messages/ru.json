@@ -46,7 +46,9 @@
     "data": "Данные",
     "flow": "Логика",
     "trigger": "Триггеры",
-    "app": "Приложения"
+    "app": "Приложения",
+    "tool": "Инструменты",
+    "memory": "Память"
   },
   "blocks": {
     "source": "Источник",
@@ -84,7 +86,13 @@
     "workflow_trigger": "Событие флоу",
     "activation_trigger": "Активация",
     "telegram": "Telegram",
-    "telegram_trigger": "Telegram: обновления"
+    "telegram_trigger": "Telegram: обновления",
+    "code_agent": "Code Agent",
+    "tool_datetime": "Инструмент: дата и время",
+    "tool_calculator": "Инструмент: калькулятор",
+    "tool_random": "Инструмент: случайные значения",
+    "tool_code": "Инструмент: свой код",
+    "memory_bank": "Банк памяти"
   },
   "node": {
     "unknown": "Неизвестный блок: {type}",
@@ -348,6 +356,32 @@
       "userIds": "Только пользователи (id через запятую)",
       "dropPending": "Сбросить накопленные при запуске",
       "mode": "Способ получения"
+    },
+    "code_agent": {
+      "timeoutMs": "Таймаут, мс"
+    },
+    "tool_datetime": {
+      "name": "Имя инструмента",
+      "description": "Описание",
+      "timezone": "Часовой пояс по умолчанию (IANA)"
+    },
+    "tool_calculator": {
+      "name": "Имя инструмента",
+      "description": "Описание"
+    },
+    "tool_random": {
+      "name": "Имя инструмента",
+      "description": "Описание"
+    },
+    "tool_code": {
+      "name": "Имя инструмента",
+      "description": "Описание",
+      "inputSchema": "Схема аргументов (JSON Schema)",
+      "timeoutMs": "Таймаут, мс"
+    },
+    "memory_bank": {
+      "driver": "Драйвер хранения",
+      "name": "Имя банка"
     }
   },
   "run": {
@@ -582,6 +616,9 @@
       "chat_boost": "Буст чата",
       "removed_chat_boost": "Снятый буст чата",
       "*": "Все (кроме chat_member, реакций)"
+    },
+    "driver": {
+      "json": "json — файл на диске"
     }
   },
   "issues": {
@@ -596,7 +633,8 @@
     "param_required": "Блок «{node}»: параметр «{param}» обязателен",
     "param_type": "Блок «{node}»: параметр «{param}» имеет неверный тип",
     "param_enum": "Блок «{node}»: недопустимое значение параметра «{param}»",
-    "param_range": "Блок «{node}»: значение параметра «{param}» вне допустимого диапазона"
+    "param_range": "Блок «{node}»: значение параметра «{param}» вне допустимого диапазона",
+    "port_kind": "Нельзя соединить порты разного вида (данные, инструмент, память)"
   },
   "addBlock": {
     "title": "Добавить блок",
@@ -627,6 +665,10 @@
       "out1": "совпали",
       "out2": "отличаются",
       "out3": "только B"
+    },
+    "code_agent": {
+      "tools": "Инструменты",
+      "memory": "Память"
     }
   }
 }

@@ -16,6 +16,12 @@ import { cn } from "@/lib/utils";
 import { BlockIcon } from "./block-icon";
 import { useBlockLabel } from "./use-block-label";
 
+const CATEGORY_ORDER = ["trigger", "io", "data", "flow", "app", "tool", "memory"];
+const categoryRank = (c: string) => {
+  const i = CATEGORY_ORDER.indexOf(c);
+  return i === -1 ? CATEGORY_ORDER.length : i;
+};
+
 /** Окно выбора блока: типы берутся из реестра, сгруппированы по `category`. */
 export function AddBlockDialog({
   open,
@@ -38,6 +44,9 @@ export function AddBlockDialog({
     groups.set(cls.category, [...(groups.get(cls.category) ?? []), type]);
   }
 
+  // порядок категорий: известные — по списку, остальные — следом в порядке реестра
+  const ordered = [...groups].sort(([a], [b]) => categoryRank(a) - categoryRank(b));
+
   return (
     <Dialog
       open={open}
@@ -59,7 +68,7 @@ export function AddBlockDialog({
           aria-label={t("addBlock.search")}
         />
         {groups.size === 0 && <p className="text-muted-foreground text-sm">{t("addBlock.empty")}</p>}
-        {[...groups].map(([category, types]) => (
+        {ordered.map(([category, types]) => (
           <section key={category} className="flex flex-col gap-2">
             <h3 className="text-muted-foreground text-xs uppercase">
               {t.has(`categories.${category}`) ? t(`categories.${category}`) : category}

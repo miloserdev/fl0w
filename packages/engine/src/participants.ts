@@ -1,5 +1,6 @@
 import { getNodePorts } from "@fl0w/blocks";
 import type { Flow } from "@fl0w/schema";
+import { edgeKind } from "./resources";
 import type { Registry } from "./validate";
 
 function closure(from: Iterable<string>, next: (id: string) => string[]): Set<string> {
@@ -18,7 +19,7 @@ function closure(from: Iterable<string>, next: (id: string) => string[]): Set<st
 export function isDataSource(flow: Flow, registry: Registry, nodeId: string): boolean {
   const node = flow.nodes.find((n) => n.id === nodeId);
   const cls = node && registry[node.type];
-  return !!cls && !cls.isTrigger && getNodePorts(cls, node.portsOverride).inputs.length === 0;
+  return !!cls && !cls.resource && !cls.isTrigger && getNodePorts(cls, node.portsOverride).inputs.length === 0;
 }
 
 /**
@@ -33,6 +34,7 @@ export function participatingNodes(flow: Flow, registry: Registry, trigger?: str
   const outgoing = new Map<string, string[]>();
   const incoming = new Map<string, string[]>();
   for (const e of flow.edges) {
+    if (edgeKind(flow, registry, e) !== "data") continue; // инструменты и память не передают данные
     outgoing.set(e.source, [...(outgoing.get(e.source) ?? []), e.target]);
     incoming.set(e.target, [...(incoming.get(e.target) ?? []), e.source]);
   }

@@ -34,6 +34,9 @@ import { Merge } from "./merge";
 import { ResultBlock } from "./result";
 import { Source } from "./source";
 import { Transform } from "./transform";
+import { CodeAgent } from "./code-agent";
+import { MemoryBank } from "./memory";
+import { CalculatorTool, CodeTool, DateTimeTool, RandomTool } from "./tools";
 
 export type BlockClass = (new () => Block) & typeof Block;
 
@@ -71,6 +74,13 @@ export const registry: Record<string, BlockClass> = {
   crypto: Crypto,
   jwt: Jwt,
   code: CodeBlock,
+  code_agent: CodeAgent,
+  // ресурсы: подключаются к ресурсным портам нод (инструменты, память)
+  tool_datetime: DateTimeTool,
+  tool_calculator: CalculatorTool,
+  tool_random: RandomTool,
+  tool_code: CodeTool,
+  memory_bank: MemoryBank,
   // логика
   branch: Branch,
   switch: Switch,

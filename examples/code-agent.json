@@ -1,0 +1,126 @@
+{
+  "version": 1,
+  "id": "flow_code_agent",
+  "name": "code-agent",
+  "nodes": [
+    {
+      "id": "src",
+      "type": "source",
+      "position": {
+        "x": 0,
+        "y": 120
+      },
+      "params": {
+        "json": {
+          "timezone": "Europe/Berlin",
+          "expression": "(2 + 3) * sqrt(16)"
+        }
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "agent",
+      "type": "code_agent",
+      "position": {
+        "x": 300,
+        "y": 100
+      },
+      "params": {
+        "code": "// Инструменты и память подключены снизу. tools.list() показывает, что доступно.\nlog(\"tools:\", tools.list().map((t) => t.name).join(\", \"))\nconst now = await tools.call(\"current_datetime\", { timezone: inputs.in0.timezone })\nconst calc = await tools.call(\"calculator\", { expression: inputs.in0.expression })\nconst visits = ((await memory.get(\"visits\")) ?? 0) + 1\nawait memory.set(\"visits\", visits)\nconst history = await memory.append(\"history\", { at: now.iso, result: calc.result }, 5)\nreturn { out0: { now, calc, visits, history } }\n",
+        "timeoutMs": 10000
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "t_time",
+      "type": "tool_datetime",
+      "position": {
+        "x": 260,
+        "y": 300
+      },
+      "params": {
+        "name": "current_datetime",
+        "timezone": "UTC"
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "t_calc",
+      "type": "tool_calculator",
+      "position": {
+        "x": 380,
+        "y": 300
+      },
+      "params": {
+        "name": "calculator"
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "mem",
+      "type": "memory_bank",
+      "position": {
+        "x": 500,
+        "y": 300
+      },
+      "params": {
+        "driver": "json",
+        "name": "example-agent"
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "res",
+      "type": "result",
+      "position": {
+        "x": 700,
+        "y": 120
+      },
+      "params": {},
+      "portsOverride": null,
+      "cssOverride": null
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "src",
+      "sourcePort": "out0",
+      "target": "agent",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e2",
+      "source": "agent",
+      "sourcePort": "out0",
+      "target": "res",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e3",
+      "source": "t_time",
+      "sourcePort": "tool",
+      "target": "agent",
+      "targetPort": "tools"
+    },
+    {
+      "id": "e4",
+      "source": "t_calc",
+      "sourcePort": "tool",
+      "target": "agent",
+      "targetPort": "tools"
+    },
+    {
+      "id": "e5",
+      "source": "mem",
+      "sourcePort": "memory",
+      "target": "agent",
+      "targetPort": "memory"
+    }
+  ]
+}

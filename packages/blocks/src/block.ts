@@ -30,11 +30,36 @@ export type TelegramSpec = {
 export type LifecycleReason = "publish" | "update" | "startup";
 export type LifecycleSpec = Record<LifecycleReason, boolean>;
 
+/** Инструмент, подключённый к ноде (sub-node вида tool): хозяин вызывает его по имени. */
+export type ToolHandle = {
+  name: string;
+  description: string;
+  /** Описание аргументов (JSON Schema-подобный объект) — для подсказок и будущего LLM-агента. */
+  inputSchema: Json;
+  call(args: Json): Promise<Json>;
+};
+
+/** Банк памяти, подключённый к ноде (sub-node вида memory): ключ → JSON; драйвер хранения скрыт за интерфейсом. */
+export type MemoryHandle = {
+  name: string;
+  driver: string;
+  get(key: string): Promise<Json | null>;
+  set(key: string, value: Json): Promise<void>;
+  delete(key: string): Promise<boolean>;
+  keys(): Promise<string[]>;
+  /** Дописывает значение в массив по ключу (создаёт его); `max` — оставить только последние `max` элементов. */
+  append(key: string, value: Json, max?: number): Promise<Json[]>;
+  clear(): Promise<void>;
+};
+
 export interface RunContext {
   log(msg: string): void;
   signal: AbortSignal;
   /** Данные, с которыми сработал триггер этой ноды (например, запрос вебхука); у остальных нод нет. */
   triggerData?: Json;
+  /** Инструменты и память, подключённые к ресурсным портам этой ноды (движок собирает их перед запуском). */
+  tools?: ToolHandle[];
+  memory?: MemoryHandle[];
 }
 
 /**
@@ -49,6 +74,11 @@ export abstract class Block {
   static ports: PortsDef;
   static params: ParamSchema[];
   static defaultCss = "";
+  /**
+   * Ресурсный блок (sub-node): не участвует в потоке данных и не запускается сам, а подключается к ресурсному порту
+   * ноды-хозяина — `tool` (инструмент) или `memory` (банк памяти). null — обычный блок.
+   */
+  static resource: "tool" | "memory" | null = null;
   /** Триггер: нода без входов, с которой стартует запуск (по расписанию или вручную). */
   static isTrigger = false;
   /**

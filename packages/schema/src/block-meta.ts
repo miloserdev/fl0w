@@ -1,9 +1,22 @@
 import { z } from "zod";
 import { jsonSchema } from "./json";
 
+/**
+ * Вид порта: `data` — обычный порт данных; `tool` и `memory` — порты подключения «ресурсов» (инструментов и памяти) к
+ * ноде-хозяину, как sub-nodes у AI Agent в n8n. Соединяются только порты одного вида. Рёбра ресурсов не участвуют в потоке
+ * данных (порядок, ожидание входов, циклы): хозяин получает ресурсы в `ctx` при запуске.
+ */
+export const PORT_KINDS = ["data", "tool", "memory"] as const;
+export const portKindSchema = z.enum(PORT_KINDS);
+export type PortKind = z.infer<typeof portKindSchema>;
+
 export const portDefSchema = z.object({
   id: z.string().min(1),
   label: z.string().optional(),
+  /** Нет поля = data. */
+  kind: portKindSchema.optional(),
+  /** Порт принимает несколько рёбер (инструменты); у остальных — одно. */
+  multiple: z.boolean().optional(),
 });
 export type PortDef = z.infer<typeof portDefSchema>;
 

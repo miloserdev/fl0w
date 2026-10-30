@@ -288,3 +288,42 @@ Shell всё равно исполняет произвольные команд
 подстановки выражений, выход, лог и ошибку. Источник — `node:start` (`input`, `params`) и `node:done/error`. Значения крупнее
 50 000 символов усекаются; значения параметров с именами `token`, `secret`, `password`, `api key`, `authorization`, `cookie` маскируются
 (`***`, ссылки `env:` остаются). Данные нод, до которых новый запуск ещё не дошёл, не стираются; на очистку флоу (импорт) — сбрасываются.
+
+## Code Agent, инструменты и банк памяти
+
+По образцу AI Agent в n8n: у ноды-хозяина снизу **ресурсные порты** (ромбы), к ним пунктиром подключаются **sub-nodes** — круглые
+ноды-ресурсы с портом сверху. Вместо языковой модели пока нода с вашим кодом; модель можно добавить позже третьим видом ресурса.
+
+| Блок | Тип | Назначение |
+|---|---|---|
+| **Code Agent** `code_agent` | хозяин | Как Code, плюс `tools`, `memory`, `memories` в коде. Порты: `in0` (данные), `tools` (инструменты, много), `memory` (память, много), `out0` |
+| **Date & Time Tool** `tool_datetime` | инструмент | `current_datetime({timezone?})` → `{iso, date, time, weekday, timezone, utcOffset, unix}`; часовой пояс — IANA |
+| **Calculator Tool** `tool_calculator` | инструмент | `calculator({expression})` → `{expression, result}`; `+ - * / % ^ **`, скобки, `sqrt abs round floor ceil trunc min max pow sin cos tan ln log exp`, `pi`, `e`; без `eval` |
+| **Random Tool** `tool_random` | инструмент | `random({kind: int|float|uuid|pick, min, max, items})` → `{value}` (криптостойкий источник) |
+| **Code Tool** `tool_code` | инструмент | Ваш инструмент: `name`, `description`, `inputSchema`, код (аргументы — `inputs.in0`, результат — `out0`), та же песочница `vm`, что у Code |
+| **Memory Bank** `memory_bank` | память | Банк «ключ → JSON»; `driver` (сейчас `json`: файл `<FL0W_MEMORY_DIR>/<имя>.json`) и `name`. Банки с одним именем — одно хранилище |
+
+Код Code Agent:
+
+```js
+tools.list()                                        // [{ name, description, inputSchema }]
+const t = await tools.call("current_datetime", { timezone: "Europe/Berlin" })
+await tools.run.calculator({ expression: "2 * (3 + 4)" })   // короткая форма
+await memory.set("visits", n)                       // memory — первый подключённый банк
+await memory.get("visits")                          // null, если ключа нет
+await memory.append("history", item, 20)            // дописать в массив, оставить последние 20
+await memory.keys(); await memory.delete("k"); await memory.clear()
+memories.notes.get("x")                             // банки по имени
+```
+
+Правила:
+- **Рёбра ресурсов не часть потока данных**: не влияют на порядок, ожидание входов и циклы; sub-nodes сами не запускаются и не считаются стартовыми.
+  Соединяются только порты одного вида (данные / `tool` / `memory`), иначе ошибка `port_kind`. Порт без `multiple` принимает одно ребро.
+- Параметры sub-node поддерживают `{{ inputs.in0.путь }}` — по **входам хозяина**. Имя инструмента — идентификатор (`[A-Za-z_][A-Za-z0-9_]*`, ≤ 64), в одном хозяине уникально.
+- Каждый вызов инструмента пишется в лог хозяина (`tool имя(аргументы) → результат`, усечено) — вкладка «Данные» и панель результата.
+- Ошибка инструмента или памяти — исключение в коде (его можно перехватить `try/catch`); неперехваченное — ошибка ноды.
+- Память: ключ — строка 1–256 символов (`__proto__` запрещён); значение ≤ 1 МБ, ключей ≤ 10 000, файл ≤ 10 МБ. Запись атомарна (временный файл + `rename`),
+  между процессами-раннерами — lock-файл (зависший снимается через 15 с); повреждённый файл не затирается, а даёт ошибку. Имя банка — `[A-Za-z0-9_-]{1,64}`.
+- Каталог банков — `FL0W_MEMORY_DIR` (по умолчанию `apps/web/.data/memory`, в `.gitignore`). Новые драйверы (SQLite, Redis…) добавляются в `MEMORY_DRIVERS`,
+  подключение к блокам не меняется.
+- Безопасность: в код ресурсы попадают только строковым мостом (как `fetch`), объекты хоста наружу не отдаются; `tools`/`memory` заморожены; код Code Agent и Code Tool — `expressions: false`.

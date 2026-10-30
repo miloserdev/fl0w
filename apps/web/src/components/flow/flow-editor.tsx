@@ -37,7 +37,9 @@ import { Topbar } from "@/components/topbar";
 import { Button } from "@/components/ui/button";
 import {
   defaultParams,
+  edgeClassFor,
   fromReactFlow,
+  nodePortKind,
   newFlowId,
   newNodeId,
   toReactFlow,
@@ -46,6 +48,7 @@ import {
   type BlockNodeType,
   type FlowMeta,
 } from "@/lib/flow-convert";
+import { canConnect } from "@/lib/connection";
 import { FLOATING } from "@/lib/floating";
 import { issueNodeIds, useIssueText } from "@/lib/issue-text";
 import { cn } from "@/lib/utils";
@@ -73,27 +76,13 @@ const AUTOSAVE_DELAY_MS = 400;
 /** Примерный размер ноды: чтобы новый блок встал центром, а не углом в центр экрана. */
 const NODE_HALF = { x: 90, y: 40 };
 
-/** true, если из `from` по рёбрам можно дойти до `to` (нужно для запрета циклов). */
-function reaches(edges: Edge[], from: string, to: string): boolean {
-  const seen = new Set<string>();
-  const stack = [from];
-  while (stack.length) {
-    const id = stack.pop()!;
-    if (id === to) return true;
-    if (seen.has(id)) continue;
-    seen.add(id);
-    for (const e of edges) if (e.source === id) stack.push(e.target);
-  }
-  return false;
-}
-
 function Editor() {
   const t = useTranslations();
   const { resolvedTheme } = useTheme();
   // На сервере тема неизвестна: до гидрации рендерим light, иначе class у React Flow расходится с клиентом.
   const hydrated = useSyncExternalStore(noopSubscribe, () => true, () => false);
   const issueText = useIssueText();
-  const { screenToFlowPosition, getEdges, fitView } = useReactFlow();
+  const { screenToFlowPosition, getEdges, getNodes, fitView } = useReactFlow();
   const [nodes, setNodes, onNodesChange] = useNodesState<BlockNodeType>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [meta, setMeta] = useState<FlowMeta>(() => ({ id: newFlowId(), name: "flow" }));
@@ -266,20 +255,19 @@ function Editor() {
   const selectedNode = selectedNodes.length === 1 ? selectedNodes[0]! : null;
 
   const isValidConnection = useCallback(
-    (c: Connection | Edge) => {
-      if (c.source === c.target) return false;
-      const current = getEdges();
-      // в один входной порт — максимум одно ребро
-      if (current.some((e) => e.target === c.target && e.targetHandle === c.targetHandle)) return false;
-      // граф должен оставаться DAG
-      return !reaches(current, c.target, c.source);
-    },
-    [getEdges],
+    (c: Connection | Edge) => canConnect(getNodes() as BlockNodeType[], getEdges(), c),
+    [getEdges, getNodes],
   );
 
   const onConnect = useCallback(
-    (c: Connection) => setEdges((es) => addEdge({ ...c, id: `e_${Math.random().toString(36).slice(2, 8)}` }, es)),
-    [setEdges],
+    (c: Connection) => {
+      const src = (getNodes() as BlockNodeType[]).find((n) => n.id === c.source);
+      const kind = src ? nodePortKind(src.data.blockType, src.data.portsOverride, "outputs", c.sourceHandle) : null;
+      setEdges((es) =>
+        addEdge({ ...c, id: `e_${Math.random().toString(36).slice(2, 8)}`, className: edgeClassFor(kind) }, es),
+      );
+    },
+    [setEdges, getNodes],
   );
 
   const onRun = () => {

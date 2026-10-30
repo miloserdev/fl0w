@@ -102,3 +102,39 @@
     animation: none;
   }
 }
+
+/* Ресурсные рёбра (инструменты, память) — пунктиром. */
+.react-flow__edge.fl-edge-resource .react-flow__edge-path {
+  stroke-dasharray: 5 4;
+}
+.react-flow__edge.fl-edge-tool .react-flow__edge-path {
+  stroke: oklch(0.62 0.12 200);
+}
+.react-flow__edge.fl-edge-memory .react-flow__edge-path {
+  stroke: oklch(0.62 0.14 300);
+}
+
+/* Ромбовидные порты ресурсов. */
+.react-flow__handle.fl-diamond {
+  width: 10px;
+  height: 10px;
+  border-radius: 1px;
+  background: oklch(0.62 0.12 200);
+  border: 1px solid var(--background);
+}
+.react-flow__handle-top.fl-diamond {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+.react-flow__handle-bottom.fl-diamond {
+  transform: translate(-50%, 50%) rotate(45deg);
+}
+.react-flow__handle.fl-diamond.fl-memory {
+  background: oklch(0.62 0.14 300);
+}
+/* Подсветка допустимых целей при перетаскивании линии. */
+.react-flow__handle.fl-diamond.connectingfrom {
+  box-shadow: 0 0 0 3px oklch(0.7 0.15 250 / 0.4);
+}
+.react-flow__handle.fl-diamond.valid {
+  box-shadow: 0 0 0 4px oklch(0.72 0.17 150 / 0.55);
+}

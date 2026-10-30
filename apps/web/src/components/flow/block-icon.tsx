@@ -3,6 +3,8 @@ import {
   ArrowRightLeft,
   ArrowUpDown,
   BadgeCheck,
+  Bot,
+  Calculator,
   Box,
   CalendarClock,
   Clock,
@@ -10,6 +12,7 @@ import {
   CopyX,
   CornerUpLeft,
   Database,
+  Dices,
   Filter,
   FileText,
   Flag,
@@ -77,6 +80,9 @@ const icons: Record<string, LucideIcon> = {
   workflow: Workflow,
   power: Power,
   terminal: Terminal,
+  bot: Bot,
+  calculator: Calculator,
+  dices: Dices,
 };
 
 export function BlockIcon({ name, className }: { name: string; className?: string }) {

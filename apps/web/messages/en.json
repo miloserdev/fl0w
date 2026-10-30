@@ -46,7 +46,9 @@
     "data": "Data",
     "flow": "Logic",
     "trigger": "Triggers",
-    "app": "Apps"
+    "app": "Apps",
+    "tool": "Tools",
+    "memory": "Memory"
   },
   "blocks": {
     "source": "Source",
@@ -84,7 +86,13 @@
     "workflow_trigger": "Workflow Trigger",
     "activation_trigger": "Activation Trigger",
     "telegram": "Telegram",
-    "telegram_trigger": "Telegram Trigger"
+    "telegram_trigger": "Telegram Trigger",
+    "code_agent": "Code Agent",
+    "tool_datetime": "Tool: date & time",
+    "tool_calculator": "Tool: calculator",
+    "tool_random": "Tool: random values",
+    "tool_code": "Tool: custom code",
+    "memory_bank": "Memory Bank"
   },
   "node": {
     "unknown": "Unknown block: {type}",
@@ -348,6 +356,32 @@
       "userIds": "Only these users (comma-separated ids)",
       "dropPending": "Drop pending updates on start",
       "mode": "How to receive"
+    },
+    "code_agent": {
+      "timeoutMs": "Timeout, ms"
+    },
+    "tool_datetime": {
+      "name": "Tool name",
+      "description": "Description",
+      "timezone": "Default time zone (IANA)"
+    },
+    "tool_calculator": {
+      "name": "Tool name",
+      "description": "Description"
+    },
+    "tool_random": {
+      "name": "Tool name",
+      "description": "Description"
+    },
+    "tool_code": {
+      "name": "Tool name",
+      "description": "Description",
+      "inputSchema": "Arguments schema (JSON Schema)",
+      "timeoutMs": "Timeout, ms"
+    },
+    "memory_bank": {
+      "driver": "Storage driver",
+      "name": "Bank name"
     }
   },
   "run": {
@@ -582,6 +616,9 @@
       "chat_boost": "chat_boost",
       "removed_chat_boost": "removed_chat_boost",
       "*": "All (except chat_member and reactions)"
+    },
+    "driver": {
+      "json": "json — file on disk"
     }
   },
   "issues": {
@@ -596,7 +633,8 @@
     "param_required": "Block “{node}”: parameter “{param}” is required",
     "param_type": "Block “{node}”: parameter “{param}” has the wrong type",
     "param_enum": "Block “{node}”: invalid value for parameter “{param}”",
-    "param_range": "Block “{node}”: parameter “{param}” is out of range"
+    "param_range": "Block “{node}”: parameter “{param}” is out of range",
+    "port_kind": "Ports of different kinds cannot be connected (data, tool, memory)"
   },
   "addBlock": {
     "title": "Add block",
@@ -627,6 +665,10 @@
       "out1": "same",
       "out2": "different",
       "out3": "B only"
+    },
+    "code_agent": {
+      "tools": "Tools",
+      "memory": "Memory"
     }
   }
 }

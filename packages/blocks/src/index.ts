@@ -1,4 +1,5 @@
 export * from "./block";
+export * from "./resources";
 export * from "./registry";
 export * from "./ports";
 export * from "./params";
@@ -46,3 +47,6 @@ export { Telegram, TELEGRAM_OPERATIONS, TELEGRAM_TOKEN_ENV } from "./telegram";
 export { TELEGRAM_API_ENV, TelegramError, apiBase, callTelegram, downloadTelegramFile } from "./telegram-api";
 export { SECRET_ENV_PREFIX, redact, resolveSecret } from "./secrets";
 export { PUBLIC_URL_ENV, TelegramTrigger, TELEGRAM_UPDATE_TYPES, TELEGRAM_OPT_IN_UPDATES } from "./telegram-trigger";
+export { CodeAgent, CODE_AGENT_ENV_TYPES } from "./code-agent";
+export { MEMORY_DIR_ENV, MEMORY_DRIVERS, MEMORY_LIMITS, MemoryBank, assertBankName, createJsonDriver, createMemoryHandle, type MemoryDriver } from "./memory";
+export { CalculatorTool, CodeTool, DateTimeTool, RandomTool, calculate, currentDateTime } from "./tools";

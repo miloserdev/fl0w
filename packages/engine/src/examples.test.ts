@@ -43,9 +43,28 @@ const result = (events: RunnerEvent[]) => {
 };
 
 describe("examples/*.json", () => {
+  it("code-agent: инструменты и память, подключённые к ресурсным портам, доступны коду", async () => {
+    const memDir = mkdtempSync(path.join(tmpdir(), "fl0w-mem-"));
+    const saved = process.env["FL0W_MEMORY_DIR"];
+    process.env["FL0W_MEMORY_DIR"] = memDir;
+    try {
+      const out = result(await run("code-agent.json")) as { now: { timezone: string }; calc: { result: number }; visits: number; history: unknown[] };
+      expect(out.calc.result).toBe(20);
+      expect(out.now.timezone).toBe("Europe/Berlin");
+      expect(out.visits).toBe(1);
+      expect(out.history).toHaveLength(1);
+      expect(result(await run("code-agent.json"))).toMatchObject({ visits: 2 }); // память пережила запуск (отдельный процесс)
+    } finally {
+      if (saved === undefined) delete process.env["FL0W_MEMORY_DIR"];
+      else process.env["FL0W_MEMORY_DIR"] = saved;
+      rmSync(memDir, { recursive: true, force: true });
+    }
+  });
+
   it("набор примеров", () => {
     expect([...files].sort()).toEqual([
       "cleanup.json",
+      "code-agent.json",
       "compare-datasets.json",
       "data-pipeline.json",
       "demo.json",
