@@ -144,3 +144,14 @@
 .react-flow__node-layout-group .react-flow__resize-control.handle {
   pointer-events: auto !important;
 }
+
+/* Числовые поля: без нативных «хромовых» стрелок (шаг — клавишами вверх/вниз) и без смены значения колесом мыши. */
+input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}

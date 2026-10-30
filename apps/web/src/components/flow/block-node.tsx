@@ -4,6 +4,7 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { registry } from "@fl0w/blocks";
 import { Pin, TriangleAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { Tip } from "@/components/tip";
 import { cn } from "@/lib/utils";
 import { getPorts, splitPorts, type BlockNodeType } from "@/lib/flow-convert";
 import { scopeCss } from "@/lib/scope-css";
@@ -83,19 +84,20 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNodeType>) {
       <BlockIcon name={cls?.icon ?? ""} className={cn("fl-node-icon size-7", ACCENT[cls?.category ?? ""] ?? "text-muted-foreground")} />
 
       {issues && (
-        <span
-          title={issues.join("\n")}
-          className="bg-destructive text-background absolute -top-2 -right-2 flex size-5 items-center justify-center rounded-full"
-        >
-          <TriangleAlert className="size-3" />
-          <span className="sr-only">{issues.join(". ")}</span>
-        </span>
+        <Tip label={issues.join("\n")}>
+          <span className="bg-destructive text-background absolute -top-2 -right-2 flex size-5 items-center justify-center rounded-full">
+            <TriangleAlert className="size-3" />
+            <span className="sr-only">{issues.join(". ")}</span>
+          </span>
+        </Tip>
       )}
       {data.pinData && (
-        <span title={t("pinned")} className="bg-primary text-primary-foreground absolute -top-2 -left-2 flex size-5 items-center justify-center rounded-full">
-          <Pin className="size-3" />
-          <span className="sr-only">{t("pinned")}</span>
-        </span>
+        <Tip label={t("pinned")}>
+          <span className="bg-primary text-primary-foreground absolute -top-2 -left-2 flex size-5 items-center justify-center rounded-full">
+            <Pin className="size-3" />
+            <span className="sr-only">{t("pinned")}</span>
+          </span>
+        </Tip>
       )}
       {runStatus && <span className="sr-only">{t(`status.${runStatus}`)}</span>}
 

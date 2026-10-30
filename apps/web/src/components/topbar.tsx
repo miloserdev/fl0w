@@ -9,6 +9,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { FLOATING } from "@/lib/floating";
+import { Tip } from "@/components/tip";
 import { cn } from "@/lib/utils";
 
 const GROUP = cn(FLOATING, "pointer-events-auto flex items-center gap-1.5 p-1.5");
@@ -139,12 +140,14 @@ export function Topbar({
           <Eye className="size-4" />
           {t("watch")}
           {watch.on && (
-            <span className="relative flex size-2" title={watch.connected ? t("live") : t("reconnecting")}>
+            <Tip label={watch.connected ? t("live") : t("reconnecting")}>
+            <span className="relative flex size-2">
               {watch.connected && (
                 <span className="absolute inline-flex size-full animate-ping rounded-full bg-green-500 opacity-75" />
               )}
               <span className={cn("relative inline-flex size-2 rounded-full", watch.connected ? "bg-green-500" : "bg-amber-500")} />
             </span>
+            </Tip>
           )}
         </Button>
         <IssuesMenu issues={issues} onSelectNode={onSelectIssueNode} />

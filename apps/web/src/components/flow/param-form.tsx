@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { layoutPalette } from "@/lib/layout";
+import { Tip } from "@/components/tip";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { ExpressionField } from "./expression-field";
@@ -249,20 +250,20 @@ export function ParamForm({ blockType, schema, values, onChange }: Props) {
             {p.type === "enum" && !expr && plainOnly && p.name === "color" && (
               <div id={id} role="radiogroup" aria-label={label} className="flex flex-wrap gap-2">
                 {p.options.map((o) => (
-                  <button
-                    key={o.value}
-                    type="button"
-                    role="radio"
-                    aria-checked={value === o.value}
-                    aria-label={optionLabel(o)}
-                    title={optionLabel(o)}
-                    onClick={() => set(p.name, o.value)}
-                    className={cn(
-                      "focus-visible:ring-ring size-7 rounded-full border-2 border-transparent outline-none focus-visible:ring-2",
-                      layoutPalette(o.value).swatch,
-                      value === o.value && "ring-foreground ring-offset-background ring-2 ring-offset-2",
-                    )}
-                  />
+                  <Tip key={o.value} label={optionLabel(o)}>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={value === o.value}
+                      aria-label={optionLabel(o)}
+                      onClick={() => set(p.name, o.value)}
+                      className={cn(
+                        "focus-visible:ring-ring size-7 rounded-full border-2 border-transparent outline-none focus-visible:ring-2",
+                        layoutPalette(o.value).swatch,
+                        value === o.value && "ring-foreground ring-offset-background ring-2 ring-offset-2",
+                      )}
+                    />
+                  </Tip>
                 ))}
               </div>
             )}

@@ -3,6 +3,7 @@
 import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
+import { Tip } from "@/components/tip";
 import { FLOATING } from "@/lib/floating";
 import { cn } from "@/lib/utils";
 import type { RunState } from "./use-run";
@@ -28,10 +29,9 @@ export function RunPanel({
       <div className="flex items-center gap-2 border-b px-3 py-1.5">
         <h2 className="text-sm font-medium">{live ? t("liveTitle") : t("title")}</h2>
         {live && (
-          <span
-            className={cn("size-2 rounded-full", live.connected ? "bg-green-500" : "bg-amber-500")}
-            title={live.connected ? t("connected") : t("reconnecting")}
-          />
+          <Tip label={live.connected ? t("connected") : t("reconnecting")}>
+            <span className={cn("size-2 rounded-full", live.connected ? "bg-green-500" : "bg-amber-500")} />
+          </Tip>
         )}
         {state.status !== "idle" && <span className="text-muted-foreground text-xs">{t(`status.${state.status}`)}</span>}
         <Button variant="ghost" size="icon" className="ml-auto size-6" onClick={onClose} aria-label={t("close")}>
