@@ -96,8 +96,8 @@
     "memory_bank": "Memory Bank",
     "note": "Sticky Note",
     "group": "Group",
-    "call_trigger": "Incoming Call",
-    "run_flow": "Outgoing Call",
+    "call_trigger": "Collector",
+    "run_flow": "Emitter",
     "counter": "Counter",
     "log": "Log"
   },

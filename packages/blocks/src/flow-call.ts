@@ -6,10 +6,10 @@ import { Block, type RunContext } from "./block";
  * вызывающего (как вложенный запуск вызванного флоу), поэтому в один процесс-раннер попадают оба флоу.
  */
 
-/** Incoming call: вход вызванного флоу. Поднимается только парным outgoing call с тем же `channelId`. */
+/** Collector (входящий вызов): вход вызванного флоу. Поднимается только парным outgoing call с тем же `channelId`. */
 export class CallTrigger extends Block {
   static type = "call_trigger";
-  static label = "Incoming Call";
+  static label = "Collector";
   static icon = "phone-incoming";
   static category = "trigger";
   static ports = { inputs: [], outputs: [{ id: "out0" }] };
@@ -37,7 +37,7 @@ const OUT_PORTS_AWAIT: PortsDef = { inputs: [{ id: "in0" }], outputs: [{ id: "ou
  */
 export class RunFlow extends Block {
   static type = "run_flow";
-  static label = "Outgoing Call";
+  static label = "Emitter";
   static icon = "phone-outgoing";
   static category = "flow";
   static ports = OUT_PORTS;
