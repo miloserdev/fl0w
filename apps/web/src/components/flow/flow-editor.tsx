@@ -99,11 +99,15 @@ function Editor() {
   // привязка к сетке при перетаскивании; настройка запоминается в браузере (читается после гидратации)
   const [snap, setSnap] = useState(false);
   useEffect(() => {
-    try {
-      if (localStorage.getItem(SNAP_KEY) === "1") setSnap(true);
-    } catch {
-      // localStorage недоступен — работаем без запоминания
-    }
+    // в таймере — не setState внутри эффекта
+    const timer = setTimeout(() => {
+      try {
+        if (localStorage.getItem(SNAP_KEY) === "1") setSnap(true);
+      } catch {
+        // localStorage недоступен — работаем без запоминания
+      }
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
   const toggleSnap = () => {
     setSnap((v) => {
