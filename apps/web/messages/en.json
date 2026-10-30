@@ -136,7 +136,9 @@
     "dataParams": "Parameters (after expressions)",
     "dataOutput": "Output",
     "dataLogs": "Log",
-    "insertExpression": "Insert an expression from the input"
+    "insertExpression": "Insert an expression from the input",
+    "expand": "Open in a centered window",
+    "expandDescription": "Code editor in a large window"
   },
   "params": {
     "source": {

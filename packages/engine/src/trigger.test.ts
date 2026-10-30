@@ -88,10 +88,11 @@ describe("данные триггера (вебхук) доходят до но�
     expect(events.at(-1)).toEqual({ event: "flow:done", result: { who: "ann", qty: 3, q: "1" } });
   });
 
-  it("без triggerData триггер отдаёт пример запроса (ручной запуск)", async () => {
+  it("ручной запуск не стартует триггер, ждущий события: никаких выдуманных данных", async () => {
     const events: RunnerEvent[] = [];
     await runFlowInProcess(hook, (e) => void events.push(e), { timeoutMs: 20000 });
-    expect(events.at(-1)).toMatchObject({ event: "flow:done", result: { who: null, qty: null, q: null } });
+    expect(events.some((e) => e.event === "node:start")).toBe(false);
+    expect(events.at(-1)).toMatchObject({ event: "flow:done", error: expect.stringMatching(/Nothing to start manually/) });
   });
 
   it("Scheduler + processSchedulerRun: запрос вебхука проходит весь путь до результата", async () => {

@@ -60,6 +60,7 @@ export class TelegramTrigger extends Block {
   static category = "trigger";
   static isTrigger = true;
   static autoTrigger = true;
+  static eventDriven = true;
   static ports = { inputs: [], outputs: [{ id: "out0" }] };
   static params: ParamSchema[] = [
     { name: "token", type: "string", default: "" },

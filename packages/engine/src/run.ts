@@ -9,7 +9,7 @@ import {
 import { jsonSchema, type Flow, type Json, type RunnerEvent } from "@fl0w/schema";
 import { z } from "zod";
 import { buildResources, dataView } from "./resources";
-import { participatingNodes } from "./participants";
+import { participatingNodes, startNodes } from "./participants";
 import { toposort } from "./toposort";
 import { formatIssues, validateFlow, type Registry } from "./validate";
 
@@ -118,6 +118,10 @@ export async function runFlow(
 
   // Запускаются только ноды, связанные со стартовыми (триггеры / источники данных), — не любая «без входов».
   const participants = participatingNodes(flow, registry, opts.trigger);
+  if (flow.nodes.some((n) => registry[n.type]?.isTrigger) && startNodes(flow, registry, opts.trigger).length === 0) {
+    finish({ error: "Nothing to start manually: this flow begins with event triggers (webhook, file, Telegram, …). Publish it and send an event, or add a Manual trigger for testing" });
+    return;
+  }
 
   const edgeValues = new Map<string, Json>(); // edge.id → JSON, лежащий на ребре
   const results: [string, Json][] = [];
@@ -132,7 +136,7 @@ export async function runFlow(
     if (registry[nodes.get(id)!.type]?.resource) continue; // sub-node: её вызывает хозяин
     const node = nodes.get(id)!;
     // другие триггеры в этом запуске молчат: он начат от выбранного
-    if (opts.trigger !== undefined && registry[node.type]!.isTrigger && id !== opts.trigger) continue;
+    if (registry[node.type]!.isTrigger && (opts.trigger !== undefined ? id !== opts.trigger : registry[node.type]!.eventDriven)) continue;
     const edges = incoming.get(id) ?? [];
     // нода со входными портами, у которой ничего не подключено, сама не стартует (стартуют триггеры и источники)
     const cls = registry[node.type]!;

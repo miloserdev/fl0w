@@ -15,6 +15,7 @@ export class ActivationTrigger extends Block {
   static category = "trigger";
   static isTrigger = true;
   static autoTrigger = true;
+  static eventDriven = true;
   static ports = { inputs: [], outputs: [{ id: "out0" }] };
   static params: ParamSchema[] = [
     { name: "onPublish", type: "boolean", default: true },
@@ -46,6 +47,7 @@ export class WorkflowTrigger extends Block {
   static category = "trigger";
   static isTrigger = true;
   static autoTrigger = true;
+  static eventDriven = true;
   static ports = { inputs: [], outputs: [{ id: "out0" }] };
   static params: ParamSchema[] = [
     { name: "onPublish", type: "boolean", default: true },

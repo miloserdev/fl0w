@@ -213,3 +213,35 @@ describe("Code Agent: граница песочницы", () => {
     expect((await run(f)).done?.result).toEqual({ t: "undefined", m: "undefined" });
   });
 });
+
+describe("ручной запуск и триггеры событий", () => {
+  const mixed = () =>
+    flow(
+      [node("m", "manual"), node("w", "webhook", { path: "x" }), node("f", "local_file_trigger", { path: "in" }), node("t", "telegram_trigger"), node("e", "error_trigger"), node("ad", "activation_trigger"), node("wf", "workflow_trigger"), node("a", "noop"), node("b", "noop"), node("b2", "noop"), node("r", "result")],
+      [edge("m", "a"), edge("w", "b"), edge("f", "b2"), edge("a", "r")],
+    );
+
+  it("без выбранного триггера стартуют только триггеры без внешнего события; остальные молчат", async () => {
+    const r = await run(mixed());
+    expect(r.done?.error).toBeUndefined();
+    expect(r.started).toEqual(["m", "a", "r"]);
+    expect(r.done?.error).toBeUndefined();
+  });
+
+  it("явно выбранный триггер события (так запускает планировщик) работает, остальные молчат", async () => {
+    const r = await collect(mixed(), { registry, trigger: "w", triggerData: { hello: 1 } });
+    expect(r.started).toEqual(["w", "b"]);
+  });
+
+  it("если во флоу только триггеры событий — понятная ошибка вместо выдуманных данных", async () => {
+    const only = flow([node("w", "webhook", { path: "x" }), node("r", "result")], [edge("w", "r")]);
+    const r = await run(only);
+    expect(r.started).toEqual([]);
+    expect(r.done?.error).toMatch(/Nothing to start manually/);
+    expect([...participatingNodes(only, registry)]).toEqual([]);
+  });
+
+  it("данные-источники без триггеров по-прежнему стартуют", async () => {
+    expect((await run(agentFlow("return { out0: 1 }"))).started).toEqual(["s", "a", "r"]);
+  });
+});

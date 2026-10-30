@@ -15,6 +15,7 @@ export class ErrorTrigger extends Block {
   static category = "trigger";
   static isTrigger = true;
   static autoTrigger = true;
+  static eventDriven = true;
   static ports = { inputs: [], outputs: [{ id: "out0" }] };
   // id флоу, чьи ошибки обрабатывать; пусто — ошибки любых флоу (включая этот)
   static params: ParamSchema[] = [{ name: "flows", type: "json", default: [] }];

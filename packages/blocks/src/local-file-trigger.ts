@@ -14,6 +14,7 @@ export class LocalFileTrigger extends Block {
   static category = "trigger";
   static isTrigger = true;
   static autoTrigger = true;
+  static eventDriven = true;
   static ports = { inputs: [], outputs: [{ id: "out0" }] };
   static params: ParamSchema[] = [
     // файл или папка относительно каталога файлов; пусто — сам каталог

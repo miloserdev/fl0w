@@ -136,7 +136,9 @@
     "dataParams": "Параметры (после подстановки выражений)",
     "dataOutput": "Выход",
     "dataLogs": "Лог",
-    "insertExpression": "Вставить выражение из входа"
+    "insertExpression": "Вставить выражение из входа",
+    "expand": "Открыть по центру экрана",
+    "expandDescription": "Редактор кода в большом окне"
   },
   "params": {
     "source": {

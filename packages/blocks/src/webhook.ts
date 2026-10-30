@@ -25,6 +25,7 @@ export class Webhook extends Block {
   static category = "trigger";
   static isTrigger = true;
   static autoTrigger = true;
+  static eventDriven = true;
   static ports = { inputs: [], outputs: [{ id: "out0" }] };
   static params: ParamSchema[] = [
     { name: "path", type: "string", required: true, default: "webhook" },

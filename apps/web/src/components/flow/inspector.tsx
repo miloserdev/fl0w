@@ -1,10 +1,11 @@
 "use client";
 
 import { registry } from "@fl0w/blocks";
-import { RotateCcw, X } from "lucide-react";
+import { Maximize2, RotateCcw, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FLOATING } from "@/lib/floating";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -78,7 +79,8 @@ export function Inspector({
           <TabsContent value="code" className="flex min-h-0 flex-col">
             <p className="text-muted-foreground px-3 py-2 text-xs">{t("codeHint")}</p>
             <div className="min-h-0 flex-1 border-t">
-              <CodeEditor
+              <ExpandableEditor
+                title={`${blockLabel(node.data.blockType)} — ${t("tabCode")}`}
                 language="javascript"
                 envTypes={cls.codeTypes}
                 value={
@@ -128,8 +130,9 @@ export function Inspector({
             </Button>
           </div>
           <div className="min-h-0 flex-1 border-t">
-            <CodeEditor
+            <ExpandableEditor
               key={`css-${cssEpoch}`}
+              title={`${blockLabel(node.data.blockType)} — ${t("tabCss")}`}
               language="css"
               value={node.data.cssOverride ?? cls.defaultCss}
               onChange={(css) => onChange(node.id, { cssOverride: css })}
@@ -154,5 +157,62 @@ function DataBlock({ title, text, tone }: { title: string; text?: string; tone?:
         {text ?? "—"}
       </pre>
     </section>
+  );
+}
+
+/**
+ * Редактор кода во вкладке окна параметров с кнопкой «открыть по центру»: тот же текст в большом окне, как у «Добавить блок».
+ * Редакторы неуправляемые (см. CodeEditor): окно монтирует свой редактор с текущим текстом при открытии, а встроенный
+ * редактор после закрытия окна пересоздаётся — иначе он показал бы текст на момент открытия.
+ */
+function ExpandableEditor({
+  title,
+  language,
+  value,
+  onChange,
+  envTypes,
+}: {
+  title: string;
+  language: "css" | "javascript";
+  value: string;
+  onChange: (code: string) => void;
+  envTypes?: string;
+}) {
+  const t = useTranslations("inspector");
+  const [open, setOpen] = useState(false);
+  const [epoch, setEpoch] = useState(0);
+
+  return (
+    <div className="relative h-full">
+      <CodeEditor key={epoch} language={language} envTypes={envTypes} value={value} onChange={onChange} />
+      <Button
+        variant="ghost"
+        size="icon"
+        className="absolute top-1 right-3 z-10 size-7 opacity-70 hover:opacity-100"
+        title={t("expand")}
+        aria-label={t("expand")}
+        onClick={() => setOpen(true)}
+      >
+        <Maximize2 className="size-4" />
+      </Button>
+      <Dialog
+        open={open}
+        onOpenChange={(o) => {
+          setOpen(o);
+          if (!o) setEpoch((n) => n + 1);
+        }}
+      >
+        {/* nokey: React Flow не должен перехватывать клавиши (Backspace/Space) в редакторе, вынесенном в портал */}
+        <DialogContent className={cn(FLOATING, "nokey flex h-[85dvh] flex-col gap-3 p-4 sm:max-w-[min(92vw,72rem)]")}>
+          <DialogHeader>
+            <DialogTitle>{title}</DialogTitle>
+            <DialogDescription className="sr-only">{t("expandDescription")}</DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-hidden rounded-md border">
+            <CodeEditor language={language} envTypes={envTypes} value={value} onChange={onChange} />
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

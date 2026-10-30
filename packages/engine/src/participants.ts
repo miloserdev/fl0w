@@ -24,12 +24,21 @@ export function isDataSource(flow: Flow, registry: Registry, nodeId: string): bo
 
 /**
  * Какие ноды вообще участвуют в запуске. Запуск идёт от СТАРТОВЫХ нод:
- *  - если во флоу есть триггеры — это триггеры (`trigger` сужает до одного, как при плановом запуске);
+ *  - если во флоу есть триггеры — это триггеры (`trigger` сужает до одного, как при плановом запуске; без `trigger` —
+ *    только те, что не ждут внешнего события: у вебхука, файла, Telegram нет данных, и ручной запуск их не стартует);
  *  - иначе — источники данных (блоки без входов, например Source).
  * Участвуют стартовые ноды, всё, что достижимо от них по рёбрам, и всё, что питает достижимое
  * (второй вход Compare Datasets может идти от Source, не связанного с триггером напрямую).
  * Остальное — ноды без связи со стартом — не запускается, даже если у них нет подключённых входов.
  */
+export function startNodes(flow: Flow, registry: Registry, trigger?: string): string[] {
+  const triggers = flow.nodes.filter((n) => registry[n.type]?.isTrigger).map((n) => n.id);
+  if (triggers.length === 0) return flow.nodes.filter((n) => isDataSource(flow, registry, n.id)).map((n) => n.id);
+  if (trigger !== undefined) return [trigger];
+  // ручной запуск: триггеры, ждущие внешнего события (вебхук, файл, Telegram…), не стартуют
+  return triggers.filter((id) => !registry[flow.nodes.find((n) => n.id === id)!.type]?.eventDriven);
+}
+
 export function participatingNodes(flow: Flow, registry: Registry, trigger?: string): Set<string> {
   const outgoing = new Map<string, string[]>();
   const incoming = new Map<string, string[]>();
@@ -39,14 +48,7 @@ export function participatingNodes(flow: Flow, registry: Registry, trigger?: str
     incoming.set(e.target, [...(incoming.get(e.target) ?? []), e.source]);
   }
 
-  const triggers = flow.nodes.filter((n) => registry[n.type]?.isTrigger).map((n) => n.id);
-  const starts =
-    triggers.length > 0
-      ? trigger !== undefined
-        ? [trigger]
-        : triggers
-      : flow.nodes.filter((n) => isDataSource(flow, registry, n.id)).map((n) => n.id);
-
+  const starts = startNodes(flow, registry, trigger);
   const reached = closure(starts, (id) => outgoing.get(id) ?? []);
   return closure(reached, (id) => incoming.get(id) ?? []);
 }
