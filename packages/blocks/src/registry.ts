@@ -17,6 +17,8 @@ import { SplitOut } from "./split-out";
 import { StopAndError } from "./stop-and-error";
 import { Summarize } from "./summarize";
 import { Switch } from "./switch";
+import { Telegram } from "./telegram";
+import { TelegramTrigger } from "./telegram-trigger";
 import { Wait } from "./wait";
 import { Webhook } from "./webhook";
 import { Branch } from "./branch";
@@ -40,6 +42,7 @@ export const registry: Record<string, BlockClass> = {
   manual: ManualTrigger,
   every: Every,
   webhook: Webhook,
+  telegram_trigger: TelegramTrigger,
   local_file_trigger: LocalFileTrigger,
   error_trigger: ErrorTrigger,
   workflow_trigger: WorkflowTrigger,
@@ -51,6 +54,8 @@ export const registry: Record<string, BlockClass> = {
   files: Files,
   shell: Shell,
   result: ResultBlock,
+  // приложения
+  telegram: Telegram,
   // данные
   transform: Transform,
   set: SetFields,

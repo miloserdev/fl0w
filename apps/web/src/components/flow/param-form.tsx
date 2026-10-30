@@ -1,5 +1,6 @@
 "use client";
 
+import { isParamVisible, resolveParams } from "@fl0w/blocks";
 import type { Json, ParamSchema } from "@fl0w/schema";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
@@ -67,7 +68,8 @@ export function ParamForm({ blockType, schema, values, onChange }: Props) {
   const t = useTranslations();
 
   // параметры с editor: "code" правятся во вкладке кода, а не в форме
-  const fields = schema.filter((p) => p.editor !== "code");
+  const resolved = resolveParams(schema, values);
+  const fields = schema.filter((p) => p.editor !== "code" && isParamVisible(p, resolved));
 
   if (fields.length === 0) {
     return <p className="text-muted-foreground text-sm">{t("inspector.noParams")}</p>;

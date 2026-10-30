@@ -21,6 +21,7 @@ const ACCENT: Record<string, string> = {
   io: "text-sky-500",
   data: "text-violet-500",
   flow: "text-emerald-500",
+  app: "text-cyan-500",
 };
 
 /** Позиция i-го из n портов: равномерно по высоте блока. */

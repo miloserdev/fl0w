@@ -1,0 +1,174 @@
+{
+  "version": 1,
+  "id": "flow_telegram_bot",
+  "name": "telegram-bot",
+  "nodes": [
+    {
+      "id": "incoming",
+      "type": "telegram_trigger",
+      "position": {
+        "x": 0,
+        "y": 160
+      },
+      "params": {
+        "token": "env:FL0W_SECRET_TELEGRAM_BOT_TOKEN",
+        "updates": [
+          "message",
+          "callback_query"
+        ]
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "route",
+      "type": "switch",
+      "position": {
+        "x": 300,
+        "y": 160
+      },
+      "params": {
+        "field": "callback_query.data",
+        "rules": [
+          {
+            "operator": "exists",
+            "value": null
+          }
+        ],
+        "mode": "first"
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "typing",
+      "type": "telegram",
+      "position": {
+        "x": 620,
+        "y": 0
+      },
+      "params": {
+        "token": "env:FL0W_SECRET_TELEGRAM_BOT_TOKEN",
+        "operation": "sendChatAction",
+        "chatId": "{{ message.chat.id }}",
+        "action": "typing"
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "reply",
+      "type": "telegram",
+      "position": {
+        "x": 900,
+        "y": 0
+      },
+      "params": {
+        "token": "env:FL0W_SECRET_TELEGRAM_BOT_TOKEN",
+        "operation": "sendMessage",
+        "chatId": "{{ message.chat.id }}",
+        "text": "Вы написали: {{ message.text }}",
+        "parseMode": "none",
+        "replyToMessageId": "{{ message.message_id }}",
+        "replyMarkup": {
+          "inline_keyboard": [
+            [
+              {
+                "text": "Да",
+                "callback_data": "yes"
+              },
+              {
+                "text": "Нет",
+                "callback_data": "no"
+              }
+            ]
+          ]
+        }
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "ack",
+      "type": "telegram",
+      "position": {
+        "x": 620,
+        "y": 300
+      },
+      "params": {
+        "token": "env:FL0W_SECRET_TELEGRAM_BOT_TOKEN",
+        "operation": "answerCallbackQuery",
+        "queryId": "{{ callback_query.id }}",
+        "text": "Выбрано: {{ callback_query.data }}"
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "res",
+      "type": "result",
+      "position": {
+        "x": 1180,
+        "y": 0
+      },
+      "params": {},
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "res2",
+      "type": "result",
+      "position": {
+        "x": 900,
+        "y": 300
+      },
+      "params": {},
+      "portsOverride": null,
+      "cssOverride": null
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_incoming_out0_route_in0",
+      "source": "incoming",
+      "sourcePort": "out0",
+      "target": "route",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_route_out0_ack_in0",
+      "source": "route",
+      "sourcePort": "out0",
+      "target": "ack",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_route_fallback_typing_in0",
+      "source": "route",
+      "sourcePort": "fallback",
+      "target": "typing",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_typing_out0_reply_in0",
+      "source": "typing",
+      "sourcePort": "out0",
+      "target": "reply",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_reply_out0_res_in0",
+      "source": "reply",
+      "sourcePort": "out0",
+      "target": "res",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e_ack_out0_res2_in0",
+      "source": "ack",
+      "sourcePort": "out0",
+      "target": "res2",
+      "targetPort": "in0"
+    }
+  ]
+}

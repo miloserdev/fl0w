@@ -53,10 +53,12 @@ describe("examples/*.json", () => {
       "file-report.json",
       "jwt-and-hash.json",
       "showcase.json",
+      "telegram-bot.json",
       "webhook-api.json",
     ]);
   });
 
+  // примеры с внешними сервисами (Telegram) не выполняются тут — токен и сеть; их сквозной путь проверен telegram-e2e.test.ts
   it.each(files)("%s проходит валидацию и у флоу уникальный id", (file) => {
     const r = validateFlow(load(file), registry);
     expect(r.ok, r.ok ? "" : r.issues.map((i) => i.message).join("; ")).toBe(true);

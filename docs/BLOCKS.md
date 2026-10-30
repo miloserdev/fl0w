@@ -90,7 +90,14 @@
 | **Error Trigger** `error_trigger` | — / out0 данные об ошибке | `flows` |
 | **Activation Trigger** `activation_trigger` | — / out0 `{event, at, flow}` | `onPublish`, `onUpdate`, `onStartup` |
 | **Workflow Trigger** `workflow_trigger` | — / out0 `{event, at, flow}` | `onPublish`, `onUpdate` |
+| **Telegram Trigger** `telegram_trigger` | — / out0 объект Update | `token`, `updates`, `chatIds`, `userIds`, `dropPending` |
 | **Webhook** `webhook` | — / out0 запрос | `path`, `method`, `respond` |
+
+### Приложения
+
+| Блок | Порты | Что делает |
+|---|---|---|
+| **Telegram** `telegram` | in0 / out0 | 23 операции Bot API как в n8n: чаты, сообщения, файлы, ответы на callback/inline-запросы — см. «Telegram» ниже |
 
 ### Ввод / вывод
 
@@ -150,6 +157,41 @@
 | Выражения `{{ $json… }}` | заменены шаблонами `{{ путь }}` без исполнения кода |
 | Часовые пояса в Date & Time | всё в UTC |
 
+## Telegram
+
+Два блока, как в n8n: **Telegram** (действия бота) и **Telegram Trigger** (приём обновлений).
+
+**Токен.** Получите у @BotFather. Во флоу его лучше не хранить: в поле `token` укажите ссылку на переменную окружения
+сервера `env:FL0W_SECRET_<ИМЯ>` (читаются только переменные с префиксом `FL0W_SECRET_`), например
+`FL0W_SECRET_TELEGRAM_BOT_TOKEN=123456:ABC… pnpm dev`. Пустое поле `token` означает именно эту переменную. Токен всегда скрывается
+в сообщениях об ошибках, логах и ленте запусков. Литерал тоже принимается (проверяется формат `123456:AA…`), но тогда он лежит
+во флоу открытым текстом.
+
+**Telegram — операции** (в списке «Операция» они сгруппированы по ресурсам n8n):
+Chat: `getChat`, `getChatAdministrators`, `getChatMember`, `leaveChat`, `setChatDescription`, `setChatTitle` ·
+Callback: `answerCallbackQuery`, `answerInlineQuery` · File: `getFile` (с `download` — содержимое в base64 и, при `saveTo`,
+сохранение в каталог файлов) · Message: `deleteMessage`, `editMessageText`, `pinChatMessage`, `unpinChatMessage`, `sendAnimation`,
+`sendAudio`, `sendChatAction`, `sendDocument`, `sendLocation`, `sendMediaGroup`, `sendMessage`, `sendPhoto`, `sendSticker`, `sendVideo`.
+Поля формы зависят от операции (условная видимость). Чат, текст, ID и т.п. поддерживают `{{ путь }}` из входа — после Telegram Trigger:
+`chatId = {{ message.chat.id }}`. `replyMarkup` — JSON Bot API (`inline_keyboard`, `keyboard`, …). Любые другие параметры метода —
+в `additional` (snake_case; заданные поля их не перекрывают). Результат — `result` ответа Bot API (объект сообщения и т.п.),
+для ответа `true` — `{ ok: true }`.
+
+**Файлы для отправки:** `file_id`, HTTP-ссылка или `file:путь` — загрузка из каталога файлов (`FL0W_FILES_DIR`, до 50 МБ,
+multipart). В `sendMediaGroup` элементы могут быть любой из этих форм (`attach://` подставляется автоматически).
+
+**Telegram Trigger** запускает флоу на обновления бота. В отличие от n8n (вебхук) работает через **long polling** (`getUpdates`):
+вебхуку нужен публичный HTTPS-адрес, а он открыл бы наружу весь неаутентифицированный редактор (решение D2 в `docs/BACKLOG.md`);
+опрос только исходящий. Типы — `updates` (`["message", "callback_query", …]`, `"*"` — все, кроме `chat_member`, `message_reaction`,
+`message_reaction_count`, как у Telegram); ограничения по чатам и пользователям — `chatIds`, `userIds`; `dropPending` отбрасывает
+накопленные за время простоя обновления. Несколько триггеров с одним токеном делят **один** опрос. Обновления не теряются под нагрузкой
+(очередь до 500, запуск по порядку), необработанные переживают перезапуск сервера (Telegram хранит их до подтверждения). У бота не
+должно быть активного вебхука (`409 Conflict` — в логе будет подсказка).
+
+Чего нет по сравнению с n8n: *Send and Wait for Response* (нужны пауза флоу и публичный вебхук) и приём файлов/картинок в триггере
+(`Download Images/Files`) — файл скачивается отдельным шагом `getFile` с `download`. Адрес API можно сменить переменной
+`FL0W_TELEGRAM_API` (свой сервер Bot API); настоящий Telegram в тестах не вызывается.
+
 ## Окружение и безопасность
 
 | Переменная | Назначение | По умолчанию |
@@ -157,6 +199,8 @@
 | `FL0W_FILES_DIR` | единственный каталог, доступный блокам Files, Local File Trigger и рабочей папке Shell | `apps/web/.data/files` |
 | `FL0W_ALLOW_SHELL` | `1` / `true` разрешает блок Shell | не задана — Shell отключён |
 | `FL0W_DATA_DIR` | где хранятся опубликованные флоу | `apps/web/.data/flows` |
+| `FL0W_SECRET_*` | секреты, на которые можно ссылаться из параметров как `env:FL0W_SECRET_…` (токен Telegram и т.п.) | не заданы |
+| `FL0W_TELEGRAM_API` | адрес Bot API | `https://api.telegram.org` |
 
 Запуск с Shell: `FL0W_ALLOW_SHELL=1 pnpm dev`.
 

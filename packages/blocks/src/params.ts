@@ -22,6 +22,13 @@ export function resolveParams(
   return out;
 }
 
+/** Виден ли параметр при текущих значениях (`showWhen`); `resolved` — значения вместе с default'ами. */
+export function isParamVisible(p: ParamSchema, resolved: Record<string, Json>): boolean {
+  if (!p.showWhen) return true;
+  const v = resolved[p.showWhen.param];
+  return typeof v === "string" && p.showWhen.in.includes(v);
+}
+
 /** Проверка значений по `class.params`: required, типы, enum-опции. Неизвестные ключи игнорируются. */
 export function validateParams(
   schema: readonly ParamSchema[],
@@ -31,6 +38,7 @@ export function validateParams(
   const issues: ParamIssue[] = [];
 
   for (const p of schema) {
+    if (!isParamVisible(p, resolved)) continue; // скрытый параметр сейчас не используется
     const v = resolved[p.name];
     if (isEmpty(v)) {
       if (p.required) {

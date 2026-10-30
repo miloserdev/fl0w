@@ -12,7 +12,7 @@ import { deepEqual, getPath } from "./json-path";
 import { registry } from "./registry";
 import { Source } from "./source";
 import { Transform } from "./transform";
-import { resolveParams, validateParams } from "./params";
+import { isParamVisible, resolveParams, validateParams } from "./params";
 
 const ctx = (signal = new AbortController().signal): RunContext => ({ log() {}, signal });
 /** Вызов через базовый тип: у наследников `run` может принимать меньше аргументов, чем у Block. */
@@ -183,10 +183,10 @@ describe("Every (триггер)", () => {
   it("без входов; триггером является только Every", () => {
     expect(Every.ports.inputs).toEqual([]);
     expect(Object.values(registry).filter((c) => c.isTrigger).map((c) => c.type).sort()).toEqual([
-      "activation_trigger", "error_trigger", "every", "local_file_trigger", "manual", "webhook", "workflow_trigger",
+      "activation_trigger", "error_trigger", "every", "local_file_trigger", "manual", "telegram_trigger", "webhook", "workflow_trigger",
     ]);
     expect(Object.values(registry).filter((c) => c.autoTrigger).map((c) => c.type).sort()).toEqual([
-      "activation_trigger", "error_trigger", "every", "local_file_trigger", "webhook", "workflow_trigger",
+      "activation_trigger", "error_trigger", "every", "local_file_trigger", "telegram_trigger", "webhook", "workflow_trigger",
     ]);
     expect(Object.values(registry).filter((c) => c.type !== "every").every((c) => c.intervalMs({}) === null)).toBe(true);
   });
@@ -266,12 +266,12 @@ describe("HttpRequest", () => {
 });
 
 describe("реестр и метаданные", () => {
-  it("34 блока: MVP + аналоги core-нод n8n", () => {
+  it("36 блоков: MVP + аналоги core-нод n8n + Telegram", () => {
     expect(Object.keys(registry).sort()).toEqual([
       "activation_trigger", "aggregate", "branch", "code", "compare_datasets", "crypto", "datetime", "error_trigger", "every",
       "files", "filter", "http_request", "jwt", "limit", "local_file_trigger", "manual", "merge", "noop", "remove_duplicates",
       "rename_keys", "respond_to_webhook", "result", "set", "shell", "sort", "source", "split_out", "stop_and_error",
-      "summarize", "switch", "transform", "wait", "webhook", "workflow_trigger",
+      "summarize", "switch", "telegram", "telegram_trigger", "transform", "wait", "webhook", "workflow_trigger",
     ]);
   });
   it("ключ реестра = static type; метаданные заполнены", () => {
@@ -316,5 +316,30 @@ describe("реестр и метаданные", () => {
   it("только Code-блок имеет параметр-редактор кода", () => {
     const withEditor = Object.values(registry).filter((c) => c.params.some((p) => p.editor === "code"));
     expect(withEditor.map((c) => c.type)).toEqual(["code"]);
+  });
+});
+
+describe("showWhen — условная видимость параметров", () => {
+  const schema: import("@fl0w/schema").ParamSchema[] = [
+    { name: "op", type: "enum", default: "a", options: [{ value: "a" }, { value: "b" }] },
+    { name: "onlyA", type: "string", required: true, showWhen: { param: "op", in: ["a"] } },
+    { name: "onlyB", type: "number", required: true, showWhen: { param: "op", in: ["b"] } },
+    { name: "both", type: "string", showWhen: { param: "op", in: ["a", "b"] } },
+  ];
+  it("isParamVisible учитывает значение и default управляющего параметра", () => {
+    expect(isParamVisible(schema[1]!, resolveParams(schema, {}))).toBe(true); // op по умолчанию a
+    expect(isParamVisible(schema[1]!, resolveParams(schema, { op: "b" }))).toBe(false);
+    expect(isParamVisible(schema[2]!, resolveParams(schema, { op: "b" }))).toBe(true);
+    expect(isParamVisible(schema[0]!, {})).toBe(true); // без условия виден всегда
+    expect(isParamVisible(schema[1]!, { op: 5 })).toBe(false); // не строка — условие не выполнено
+  });
+  it("обязательность проверяется только у видимых параметров", () => {
+    expect(validateParams(schema, {}).map((i) => i.param)).toEqual(["onlyA"]);
+    expect(validateParams(schema, { op: "b" }).map((i) => i.param)).toEqual(["onlyB"]);
+    expect(validateParams(schema, { op: "a", onlyA: "x" })).toEqual([]);
+  });
+  it("тип скрытого параметра не проверяется", () => {
+    expect(validateParams(schema, { op: "a", onlyA: "x", onlyB: "не число" })).toEqual([]);
+    expect(validateParams(schema, { op: "b", onlyB: "не число" }).map((i) => i.code)).toEqual(["type"]);
   });
 });

@@ -1,7 +1,7 @@
 import path from "node:path";
 import { registry } from "@fl0w/blocks";
 import { processSchedulerRun } from "@fl0w/engine/process";
-import { createFileWatcher, FlowStore, RunHub, Scheduler } from "@fl0w/engine/server";
+import { createFileWatcher, createTelegramPoller, FlowStore, RunHub, Scheduler } from "@fl0w/engine/server";
 import { engineDir } from "./engine-dir";
 
 /** Предел времени одного запуска; дальше процесс-раннер убивается. */
@@ -28,6 +28,8 @@ class Runtime {
       // каждый плановый запуск — отдельный процесс, как и ручной (SPEC §2.1)
       run: processSchedulerRun({ engineDir: engineDir(), timeoutMs: RUN_TIMEOUT_MS }),
       watchFiles: createFileWatcher({ baseDir: filesDir, log: (msg) => console.log(`[file-watch] ${msg}`) }),
+      // Telegram Trigger: long polling (только исходящие запросы; вебхук потребовал бы публичный адрес редактора)
+      pollTelegram: createTelegramPoller({ log: (msg) => console.log(`[telegram] ${msg}`) }),
       log: (msg) => console.log(`[scheduler] ${msg}`),
     });
   }

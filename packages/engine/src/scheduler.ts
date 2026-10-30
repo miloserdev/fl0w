@@ -1,4 +1,4 @@
-import type { FileWatchSpec, LifecycleReason } from "@fl0w/blocks";
+import type { FileWatchSpec, LifecycleReason, TelegramSpec } from "@fl0w/blocks";
 import type { Flow, Json, RunnerEvent } from "@fl0w/schema";
 import type { RunHub } from "./hub";
 import type { FlowStore } from "./store";
@@ -13,6 +13,12 @@ export type SchedulerRun = (
 /** Подписка на изменения файлов: возвращает функцию отписки. Реализация — `createFileWatcher` (file-watch.ts). */
 export type FileWatchFactory = (spec: FileWatchSpec, onChange: (payload: Json) => void) => () => void;
 
+/** Подписка на обновления Telegram-бота; возвращает функцию отписки. Реализация — `createTelegramPoller`. */
+export type TelegramPollFactory = (spec: TelegramSpec, onUpdate: (update: Json) => void) => () => void;
+
+/** Предел очереди необработанных событий (обновления бота); сверх него новые отбрасываются с записью в лог. */
+const MAX_EVENT_QUEUE = 500;
+
 export type SchedulerDeps = {
   store: FlowStore;
   hub: RunHub;
@@ -24,6 +30,8 @@ export type SchedulerDeps = {
   maxConcurrentHookRuns?: number;
   /** Слежение за файлами для Local File Trigger; без него такие триггеры не активируются. */
   watchFiles?: FileWatchFactory;
+  /** Опрос Telegram для Telegram Trigger; без него такие триггеры не активируются. */
+  pollTelegram?: TelegramPollFactory;
 };
 
 /** Слишком много одновременных запусков по вебхукам. */
@@ -82,6 +90,8 @@ export class Scheduler {
   private readonly hooks = new Map<string, { flowId: string; nodeId: string }>();
   /** Обработчики ошибок: flowId → ноды Error Trigger и список флоу, чьи ошибки они принимают (пусто — любые). */
   private readonly errorHandlers = new Map<string, { nodeId: string; flows: string[] }[]>();
+  /** Очередь событий, которые нельзя терять (сообщения бота): запускаются по мере освобождения слотов, по порядку. */
+  private eventQueue: { flowId: string; nodeId: string; data: Json }[] = [];
   private hookRuns = 0;
   private readonly log: (msg: string) => void;
 
@@ -145,6 +155,16 @@ export class Scheduler {
             this.log(`flow ${flow.id}: trigger ${node.id} watches "${fw.path}" (${fw.event}, ${fw.pattern})`);
           }
         }
+        const tg = cls.telegram(node.params);
+        if (tg) {
+          if (!this.deps.pollTelegram) {
+            this.log(`flow ${flow.id}: trigger ${node.id} needs a Telegram poller, none is configured`);
+          } else {
+            const stop = this.deps.pollTelegram(tg, (update) => this.enqueueEvent(flow.id, node.id, update));
+            jobs.push({ nodeId: node.id, stop });
+            this.log(`flow ${flow.id}: trigger ${node.id} polls Telegram bot ${tg.token.split(":")[0]} for ${tg.updates.join(", ")}`);
+          }
+        }
         const scope = cls.errorScope(node.params);
         if (scope) {
           handlers.push({ nodeId: node.id, flows: scope.flows });
@@ -186,6 +206,7 @@ export class Scheduler {
       try {
         cls.intervalMs(node.params);
         cls.fileWatch(node.params);
+        cls.telegram(node.params);
         cls.errorScope(node.params);
         cls.lifecycle(node.params);
         const hook = cls.webhook(node.params);
@@ -245,6 +266,7 @@ export class Scheduler {
     for (const j of this.jobs.get(flowId) ?? []) j.stop();
     this.jobs.delete(flowId);
     this.errorHandlers.delete(flowId);
+    this.eventQueue = this.eventQueue.filter((q) => q.flowId !== flowId);
     for (const [key, h] of [...this.hooks]) if (h.flowId === flowId) this.hooks.delete(key);
     this.flows.delete(flowId);
   }
@@ -277,6 +299,32 @@ export class Scheduler {
         this.log(`flow ${flowId}: event for ${nodeId} skipped, too many concurrent runs`);
       } else {
         this.log(`flow ${flowId}: event for ${nodeId} dropped: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+  }
+
+  /**
+   * Событие, которое нельзя терять (сообщение бота): ждёт свободного слота в очереди, порядок сохраняется.
+   * Если очередь переполнена, новое событие отбрасывается — это видно в логе.
+   */
+  private enqueueEvent(flowId: string, nodeId: string, data: Json): void {
+    if (this.eventQueue.length >= MAX_EVENT_QUEUE) {
+      this.log(`flow ${flowId}: event queue is full (${MAX_EVENT_QUEUE}), event for ${nodeId} dropped`);
+      return;
+    }
+    this.eventQueue.push({ flowId, nodeId, data });
+    this.drainQueue();
+  }
+
+  private drainQueue(): void {
+    const limit = this.deps.maxConcurrentHookRuns ?? DEFAULT_MAX_HOOK_RUNS;
+    while (this.eventQueue.length > 0 && this.hookRuns < limit) {
+      const next = this.eventQueue.shift()!;
+      if (!this.flows.has(next.flowId)) continue; // флоу сняли с публикации, пока событие ждало
+      try {
+        void this.trigger(next.flowId, next.nodeId, next.data).finally(() => this.drainQueue());
+      } catch (e) {
+        this.log(`flow ${next.flowId}: queued event for ${next.nodeId} dropped: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
   }

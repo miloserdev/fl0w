@@ -44,7 +44,8 @@
     "io": "Ввод / вывод",
     "data": "Данные",
     "flow": "Логика",
-    "trigger": "Триггеры"
+    "trigger": "Триггеры",
+    "app": "Приложения"
   },
   "blocks": {
     "source": "Источник",
@@ -80,7 +81,9 @@
     "local_file_trigger": "Изменение файлов",
     "error_trigger": "Ошибка флоу",
     "workflow_trigger": "Событие флоу",
-    "activation_trigger": "Активация"
+    "activation_trigger": "Активация",
+    "telegram": "Telegram",
+    "telegram_trigger": "Telegram: обновления"
   },
   "node": {
     "unknown": "Неизвестный блок: {type}",
@@ -295,6 +298,41 @@
       "onPublish": "При публикации",
       "onUpdate": "При обновлении",
       "onStartup": "При старте сервера"
+    },
+    "telegram": {
+      "token": "Токен бота (env:FL0W_SECRET_…)",
+      "operation": "Операция",
+      "chatId": "Чат (id или @канал)",
+      "messageId": "ID сообщения",
+      "userId": "ID пользователя",
+      "text": "Текст / название / описание",
+      "parseMode": "Разметка текста",
+      "file": "Файл (file_id, ссылка или file:путь)",
+      "fileName": "Имя файла",
+      "caption": "Подпись",
+      "replyMarkup": "Кнопки (reply_markup, JSON)",
+      "latitude": "Широта",
+      "longitude": "Долгота",
+      "media": "Медиа (2–10 элементов, JSON)",
+      "action": "Действие",
+      "queryId": "ID запроса",
+      "results": "Результаты (JSON, до 50)",
+      "fileId": "ID файла",
+      "download": "Скачать файл",
+      "saveTo": "Сохранить в каталог файлов",
+      "disableNotification": "Без уведомления",
+      "disableWebPagePreview": "Без превью ссылок",
+      "replyToMessageId": "Ответ на сообщение (ID)",
+      "messageThreadId": "Ветка форума (ID)",
+      "additional": "Прочие параметры Bot API (JSON)",
+      "timeoutMs": "Таймаут, мс"
+    },
+    "telegram_trigger": {
+      "token": "Токен бота (env:FL0W_SECRET_…)",
+      "updates": "Типы обновлений (JSON-список, * — все)",
+      "chatIds": "Только чаты (id через запятую)",
+      "userIds": "Только пользователи (id через запятую)",
+      "dropPending": "Сбросить накопленные при запуске"
     }
   },
   "run": {
@@ -396,7 +434,30 @@
       "read": "read — прочитать",
       "write": "write — записать",
       "append": "append — дописать",
-      "list": "list — список"
+      "list": "list — список",
+      "getChat": "Чат: получить",
+      "getChatAdministrators": "Чат: администраторы",
+      "getChatMember": "Чат: участник",
+      "leaveChat": "Чат: покинуть",
+      "setChatDescription": "Чат: задать описание",
+      "setChatTitle": "Чат: задать название",
+      "answerCallbackQuery": "Callback: ответить на нажатие кнопки",
+      "answerInlineQuery": "Callback: ответить на inline-запрос",
+      "getFile": "Файл: получить",
+      "deleteMessage": "Сообщение: удалить",
+      "editMessageText": "Сообщение: изменить текст",
+      "pinChatMessage": "Сообщение: закрепить",
+      "unpinChatMessage": "Сообщение: открепить",
+      "sendAnimation": "Сообщение: отправить анимацию",
+      "sendAudio": "Сообщение: отправить аудио",
+      "sendChatAction": "Сообщение: показать действие (печатает…)",
+      "sendDocument": "Сообщение: отправить документ",
+      "sendLocation": "Сообщение: отправить геопозицию",
+      "sendMediaGroup": "Сообщение: отправить группу медиа",
+      "sendMessage": "Сообщение: отправить текст",
+      "sendPhoto": "Сообщение: отправить фото",
+      "sendSticker": "Сообщение: отправить стикер",
+      "sendVideo": "Сообщение: отправить видео"
     },
     "part": {
       "year": "год",
@@ -417,7 +478,18 @@
       "hmac": "hmac",
       "generate": "generate — случайное",
       "encrypt": "encrypt — зашифровать",
-      "decrypt": "decrypt — расшифровать"
+      "decrypt": "decrypt — расшифровать",
+      "typing": "печатает",
+      "upload_photo": "отправляет фото",
+      "record_video": "записывает видео",
+      "upload_video": "отправляет видео",
+      "record_voice": "записывает голос",
+      "upload_voice": "отправляет голос",
+      "upload_document": "отправляет документ",
+      "choose_sticker": "выбирает стикер",
+      "find_location": "ищет место",
+      "record_video_note": "записывает кружок",
+      "upload_video_note": "отправляет кружок"
     },
     "algorithm": {
       "md5": "md5",
@@ -461,6 +533,12 @@
     "shell": {
       "bash": "bash",
       "sh": "sh"
+    },
+    "parseMode": {
+      "none": "обычный текст",
+      "HTML": "HTML",
+      "Markdown": "Markdown (старый)",
+      "MarkdownV2": "MarkdownV2"
     }
   },
   "issues": {

@@ -20,6 +20,11 @@ const paramBase = {
   default: jsonSchema.optional(),
   /** "code" — параметр редактируется во вкладке кода (Monaco, JS), а не в авто-форме. */
   editor: z.literal("code").optional(),
+  /**
+   * Условная видимость (как displayOptions в n8n): параметр показывается и проверяется, только когда значение
+   * другого параметра (`param`) — одно из `in`. Скрытый параметр не требуется и не валидируется.
+   */
+  showWhen: z.object({ param: z.string().min(1), in: z.array(z.string()).min(1) }).optional(),
 };
 
 export const paramSchemaSchema = z.discriminatedUnion("type", [

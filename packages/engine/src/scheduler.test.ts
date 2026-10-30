@@ -652,3 +652,136 @@ describe("Scheduler: Local File Trigger", () => {
     releases.forEach((r) => r());
   });
 });
+
+describe("Scheduler: Telegram Trigger", () => {
+  const TG_TOKEN = "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11";
+  const tgFlow = (id: string, params: Record<string, Json> = {}, status: "published" | "draft" = "published") =>
+    withNodes(id, [node("tg", "telegram_trigger", { token: TG_TOKEN, ...params })], status);
+
+  function tgSetup(limit = 2) {
+    const subs: { spec: import("@fl0w/blocks").TelegramSpec; emit: (u: Json) => void; stopped: boolean }[] = [];
+    const base = setup();
+    const releases: (() => void)[] = [];
+    const scheduler = new Scheduler({
+      store: new FlowStore("/nonexistent"),
+      hub: base.hub,
+      registry: testRegistry,
+      run: async (f, onEvent, o) => {
+        base.calls.push({ flowId: f.id, trigger: o.trigger, triggerData: o.triggerData });
+        if (hold) await new Promise<void>((r) => releases.push(r));
+        onEvent({ event: "flow:done" });
+      },
+      log: (m) => base.logs.push(m),
+      maxConcurrentHookRuns: limit,
+      pollTelegram: (spec, emit) => {
+        const s = { spec, emit, stopped: false };
+        subs.push(s);
+        return () => void (s.stopped = true);
+      },
+    });
+    let hold = false;
+    return { ...base, scheduler, subs, releases, hold: (v: boolean) => (hold = v) };
+  }
+  const upd = (n: number): Json => ({ update_id: n, message: { message_id: n, chat: { id: 1 }, text: `m${n}` } });
+
+  it("публикация подписывает бота; обновление запускает флоу с данными обновления", async () => {
+    const { scheduler, subs, calls } = tgSetup();
+    scheduler.sync(tgFlow("a", { updates: ["message", "callback_query"], chatIds: "12, -100", userIds: "5", dropPending: true }));
+    expect(subs).toHaveLength(1);
+    expect(subs[0]!.spec).toEqual({ token: TG_TOKEN, updates: ["message", "callback_query"], chatIds: ["12", "-100"], userIds: ["5"], dropPending: true });
+    subs[0]!.emit(upd(1));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls).toEqual([{ flowId: "a", trigger: "tg", triggerData: upd(1) }]);
+    expect(scheduler.isScheduled("a")).toBe(true);
+  });
+
+  it("токен не попадает в лог (только id бота)", () => {
+    const { scheduler, logs } = tgSetup();
+    scheduler.sync(tgFlow("a"));
+    const text = logs.join("\n");
+    expect(text).toContain("Telegram bot 123456");
+    expect(text).not.toContain(TG_TOKEN);
+    expect(text).not.toContain("ABC-DEF");
+  });
+
+  it("снятие с публикации, повторная публикация и stop отписывают бота", () => {
+    const { scheduler, subs } = tgSetup();
+    scheduler.sync(tgFlow("a"));
+    scheduler.sync(tgFlow("a", { updates: ["callback_query"] }));
+    expect(subs.map((s) => s.stopped)).toEqual([true, false]);
+    scheduler.sync(tgFlow("a", {}, "draft"));
+    expect(subs.map((s) => s.stopped)).toEqual([true, true]);
+    scheduler.sync(tgFlow("b"));
+    scheduler.stop();
+    expect(subs.every((s) => s.stopped)).toBe(true);
+  });
+
+  it("при исчерпании слотов обновления НЕ теряются: ждут в очереди и идут по порядку", async () => {
+    const { scheduler, subs, calls, releases, hold } = tgSetup(2);
+    hold(true);
+    scheduler.sync(tgFlow("a"));
+    for (let i = 1; i <= 5; i++) subs[0]!.emit(upd(i));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls).toHaveLength(2); // два слота заняты, три ждут
+    releases.splice(0).forEach((r) => r());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls).toHaveLength(4);
+    releases.splice(0).forEach((r) => r());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls.map((c) => (c.triggerData as { update_id: number }).update_id)).toEqual([1, 2, 3, 4, 5]);
+    releases.splice(0).forEach((r) => r());
+  });
+
+  it("снятие флоу с публикации выбрасывает его ожидающие обновления", async () => {
+    const { scheduler, subs, calls, releases, hold } = tgSetup(1);
+    hold(true);
+    scheduler.sync(tgFlow("a"));
+    for (let i = 1; i <= 3; i++) subs[0]!.emit(upd(i));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls).toHaveLength(1);
+    scheduler.sync(tgFlow("a", {}, "draft"));
+    releases.splice(0).forEach((r) => r());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls).toHaveLength(1); // 2 и 3 не запустились
+  });
+
+  it("переполнение очереди (500) отбрасывает лишнее и пишет в лог", async () => {
+    const { scheduler, subs, calls, releases, hold, logs } = tgSetup(1);
+    hold(true);
+    scheduler.sync(tgFlow("a"));
+    for (let i = 1; i <= 505; i++) subs[0]!.emit(upd(i));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls).toHaveLength(1);
+    expect(logs.filter((l) => /event queue is full/.test(l))).toHaveLength(4); // 1 в работе + 500 в очереди, остальные 4 отброшены
+    scheduler.sync(tgFlow("a", {}, "draft"));
+    releases.splice(0).forEach((r) => r());
+  });
+
+  it("problems(): секрет не задан, кривой токен, неизвестный тип, кривые id", () => {
+    const { scheduler } = tgSetup();
+    delete process.env["FL0W_SECRET_TELEGRAM_BOT_TOKEN"];
+    expect(scheduler.problems(tgFlow("a", { token: "" }))[0]).toMatch(/FL0W_SECRET_TELEGRAM_BOT_TOKEN is not set on the server/);
+    expect(scheduler.problems(tgFlow("a", { token: "env:PATH" }))[0]).toMatch(/Only server variables named FL0W_SECRET_/);
+    expect(scheduler.problems(tgFlow("a", { token: "garbage" }))[0]).toMatch(/invalid format/);
+    expect(scheduler.problems(tgFlow("a", { updates: ["messages"] }))[0]).toMatch(/unknown update type "messages"/);
+    expect(scheduler.problems(tgFlow("a", { updates: [] }))[0]).toMatch(/at least one update type/);
+    expect(scheduler.problems(tgFlow("a", { chatIds: "abc" }))[0]).toMatch(/not a valid chat id/);
+    expect(scheduler.problems(tgFlow("a", { userIds: "@name" }))[0]).toMatch(/not a valid user id/);
+    expect(scheduler.problems(tgFlow("a", { chatIds: "@mychannel, -100123", userIds: "42", updates: ["*"] }))).toEqual([]);
+    expect(scheduler.problems(tgFlow("a"))).toEqual([]);
+  });
+
+  it("токен из переменной окружения разрешается при подписке; без поллера — запись в лог", () => {
+    process.env["FL0W_SECRET_TG_TEST"] = "999999:ZZZ-DEF1234ghIkl-zyx57W2v1u123ew11";
+    try {
+      const { scheduler, subs } = tgSetup();
+      scheduler.sync(tgFlow("a", { token: "env:FL0W_SECRET_TG_TEST" }));
+      expect(subs[0]!.spec.token).toBe("999999:ZZZ-DEF1234ghIkl-zyx57W2v1u123ew11");
+      const plain = setup();
+      plain.scheduler.sync(tgFlow("b"));
+      expect(plain.logs.join("\n")).toMatch(/needs a Telegram poller/);
+    } finally {
+      delete process.env["FL0W_SECRET_TG_TEST"];
+    }
+  });
+});

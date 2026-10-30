@@ -9,6 +9,17 @@ export type FileWatchSpec = {
   recursive: boolean;
 };
 
+/** Подписка Telegram Trigger: опрос Bot API (getUpdates) одним токеном на всех подписчиков. */
+export type TelegramSpec = {
+  /** Расшифрованный токен — живёт только в памяти сервера, в логи и ответы не попадает. */
+  token: string;
+  /** Типы обновлений; "*" — все, кроме chat_member, message_reaction, message_reaction_count (как у Telegram). */
+  updates: string[];
+  chatIds: string[];
+  userIds: string[];
+  dropPending: boolean;
+};
+
 export type LifecycleReason = "publish" | "update" | "startup";
 export type LifecycleSpec = Record<LifecycleReason, boolean>;
 
@@ -40,6 +51,10 @@ export abstract class Block {
   static autoTrigger = false;
   /** Для триггеров по файловой системе: что отслеживать (путь относительно каталога файлов); null — не файловый. */
   static fileWatch(_params: Record<string, Json>): FileWatchSpec | null {
+    return null;
+  }
+  /** Для Telegram Trigger: подписка на обновления бота; null — не такой триггер. */
+  static telegram(_params: Record<string, Json>): TelegramSpec | null {
     return null;
   }
   /**

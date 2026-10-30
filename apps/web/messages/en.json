@@ -44,7 +44,8 @@
     "io": "Input / output",
     "data": "Data",
     "flow": "Logic",
-    "trigger": "Triggers"
+    "trigger": "Triggers",
+    "app": "Apps"
   },
   "blocks": {
     "source": "Source",
@@ -80,7 +81,9 @@
     "local_file_trigger": "Local File Trigger",
     "error_trigger": "Error Trigger",
     "workflow_trigger": "Workflow Trigger",
-    "activation_trigger": "Activation Trigger"
+    "activation_trigger": "Activation Trigger",
+    "telegram": "Telegram",
+    "telegram_trigger": "Telegram Trigger"
   },
   "node": {
     "unknown": "Unknown block: {type}",
@@ -295,6 +298,41 @@
       "onPublish": "On publish",
       "onUpdate": "On update",
       "onStartup": "On server start"
+    },
+    "telegram": {
+      "token": "Bot token (env:FL0W_SECRET_…)",
+      "operation": "Operation",
+      "chatId": "Chat (id or @channel)",
+      "messageId": "Message ID",
+      "userId": "User ID",
+      "text": "Text / title / description",
+      "parseMode": "Text format",
+      "file": "File (file_id, URL or file:path)",
+      "fileName": "File name",
+      "caption": "Caption",
+      "replyMarkup": "Buttons (reply_markup, JSON)",
+      "latitude": "Latitude",
+      "longitude": "Longitude",
+      "media": "Media (2–10 items, JSON)",
+      "action": "Action",
+      "queryId": "Query ID",
+      "results": "Results (JSON, up to 50)",
+      "fileId": "File ID",
+      "download": "Download the file",
+      "saveTo": "Save to the files directory",
+      "disableNotification": "Silent",
+      "disableWebPagePreview": "No link preview",
+      "replyToMessageId": "Reply to message (ID)",
+      "messageThreadId": "Forum topic (ID)",
+      "additional": "Other Bot API parameters (JSON)",
+      "timeoutMs": "Timeout, ms"
+    },
+    "telegram_trigger": {
+      "token": "Bot token (env:FL0W_SECRET_…)",
+      "updates": "Update types (JSON list, * — all)",
+      "chatIds": "Only these chats (comma-separated ids)",
+      "userIds": "Only these users (comma-separated ids)",
+      "dropPending": "Drop pending updates on start"
     }
   },
   "run": {
@@ -396,7 +434,30 @@
       "read": "read",
       "write": "write",
       "append": "append",
-      "list": "list"
+      "list": "list",
+      "getChat": "Chat: get",
+      "getChatAdministrators": "Chat: get administrators",
+      "getChatMember": "Chat: get member",
+      "leaveChat": "Chat: leave",
+      "setChatDescription": "Chat: set description",
+      "setChatTitle": "Chat: set title",
+      "answerCallbackQuery": "Callback: answer query",
+      "answerInlineQuery": "Callback: answer inline query",
+      "getFile": "File: get",
+      "deleteMessage": "Message: delete",
+      "editMessageText": "Message: edit text",
+      "pinChatMessage": "Message: pin",
+      "unpinChatMessage": "Message: unpin",
+      "sendAnimation": "Message: send animation",
+      "sendAudio": "Message: send audio",
+      "sendChatAction": "Message: send chat action",
+      "sendDocument": "Message: send document",
+      "sendLocation": "Message: send location",
+      "sendMediaGroup": "Message: send media group",
+      "sendMessage": "Message: send text",
+      "sendPhoto": "Message: send photo",
+      "sendSticker": "Message: send sticker",
+      "sendVideo": "Message: send video"
     },
     "part": {
       "year": "year",
@@ -417,7 +478,18 @@
       "hmac": "hmac",
       "generate": "generate — random",
       "encrypt": "encrypt",
-      "decrypt": "decrypt"
+      "decrypt": "decrypt",
+      "typing": "typing",
+      "upload_photo": "uploading a photo",
+      "record_video": "recording a video",
+      "upload_video": "uploading a video",
+      "record_voice": "recording a voice message",
+      "upload_voice": "uploading a voice message",
+      "upload_document": "uploading a document",
+      "choose_sticker": "choosing a sticker",
+      "find_location": "finding a location",
+      "record_video_note": "recording a video note",
+      "upload_video_note": "uploading a video note"
     },
     "algorithm": {
       "md5": "md5",
@@ -461,6 +533,12 @@
     "shell": {
       "bash": "bash",
       "sh": "sh"
+    },
+    "parseMode": {
+      "none": "plain text",
+      "HTML": "HTML",
+      "Markdown": "Markdown (legacy)",
+      "MarkdownV2": "MarkdownV2"
     }
   },
   "issues": {
