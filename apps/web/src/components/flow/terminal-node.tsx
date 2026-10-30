@@ -38,7 +38,7 @@ export function TerminalNode({ id, selected }: NodeProps<BlockNodeType>) {
     <div
       data-node-id={id}
       className={cn(
-        "fl-node bg-card text-card-foreground relative flex size-full flex-col overflow-hidden rounded-xl border-2 font-mono text-xs shadow-sm transition-colors",
+        "fl-node bg-card text-card-foreground relative flex size-full flex-col rounded-xl border-2 font-mono text-xs shadow-sm transition-colors",
         selected && "ring-ring ring-offset-background ring-2 ring-offset-2",
         status === "running" && "fl-pulse border-blue-500",
         status === "done" && "border-green-500",
