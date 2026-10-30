@@ -1,5 +1,5 @@
 import { registry } from "@fl0w/blocks";
-import { formatIssues, validateFlow, validateCallChannels } from "@fl0w/engine";
+import { formatIssues, validateCallChannels, validateFlow } from "@fl0w/engine";
 import { isSafeFlowId } from "@fl0w/engine/server";
 import { getRuntime } from "@/server/runtime";
 

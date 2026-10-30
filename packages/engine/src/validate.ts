@@ -1,6 +1,6 @@
 import { getNodePorts, portKind, validateParams, type BlockClass } from "@fl0w/blocks";
 import { flowSchema, type Flow } from "@fl0w/schema";
-import { validateCallChannels } from "./call-channel";
+import { validateCallChannels, validateCallGraph } from "./call-channel";
 import { dataView } from "./resources";
 import { toposort } from "./toposort";
 
@@ -14,6 +14,7 @@ export type FlowIssueCode =
   | "port_occupied"
   | "port_kind"
   | "call_channel"
+  | "call_same_graph"
   | "cycle"
   | "param_required"
   | "param_type"
@@ -165,6 +166,8 @@ export function validateFlow(input: unknown, registry: Registry): ValidationResu
 
   // пара вызовов: один входящий и один исходящий на канал (проверка между флоу — при сохранении на сервере)
   for (const p of validateCallChannels(flow)) issues.push({ code: "call_channel", nodeId: p.nodeId, message: p.message });
+  // вызовы не порождают рекурсию: Emitter/Loop и Collector не в одном графе
+  for (const p of validateCallGraph(flow)) issues.push({ code: p.code, nodeId: p.nodeId, message: p.message });
 
   const topo = toposort(dataView(flow, registry));
   if (!topo.ok) {

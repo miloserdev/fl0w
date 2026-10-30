@@ -99,7 +99,8 @@
     "call_trigger": "Collector",
     "run_flow": "Emitter",
     "counter": "Counter",
-    "log": "Log"
+    "log": "Log",
+    "loop": "Loop"
   },
   "node": {
     "unknown": "Unknown block: {type}",
@@ -428,9 +429,7 @@
     "run_flow": {
       "channelId": "Channel (1:1 link)",
       "mode": "Mode",
-      "data": "Data (empty — whole input)",
-      "allowRecursive": "Allow recursive call",
-      "maxDepth": "Max call chain depth (1–20)"
+      "data": "Data (empty — whole input)"
     },
     "counter": {
       "name": "Shared counter name (empty — count this node)",
@@ -444,6 +443,14 @@
     },
     "call_trigger": {
       "channelId": "Channel (1:1 link)"
+    },
+    "loop": {
+      "channelId": "Loop body channel (Collector)",
+      "mode": "Mode",
+      "path": "Path to the array in the input (empty — whole input)",
+      "times": "How many times",
+      "concurrency": "Concurrent iterations (1–8)",
+      "onError": "On body error"
     }
   },
   "run": {
@@ -482,7 +489,9 @@
       "polling": "polling — fetch updates (default)",
       "webhook": "webhook — Telegram pushes (needs FL0W_PUBLIC_URL)",
       "await": "await — wait for the result (out0), error on err",
-      "shoot": "shoot — fire and forget (out0 = ok)"
+      "shoot": "shoot — fire and forget (out0 = ok)",
+      "items": "items — per array element",
+      "times": "times — N repeats"
     },
     "operator": {
       "eq": "equals",
@@ -702,6 +711,10 @@
       "info": "info",
       "warn": "warn",
       "error": "error"
+    },
+    "onError": {
+      "stop": "stop — stop the loop and fail",
+      "continue": "continue — skip failed, errors to the err port"
     }
   },
   "issues": {
@@ -718,7 +731,8 @@
     "param_enum": "Block “{node}”: invalid value for parameter “{param}”",
     "param_range": "Block “{node}”: parameter “{param}” is out of range",
     "port_kind": "Ports of different kinds cannot be connected (data, tool, memory)",
-    "call_channel": "A call channel connects exactly one pair — this channel has more than one call on the same side"
+    "call_channel": "A call channel connects exactly one pair — this channel has more than one call on the same side",
+    "call_same_graph": "An outgoing (Emitter/Loop) and an incoming (Collector) call are in the same graph — the graph would call itself (recursion). Put them in separate graphs or use Loop"
   },
   "addBlock": {
     "title": "Add block",
@@ -756,6 +770,9 @@
     },
     "run_flow": {
       "err": "error"
+    },
+    "loop": {
+      "err": "errors"
     }
   }
 }

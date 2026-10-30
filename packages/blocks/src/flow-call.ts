@@ -46,10 +46,6 @@ export class RunFlow extends Block {
     { name: "mode", type: "enum", default: "await", options: [{ value: "await" }, { value: "shoot" }] },
     // null — отдать весь вход; иначе JSON (в строках работают {{ inputs.in0.путь }})
     { name: "data", type: "json" },
-    // по умолчанию флоу не может вызвать флоу из своей цепочки (в том числе себя): так он случайно не зациклится
-    { name: "allowRecursive", type: "boolean", default: false },
-    // предел длины цепочки вложенных вызовов (вызовы идут в одном процессе, поэтому он ограничен: 1–20)
-    { name: "maxDepth", type: "number", default: 5, min: 1, max: 20 },
   ];
 
   static override portsFor(params: Record<string, Json>): PortsDef {
@@ -62,8 +58,7 @@ export class RunFlow extends Block {
     if (!channelId) throw new Error("channelId is required");
     const mode = params["mode"] === "shoot" ? "shoot" : "await";
     const data = params["data"] === undefined || params["data"] === null ? (inputs["in0"] ?? null) : params["data"];
-    const maxDepth = typeof params["maxDepth"] === "number" ? Math.trunc(params["maxDepth"]) : undefined;
-    const outcome = await ctx.call({ channelId, data, mode, allowRecursive: params["allowRecursive"] === true, ...(maxDepth !== undefined ? { maxDepth } : {}) });
+    const outcome = await ctx.call({ channelId, data, mode });
 
     if (mode === "shoot") return { out0: { ok: true } };
     if (outcome.ok) return { out0: outcome.result };

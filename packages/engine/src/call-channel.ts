@@ -1,8 +1,10 @@
 import type { Flow } from "@fl0w/schema";
 
-/** Типы блоков пары вызовов: исходящий (`run_flow`) и входящий (`call_trigger`) телефоны. */
+/** Типы блоков вызова: исходящие — Emitter (`run_flow`) и Loop (`loop`, вызывает тело цикла), входящий — Collector (`call_trigger`). */
 export const CALL_OUT = "run_flow";
+export const CALL_LOOP = "loop";
 export const CALL_IN = "call_trigger";
+const isOut = (type: string) => type === CALL_OUT || type === CALL_LOOP;
 
 export type CallEnd = { nodeId: string; channelId: string };
 
@@ -11,7 +13,7 @@ export function channelsOf(flow: Pick<Flow, "nodes">): { incoming: CallEnd[]; ou
   const incoming: CallEnd[] = [];
   const outgoing: CallEnd[] = [];
   for (const n of flow.nodes) {
-    if (n.type !== CALL_IN && n.type !== CALL_OUT) continue;
+    if (n.type !== CALL_IN && !isOut(n.type)) continue;
     const channelId = typeof n.params["channelId"] === "string" ? n.params["channelId"].trim() : "";
     if (channelId === "") continue; // пустой канал — ошибка параметра, её даёт обычная проверка
     (n.type === CALL_IN ? incoming : outgoing).push({ nodeId: n.id, channelId });
@@ -58,6 +60,57 @@ export function validateCallChannels(flow: Pick<Flow, "id" | "nodes">, others: P
           issues.push({ code: "call_channel", nodeId: end.nodeId, channelId: end.channelId, message: `Channel "${end.channelId}" already has an ${side === "incoming" ? "incoming" : "outgoing"} call in flow "${other.id}" — a channel connects exactly one pair` });
         }
       }
+    }
+  }
+  return issues;
+}
+
+/**
+ * Графы флоу — компоненты связности (по всем рёбрам, включая ресурсные): блоки на одном холсте, соединённые между собой.
+ * Возвращает номер компоненты для каждой ноды.
+ */
+export function graphsOf(flow: Pick<Flow, "nodes" | "edges">): Map<string, number> {
+  const parent = new Map(flow.nodes.map((n) => [n.id, n.id]));
+  const find = (x: string): string => {
+    let r = x;
+    while (parent.get(r) !== r) r = parent.get(r)!;
+    for (let c = x; c !== r; ) {
+      const nx = parent.get(c)!;
+      parent.set(c, r);
+      c = nx;
+    }
+    return r;
+  };
+  for (const e of flow.edges) if (parent.has(e.source) && parent.has(e.target)) parent.set(find(e.source), find(e.target));
+  const ids = new Map<string, number>();
+  const out = new Map<string, number>();
+  for (const n of flow.nodes) {
+    const root = find(n.id);
+    if (!ids.has(root)) ids.set(root, ids.size);
+    out.set(n.id, ids.get(root)!);
+  }
+  return out;
+}
+
+export type CallGraphIssue = { code: "call_same_graph"; message: string; nodeId?: string };
+
+/**
+ * Вызовы не должны порождать рекурсию: в одном графе (связанных блоках) не может быть и исходящего вызова (Emitter, Loop), и
+ * входящего (Collector). Поэтому вызванный граф сам никого не вызывает — цепочек и циклов вызовов не бывает. Для повторения —
+ * блок Loop, тело которого (граф с Collector) вызывается по каналу.
+ */
+export function validateCallGraph(flow: Pick<Flow, "id" | "nodes" | "edges">): CallGraphIssue[] {
+  const issues: CallGraphIssue[] = [];
+  const graphs = graphsOf(flow);
+  const calls = channelsOf(flow);
+  for (const out of calls.outgoing) {
+    const peer = calls.incoming.find((i) => graphs.get(i.nodeId) === graphs.get(out.nodeId));
+    if (peer) {
+      issues.push({
+        code: "call_same_graph",
+        nodeId: out.nodeId,
+        message: `Outgoing call "${out.nodeId}" and incoming call "${peer.nodeId}" are in the same graph — a graph cannot call itself (that is recursion). Put them in separate graphs, or use a Loop block to repeat`,
+      });
     }
   }
   return issues;

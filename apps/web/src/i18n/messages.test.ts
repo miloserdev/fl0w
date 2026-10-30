@@ -28,6 +28,7 @@ const issueCodes = Object.keys({
   port_occupied: 1,
   port_kind: 1,
   call_channel: 1,
+  call_same_graph: 1,
   cycle: 1,
   param_required: 1,
   param_type: 1,

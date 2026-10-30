@@ -58,8 +58,6 @@ export type CallRequest = {
   data: Json;
   /** await — ждать результат вызванного флоу; shoot — «выстрелить и забыть». */
   mode: "await" | "shoot";
-  allowRecursive?: boolean;
-  maxDepth?: number;
 };
 
 /** Итог вызова: для shoot — всегда `ok` (факт отправки), для await — результат вызванного флоу или причина отказа/падения. */

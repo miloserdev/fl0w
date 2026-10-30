@@ -40,10 +40,9 @@ export type RunOptions = {
   callChain?: string[];
 };
 
-/** Глубина вложенных вызовов по умолчанию и потолок: вызовы идут в одном процессе, поэтому без ограничения нельзя. */
 /** Сколько нод одного запуска исполняется одновременно. */
 const MAX_PARALLEL = 16;
-const DEFAULT_CALL_DEPTH = 5;
+/** Глубина вложенных вызовов — страховка (вызовы идут в одном процессе). */
 const MAX_CALL_DEPTH = 20;
 
 // защита от потока логов из пользовательского кода: IPC и UI не должны захлебнуться
@@ -144,11 +143,12 @@ export async function runFlow(
     }
     const calleeId = String((target.flow as { id?: unknown } | null)?.id ?? "");
     const calleeKey = `${calleeId}#${target.triggerId}`;
-    if (callChain.includes(calleeKey) && !req.allowRecursive) {
-      return failed(`Recursive call: channel "${req.channelId}" leads to "${calleeKey}", which is already in the call chain (${[...callChain, calleeKey].join(" → ")}). Enable allowRecursive if this is intended`);
+    // Рекурсию валидатор запрещает статически (Emitter/Loop и Collector не в одном графе, циклов между графами нет); это страховка на
+    // случай, когда флоу изменили независимо друг от друга, а проверка между ними не сработала.
+    if (callChain.includes(calleeKey)) {
+      return failed(`Recursive call: channel "${req.channelId}" leads to "${calleeKey}", which is already in the call chain (${[...callChain, calleeKey].join(" → ")})`);
     }
-    const limit = Math.min(req.maxDepth ?? DEFAULT_CALL_DEPTH, MAX_CALL_DEPTH);
-    if (callChain.length >= limit) return failed(`Call chain is too deep (limit ${limit} flows; raise maxDepth, at most ${MAX_CALL_DEPTH})`);
+    if (callChain.length >= MAX_CALL_DEPTH) return failed(`Call chain is too deep (limit ${MAX_CALL_DEPTH} flows)`);
     // Вложенный запуск ТОГО ЖЕ флоу (отдельный граф со своим incoming call) показывает свои ноды на том же холсте — его события идут
     // наружу, чтобы было видно, что incoming отработал. События ДРУГОГО флоу не пересылаются (id нод двух флоу могут совпасть): нужен лишь итог.
     const sameFlow = calleeId === flow.id;
