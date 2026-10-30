@@ -50,6 +50,12 @@ export type RunOptions = {
   shots?: Set<unknown>;
 };
 
+/**
+ * Отмена вложенного запуска (shoot-вызов оборван в конце запуска, соседняя ветка упала) — не сбой его нод: ноды, которые остановились
+ * из-за отмены, не пишут в ленту `node:error` «Aborted» (иначе все параллельные Wait выглядели бы упавшими). Обрыв виден по `node:killed`.
+ */
+const isCancellation = (e: RunnerEvent) => e.event === "node:error" && e.error === "Aborted";
+
 /** Сколько нод одного запуска исполняется одновременно. */
 const MAX_PARALLEL = 16;
 /** Глубина вложенных вызовов — страховка (вызовы идут в одном процессе). */
@@ -174,7 +180,7 @@ export async function runFlow(
       target.flow,
       async (e) => {
         if (e.event === "flow:done") done = e;
-        else if (sameFlow) await onEvent(e);
+        else if (sameFlow && !isCancellation(e)) await onEvent(e);
       },
       { registry, signal: abort.signal, trigger: target.triggerId, triggerData: req.data, callChain, resolveCall: opts.resolveCall },
     );
@@ -310,7 +316,7 @@ export async function runFlow(
       flow,
       async (e) => {
         if (e.event === "flow:done") done = e;
-        else if (forward) await onEvent(e);
+        else if (forward && !isCancellation(e)) await onEvent(e);
       },
       { registry, signal: runSignal, trigger: opts.trigger, triggerData: opts.triggerData, callChain, resolveCall: opts.resolveCall, scope: body, seeds, validated: true, loopBreak: () => (broke = true), shots },
     );

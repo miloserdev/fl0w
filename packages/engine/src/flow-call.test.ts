@@ -330,3 +330,46 @@ describe("рекурсии быть не может: Emitter/Loop и Collector �
     expect(validateFlow(b, registry).ok).toBe(false);
   });
 });
+
+describe("отмена — не ошибка: оборванные ноды вложенных запусков не пишут node:error «Aborted»", () => {
+  /** Один флоу, два несвязанных графа: Manual → Emitter(shoot); Collector → три параллельных Wait → Result. Основной граф заканчивается сразу. */
+  const sameFlowShoot = (): Flow => ({
+    ...flow(
+      [
+        node("m0", "manual"),
+        node("p", "run_flow", { channelId: "c", mode: "shoot" }),
+        node("r", "result"),
+        node("in", "call_trigger", { channelId: "c" }),
+        node("w1", "wait", { amount: 3, unit: "seconds" }),
+        node("w2", "wait", { amount: 3, unit: "seconds" }),
+        node("w3", "wait", { amount: 3, unit: "seconds" }),
+        node("mg", "merge", { mode: "array" }),
+        node("r2", "result"),
+      ],
+      [edge("m0", "p"), edge("p", "r"), edge("in", "w1"), edge("in", "w2", "out0", "in0", "e2"), edge("in", "w3", "out0", "in0", "e3"), edge("w1", "mg", "out0", "in0", "e4"), edge("w2", "mg", "out0", "in1", "e5"), edge("w3", "mg", "out0", "in2", "e6"), edge("mg", "r2")],
+    ),
+    id: "A",
+  });
+
+  it("shoot-вызов того же флоу оборван в конце запуска: в ленте node:killed, а у его Wait нет «Aborted»-ошибок", async () => {
+    const f = sameFlowShoot();
+    const r = await collect(f, { registry, resolveCall: resolverFor(f) });
+    expect(r.done?.error).toBeUndefined();
+    expect(ev(r.events, "node:killed")).toHaveLength(1);
+    const aborted = r.events.filter((e) => e.event === "node:error" && /Aborted/.test(e.error));
+    expect(aborted).toEqual([]);
+  });
+
+  it("то же при падении соседней ветки: оборванные параллельные Wait внутри тела цикла не пишут ошибок, кроме самой упавшей ноды", async () => {
+    const f: Flow = flow(
+      [node("s", "source", { json: [1] }), node("l", "loop"), node("w1", "wait", { amount: 3, unit: "seconds" }), node("w2", "wait", { amount: 3, unit: "seconds" }), node("bad", "code", { code: "throw new Error('boom')" }), node("rb", "result"), node("rd", "result")],
+      [edge("s", "l"), edge("l", "w1", "body", "in0", "e1"), edge("l", "w2", "body", "in0", "e2"), edge("l", "bad", "body", "in0", "e3"), edge("w1", "rb", "out0", "in0", "e4"), edge("l", "rd", "out0", "in0", "e5")],
+    );
+    const r = await collect(f, { registry });
+    expect(r.done?.error).toMatch(/boom/);
+    const errors = r.events.flatMap((e) => (e.event === "node:error" ? [e.nodeId] : []));
+    // упала сама нода `bad` (и вслед за ней цикл), оборванные параллельные Wait ошибок не пишут
+    expect(errors.filter((id) => id.startsWith("w"))).toEqual([]);
+    expect(errors).toContain("bad");
+  });
+});

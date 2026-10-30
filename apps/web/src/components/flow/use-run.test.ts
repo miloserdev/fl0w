@@ -87,3 +87,15 @@ describe("reduceRun: node:killed", () => {
     expect(s.logs.at(-1)).toEqual({ nodeId: "p", message: "killed: caller finished" });
   });
 });
+
+describe("reduceRun: flow:done и оборванные ноды", () => {
+  it("нода, оборванная к концу запуска (осталась running), не пульсирует вечно — становится skipped; завершённые не трогаем", () => {
+    let s = reduceRun(IDLE_RUN, { event: "node:start", nodeId: "a" }, ids);
+    s = reduceRun(s, { event: "node:done", nodeId: "a", output: {} }, ids);
+    s = reduceRun(s, { event: "node:start", nodeId: "b" }, ids);
+    const ok = reduceRun(s, { event: "flow:done", result: null }, ids);
+    expect(ok.nodes).toEqual({ a: "done", b: "skipped" });
+    const failed = reduceRun(s, { event: "flow:done", error: "x" }, ids);
+    expect(failed.nodes).toEqual({ a: "done", b: "skipped" });
+  });
+});

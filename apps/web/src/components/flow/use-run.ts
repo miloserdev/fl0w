@@ -90,9 +90,11 @@ export function reduceRun(state: RunState, e: RunnerEvent, allNodeIds: string[])
         logs: [...state.logs, { nodeId: e.nodeId, message: `killed: ${e.reason}` }].slice(-MAX_LOG_LINES),
       };
     case "flow:done": {
-      if (e.error !== undefined) return { ...state, status: "error", error: e.error };
+      // ноды, ещё «идущие» к концу запуска, оборваны (shoot-вызов, отмена) — пульсировать им больше нечем
+      const settled = Object.fromEntries(Object.entries(state.nodes).map(([id, st]) => [id, st === "running" ? "skipped" : st])) as typeof state.nodes;
+      if (e.error !== undefined) return { ...state, nodes: settled, status: "error", error: e.error };
       // при успехе ноды, до которых данные не дошли (невзятая ветка), помечаем как пропущенные
-      const nodes = { ...state.nodes };
+      const nodes = { ...settled };
       for (const id of allNodeIds) nodes[id] ??= "skipped";
       return { ...state, status: "done", nodes, result: e.result };
     }
