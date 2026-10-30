@@ -79,7 +79,8 @@ export function validateFlow(input: unknown, registry: Registry): ValidationResu
       });
       continue;
     }
-    for (const p of validateParams(cls.params, node.params, { allowExpressions: true })) {
+    // у отключённой ноды параметры не проверяются: её можно оставить недоделанной
+    for (const p of node.disabled ? [] : validateParams(cls.params, node.params, { allowExpressions: true })) {
       issues.push({
         code: `param_${p.code}`,
         nodeId: node.id,

@@ -19,7 +19,7 @@ export function closure(from: Iterable<string>, next: (id: string) => string[]):
 export function isDataSource(flow: Flow, registry: Registry, nodeId: string): boolean {
   const node = flow.nodes.find((n) => n.id === nodeId);
   const cls = node && registry[node.type];
-  return !!cls && !cls.resource && !cls.layout && !cls.isTrigger && getNodePorts(cls, node.portsOverride, node.params).inputs.length === 0;
+  return !!cls && !node?.disabled && !cls.resource && !cls.layout && !cls.isTrigger && getNodePorts(cls, node.portsOverride, node.params).inputs.length === 0;
 }
 
 /**
@@ -32,7 +32,7 @@ export function isDataSource(flow: Flow, registry: Registry, nodeId: string): bo
  * Остальное — ноды без связи со стартом — не запускается, даже если у них нет подключённых входов.
  */
 export function startNodes(flow: Flow, registry: Registry, trigger?: string): string[] {
-  const triggers = flow.nodes.filter((n) => registry[n.type]?.isTrigger).map((n) => n.id);
+  const triggers = flow.nodes.filter((n) => registry[n.type]?.isTrigger && !n.disabled).map((n) => n.id);
   if (triggers.length === 0) return flow.nodes.filter((n) => isDataSource(flow, registry, n.id)).map((n) => n.id);
   if (trigger !== undefined) return [trigger];
   // ручной запуск: триггеры, ждущие внешнего события (вебхук, файл, Telegram…), не стартуют — кроме закреплённых

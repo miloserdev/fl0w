@@ -49,7 +49,7 @@ export function buildResources(
     if (e.target !== hostId) continue;
     const node = flow.nodes.find((n) => n.id === e.source);
     const cls = node && registry[node.type];
-    if (!node || !cls?.resource) continue;
+    if (!node || node.disabled || !cls?.resource) continue; // отключённый инструмент/банк памяти недоступен хозяину
 
     const params = resolveParamExpressions(cls.params, resolveParams(cls.params, node.params), hostInputs);
     const issues = validateParams(cls.params, params);

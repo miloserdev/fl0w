@@ -11,7 +11,7 @@ export function channelsOf(flow: Pick<Flow, "nodes">): { incoming: CallEnd[]; ou
   const incoming: CallEnd[] = [];
   const outgoing: CallEnd[] = [];
   for (const n of flow.nodes) {
-    if (n.type !== CALL_IN && n.type !== CALL_OUT) continue;
+    if (n.disabled || (n.type !== CALL_IN && n.type !== CALL_OUT)) continue; // отключённые вызовы к каналам не относятся
     const channelId = typeof n.params["channelId"] === "string" ? n.params["channelId"].trim() : "";
     if (channelId === "") continue; // пустой канал — ошибка параметра, её даёт обычная проверка
     (n.type === CALL_IN ? incoming : outgoing).push({ nodeId: n.id, channelId });

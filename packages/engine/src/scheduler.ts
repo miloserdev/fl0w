@@ -129,7 +129,7 @@ export class Scheduler {
     const lifecycleNodes: string[] = [];
     for (const node of flow.nodes) {
       const cls = this.deps.registry[node.type];
-      if (!cls?.isTrigger) continue;
+      if (!cls?.isTrigger || node.disabled) continue; // отключённый триггер не регистрируется (таймер, вебхук, опрос)
       try {
         const ms = cls.intervalMs(node.params);
         if (ms !== null) {
@@ -204,7 +204,7 @@ export class Scheduler {
     const own = new Set<string>();
     for (const node of flow.nodes) {
       const cls = this.deps.registry[node.type];
-      if (!cls?.isTrigger) continue;
+      if (!cls?.isTrigger || node.disabled) continue; // отключённый триггер не регистрируется (таймер, вебхук, опрос)
       try {
         cls.intervalMs(node.params);
         cls.fileWatch(node.params);

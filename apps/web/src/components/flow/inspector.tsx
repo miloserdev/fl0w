@@ -1,7 +1,7 @@
 "use client";
 
 import { registry } from "@fl0w/blocks";
-import { Maximize2, RotateCcw, X } from "lucide-react";
+import { Maximize2, Power, PowerOff, RotateCcw, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -49,6 +49,19 @@ export function Inspector({
           <div className="truncate text-sm font-medium">{blockLabel(node.data.blockType)}</div>
           <div className="text-muted-foreground truncate font-mono text-xs">{node.id}</div>
         </div>
+        {!layout && (
+          <Button
+            variant={node.data.disabled ? "secondary" : "ghost"}
+            size="icon"
+            className="size-7"
+            aria-pressed={node.data.disabled === true}
+            title={node.data.disabled ? t("enableNode") : t("disableNode")}
+            aria-label={node.data.disabled ? t("enableNode") : t("disableNode")}
+            onClick={() => onChange(node.id, { disabled: !node.data.disabled })}
+          >
+            {node.data.disabled ? <Power className="size-4" /> : <PowerOff className="size-4" />}
+          </Button>
+        )}
         <Button variant="ghost" size="icon" className="size-7" onClick={onClose} aria-label={t("close")}>
           <X className="size-4" />
         </Button>

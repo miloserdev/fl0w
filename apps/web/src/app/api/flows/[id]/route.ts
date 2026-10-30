@@ -43,7 +43,7 @@ export async function PUT(req: Request, { params }: Ctx) {
   if (flow.id !== id) {
     return Response.json({ error: "Flow id does not match the URL" }, { status: 400 });
   }
-  if (flow.status === "published" && !flow.nodes.some((n) => registry[n.type]?.autoTrigger)) {
+  if (flow.status === "published" && !flow.nodes.some((n) => !n.disabled && registry[n.type]?.autoTrigger)) {
     return Response.json(
       { error: "Publishing requires an automatic trigger block (Every or Webhook)", code: "no_trigger" },
       { status: 400 },

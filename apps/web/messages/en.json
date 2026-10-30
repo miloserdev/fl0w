@@ -117,7 +117,8 @@
     "groupTitle": "Group title",
     "groupPlaceholder": "Group (double-click to name)",
     "terminalIdle": "waiting for a run…",
-    "runTrigger": "Run this trigger"
+    "runTrigger": "Run this trigger",
+    "disabled": "Node is disabled"
   },
   "errors": {
     "invalidFlow": "The flow has errors and cannot run:",
@@ -168,7 +169,9 @@
     "channelHint": "An outgoing and an incoming call on the same channel form a pair (1:1). The pair can be created later, but the incoming one must be saved (for Run) or published (for production runs) when the call happens",
     "channelTakenIn": "This channel already has an incoming call in flow “{flow}” — a channel connects exactly one pair",
     "channelTakenOut": "This channel already has an outgoing call in flow “{flow}” — a channel connects exactly one pair",
-    "channelNoPeer": "No incoming call on this channel yet — create it in another flow"
+    "channelNoPeer": "No incoming call on this channel yet — create it in another flow",
+    "disableNode": "Disable the node (not part of the run)",
+    "enableNode": "Enable the node"
   },
   "params": {
     "source": {

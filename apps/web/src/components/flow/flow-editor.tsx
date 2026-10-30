@@ -265,7 +265,7 @@ function Editor() {
   // Публикация и Watch. Исполняется серверная копия: локальные правки до «Обновить» её не меняют.
   const published = server?.status === "published";
   const dirty = published && server.fingerprint !== flowFingerprint(deferredFlow);
-  const hasTrigger = deferredNodes.some((n) => registry[n.data.blockType]?.autoTrigger);
+  const hasTrigger = deferredNodes.some((n) => !n.data.disabled && registry[n.data.blockType]?.autoTrigger);
   const watching = watchOn && published;
   const watch = useWatch(meta.id, watching, server?.nodeIds ?? []);
   const view = watching ? watch.state : runState;

@@ -69,6 +69,25 @@ describe("pin data и перезапуск", () => {
     expect(back.nodes[1]).not.toHaveProperty("pinData");
   });
 
+  it("disabled проходит через Flow ↔ React Flow; без отключения поле не пишется; меняет отпечаток", () => {
+    const mk = (disabled?: boolean) => ({
+      version: 1 as const,
+      id: "f",
+      name: "n",
+      nodes: [
+        { id: "a", type: "source", position: { x: 0, y: 0 }, params: {}, portsOverride: null, cssOverride: null, ...(disabled ? { disabled } : {}) },
+        { id: "b", type: "result", position: { x: 1, y: 1 }, params: {}, portsOverride: null, cssOverride: null },
+      ],
+      edges: [],
+    });
+    const rf = toReactFlow(mk(true));
+    expect(rf.nodes[0]!.data.disabled).toBe(true);
+    const back = fromReactFlow(rf.nodes, rf.edges, { id: "f", name: "n" });
+    expect(back.nodes[0]).toMatchObject({ disabled: true });
+    expect(back.nodes[1]).not.toHaveProperty("disabled");
+    expect(flowFingerprint(mk(true))).not.toBe(flowFingerprint(mk()));
+  });
+
   it("закрепление не делает опубликованный флоу «изменённым»", () => {
     const base = { version: 1 as const, id: "f", name: "n", edges: [] };
     const node = { id: "a", type: "source", position: { x: 0, y: 0 }, params: {}, portsOverride: null, cssOverride: null };

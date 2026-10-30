@@ -2,7 +2,7 @@
 
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { registry } from "@fl0w/blocks";
-import { Pin, Play, TriangleAlert } from "lucide-react";
+import { Pin, Play, PowerOff, TriangleAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Tip } from "@/components/tip";
 import { Button } from "@/components/ui/button";
@@ -81,6 +81,8 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNodeType>) {
         runStatus === "done" && "border-green-500",
         runStatus === "error" && "border-destructive",
         runStatus === "skipped" && !isResource && "opacity-50",
+        // отключённая нода: приглушена, рамка пунктиром — в запуске не участвует
+        data.disabled && "border-dashed opacity-40 grayscale",
         (!cls || issues) && "border-destructive",
       )}
       style={{ height: isResource ? MIN_HEIGHT : Math.max(MIN_HEIGHT, rows * PORT_GAP + 20), width: hostWidth }}
@@ -124,7 +126,7 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNodeType>) {
           variant="outline"
           size="icon"
           className="nodrag nopan absolute top-1/2 -left-9 size-7 -translate-y-1/2 rounded-full"
-          disabled={triggerRun.disabled}
+          disabled={triggerRun.disabled || data.disabled === true}
           title={t("runTrigger")}
           aria-label={t("runTrigger")}
           onClick={(e) => {
@@ -134,6 +136,14 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNodeType>) {
         >
           <Play className="size-3.5" />
         </Button>
+      )}
+      {data.disabled && (
+        <Tip label={t("disabled")}>
+          <span className="bg-muted text-muted-foreground absolute -top-2 -right-2 flex size-5 items-center justify-center rounded-full border">
+            <PowerOff className="size-3" />
+            <span className="sr-only">{t("disabled")}</span>
+          </span>
+        </Tip>
       )}
       {runStatus && <span className="sr-only">{t(`status.${runStatus}`)}</span>}
 

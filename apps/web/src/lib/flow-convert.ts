@@ -10,6 +10,8 @@ export type BlockNodeData = {
   cssOverride: string | null;
   /** Закреплённый выход ноды (pin data): в ручном запуске нода отдаёт его, не исполняясь. */
   pinData?: Record<string, Json> | null;
+  /** Нода отключена: в запуске не участвует, триггер не регистрируется. */
+  disabled?: boolean;
 };
 /** Нода холста: обычный блок (`block`) или блок оформления (*/
 export type BlockNodeType = Node<BlockNodeData, "block" | "layout-note" | "layout-group" | "terminal">;
@@ -107,6 +109,7 @@ export function toReactFlow(flow: Flow): { nodes: BlockNodeType[]; edges: Edge[]
         portsOverride: n.portsOverride,
         cssOverride: n.cssOverride,
         pinData: n.pinData ?? null,
+        ...(n.disabled ? { disabled: true } : {}),
       },
     })),
     edges: flow.edges.map((e) => ({
@@ -138,6 +141,7 @@ export function fromReactFlow(
         portsOverride: n.data.portsOverride,
         cssOverride: n.data.cssOverride,
         ...(n.data.pinData ? { pinData: n.data.pinData } : {}),
+        ...(n.data.disabled ? { disabled: true } : {}),
       }),
     ),
     edges: edges.flatMap((e) =>
@@ -177,7 +181,7 @@ export function flowFingerprint(flow: Flow): string {
     // заметки и группы — оформление: их правка не делает опубликованный флоу «изменённым»
     nodes: flow.nodes
       .filter((n) => !registry[n.type]?.layout)
-      .map((n) => ({ id: n.id, type: n.type, params: n.params, portsOverride: n.portsOverride, cssOverride: n.cssOverride }))
+      .map((n) => ({ id: n.id, type: n.type, params: n.params, portsOverride: n.portsOverride, cssOverride: n.cssOverride, disabled: n.disabled === true }))
       .sort((a, b) => a.id.localeCompare(b.id)),
     edges: [...flow.edges].sort((a, b) => a.id.localeCompare(b.id)),
   });

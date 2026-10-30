@@ -235,6 +235,10 @@ export async function runFlow(
       await finish({ error: `Unknown trigger "${opts.trigger}"` });
       return;
     }
+    if (t.disabled) {
+      await finish({ error: `Trigger "${opts.trigger}" is disabled` });
+      return;
+    }
   }
   const incoming = new Map<string, Flow["edges"]>();
   const outgoing = new Map<string, Flow["edges"]>();
@@ -245,7 +249,7 @@ export async function runFlow(
 
   // Запускаются только ноды, связанные со стартовыми (триггеры / источники данных), — не любая «без входов».
   const participants = participatingNodes(flow, registry, opts.trigger);
-  if (!opts.scope && opts.from === undefined && flow.nodes.some((n) => registry[n.type]?.isTrigger) && startNodes(flow, registry, opts.trigger).length === 0) {
+  if (!opts.scope && opts.from === undefined && flow.nodes.some((n) => registry[n.type]?.isTrigger && !n.disabled) && startNodes(flow, registry, opts.trigger).length === 0) {
     await finish({ error: "Nothing to start manually: this flow begins with event triggers (webhook, file, Telegram, …). Publish it and send an event, or add a Manual trigger for testing" });
     return;
   }
@@ -353,6 +357,7 @@ export async function runFlow(
   const decide = (id: string): "wait" | "skip" | "run" | "error" => {
     const node = nodes.get(id)!;
     const cls = registry[node.type]!;
+    if (node.disabled) return "skip"; // отключена: не участвует (выходов нет — ветка за ней не идёт)
     if (inBody.has(id)) return "skip"; // тело цикла исполняет сам цикл
     if (!(needed ? needed.has(id) : participants.has(id))) return "skip"; // нет связи со стартовой нодой / не нужна перезапуску
     if (cls.resource || cls.layout) return "skip"; // sub-node вызывает хозяин; заметки и группы — только оформление
