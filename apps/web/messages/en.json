@@ -125,7 +125,8 @@
     "dataInput": "Input",
     "dataParams": "Parameters (after expressions)",
     "dataOutput": "Output",
-    "dataLogs": "Log"
+    "dataLogs": "Log",
+    "insertExpression": "Insert an expression from the input"
   },
   "params": {
     "source": {

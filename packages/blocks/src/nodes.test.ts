@@ -683,7 +683,7 @@ describe("resolveInputsExpressions / resolveParamExpressions / hasExpression", (
     const schema = [{ name: "code", type: "string", expressions: false }, { name: "x", type: "string" }] as import("@fl0w/schema").ParamSchema[];
     expect(resolveParamExpressions(schema, { code: "{{ inputs.in0.n }}", x: "{{ inputs.in0.n }}", extra: "{{ inputs.in0.s }}" }, inputs)).toEqual({
       code: "{{ inputs.in0.n }}",
-      x: 5,
+      x: "5", // строковый параметр: число приводится к тексту
       extra: "text",
     });
     expect(CodeBlock.params.find((p) => p.name === "code")?.expressions).toBe(false);

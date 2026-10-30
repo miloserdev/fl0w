@@ -125,7 +125,8 @@
     "dataInput": "Вход",
     "dataParams": "Параметры (после подстановки выражений)",
     "dataOutput": "Выход",
-    "dataLogs": "Лог"
+    "dataLogs": "Лог",
+    "insertExpression": "Вставить выражение из входа"
   },
   "params": {
     "source": {

@@ -41,7 +41,14 @@ export function resolveParamExpressions(
 ): Record<string, Json> {
   const out: Record<string, Json> = {};
   for (const [k, v] of Object.entries(values)) {
-    out[k] = schema.find((p) => p.name === k)?.expressions === false ? v : resolveInputsExpressions(v, inputs);
+    const p = schema.find((x) => x.name === k);
+    if (p?.expressions === false) {
+      out[k] = v;
+      continue;
+    }
+    const r = resolveInputsExpressions(v, inputs);
+    // строковый параметр из «целого» выражения: число/булево/объект (id чата, флаг) становятся текстом, а не ошибкой типа
+    out[k] = p?.type === "string" && typeof v === "string" && r !== null && typeof r !== "string" ? (typeof r === "object" ? JSON.stringify(r) : String(r)) : r;
   }
   return out;
 }

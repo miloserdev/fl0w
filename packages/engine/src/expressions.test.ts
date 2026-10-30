@@ -158,3 +158,16 @@ describe("node:start скрывает секреты в параметрах", (
     expect(e2.params["list"]).toEqual({ token: "env:FL0W_SECRET_X" });
   });
 });
+
+describe("выражение в строковом параметре", () => {
+  it("число из входа (например id чата) приводится к строке, а не ломает проверку типа", async () => {
+    const r = await run({ chat: { id: 123, ok: true } }, echo({ a: "{{ inputs.in0.chat.id }}", need: "{{ inputs.in0.chat.ok }}" }));
+    expect(r.done?.error).toBeUndefined();
+    expect(r.done?.result).toMatchObject({ a: "123", need: "true" });
+  });
+
+  it("объект в строковом параметре — JSON-текстом", async () => {
+    const r = await run({ chat: { id: 1 } }, echo({ a: "{{ inputs.in0.chat }}" }));
+    expect(r.done?.result).toMatchObject({ a: '{"id":1}' });
+  });
+});

@@ -121,6 +121,20 @@ export function ParamForm({ blockType, schema, values, onChange }: Props) {
                 {label}
                 {p.required && <span className="text-destructive">*</span>}
               </Label>
+              {p.type === "string" && p.expressions !== false && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-6"
+                  title={t("inspector.insertExpression")}
+                  aria-label={t("inspector.insertExpression")}
+                  // вставка шаблона из входа в конец текста: можно смешивать с обычным текстом
+                  onClick={() => set(p.name, `${typeof value === "string" ? value : ""}{{ inputs.in0. }}`)}
+                >
+                  <Braces className="size-3.5" />
+                </Button>
+              )}
               {toggleable && (
                 <Button
                   type="button"
