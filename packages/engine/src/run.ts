@@ -269,6 +269,14 @@ export async function runFlow(
     const starts = (outgoing.get(n.id) ?? []).filter((e) => e.sourcePort === bodyPort).map((e) => e.target);
     loopBodies.set(n.id, closure(starts, (id) => (outgoing.get(id) ?? []).map((e) => e.target)));
   }
+  // Внешние входы тела: источники рёбер, которые входят в тело снаружи. Тело исполняется внутри цикла и не может «подождать» их
+  // позже, поэтому сам цикл ждёт, пока все они определятся (значение или «пусто»).
+  const bodyFeeders = new Map<string, string[]>();
+  for (const [loopId, body] of loopBodies) {
+    const feeders = new Set<string>();
+    for (const e of dataFlow.edges) if (body.has(e.target) && !body.has(e.source) && e.source !== loopId) feeders.add(e.source);
+    bodyFeeders.set(loopId, [...feeders]);
+  }
   // основной поток пропускает ноды тел СВОИХ циклов; запуск-итерация (scope) — тела циклов внутри области (внешние циклы не в счёт)
   const inBody = new Set<string>();
   for (const [loopId, body] of loopBodies) {
@@ -344,6 +352,8 @@ export async function runFlow(
     if (frozen) return opts.scope ? "skip" : "error"; // нужны данные прошлого запуска, а их нет (у итерации цикла вход мог не прийти — ветка не пошла)
     // другие триггеры в этом запуске молчат: он начат от выбранного
     if (cls.isTrigger && (opts.trigger !== undefined ? id !== opts.trigger : cls.eventDriven)) return "skip";
+    // цикл ждёт и внешние входы своего тела (иначе тело стартует без данных, а ноды с wait-all молча пропустятся)
+    if (cls.bodyPort && (bodyFeeders.get(id) ?? []).some((dep) => !resolved.has(dep))) return "wait";
     const edges = incoming.get(id) ?? [];
     // нода со входными портами, у которой ничего не подключено, сама не стартует (стартуют триггеры и источники)
     const entry = cls.isTrigger || getNodePorts(cls, node.portsOverride, node.params).inputs.length === 0;

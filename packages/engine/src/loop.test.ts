@@ -132,9 +132,26 @@ describe("Loop: ошибки итераций, вложенность, собы�
     const body = [code("c", "if (inputs.in0.item === 2) throw new Error('bad item'); return { out0: inputs.in0.item }")];
     const stop = await run(loopFlow({}, [1, 2, 3], body));
     expect(stop.done?.error).toMatch(/Loop iteration 1 failed:.*bad item/);
-    const cont = await run(loopFlow({ onError: "continue" }, [1, 2, 3], body));
+    // порт err: ошибки упавших итераций выходят отдельно, а не теряются в логе
+    const withErr: Flow = loopFlow({ onError: "continue" }, [1, 2, 3], body);
+    withErr.nodes.push(node("re", "result"));
+    withErr.edges.push(edge("l", "re", "err", "in0", "e-err"));
+    const cont = await run(withErr);
     expect(cont.done?.error).toBeUndefined();
-    expect(cont.done?.result).toEqual([1, 3]);
+    const res = cont.done?.result as Record<string, Json>;
+    expect(res["rd"]).toEqual([1, 3]);
+    expect(res["re"]).toEqual([{ index: 1, item: 2, error: expect.stringContaining("bad item") }]);
+    // без ошибок порт err молчит
+    const clean = await run(withErr.nodes.length ? { ...withErr, nodes: withErr.nodes.map((n) => (n.id === "c" ? { ...n, params: { code: "return { out0: inputs.in0.item }" } } : n)) } : withErr);
+    expect(clean.done?.result).toEqual([1, 2, 3]);
+  });
+
+  it("порт err есть только при onError: continue (ребро к нему при stop отклоняется валидатором)", () => {
+    const f = loopFlow({}, [1], [code("c", "return { out0: 1 }")]);
+    f.nodes.push(node("re", "result"));
+    f.edges.push(edge("l", "re", "err", "in0", "e-err"));
+    expect(validateFlow(f, registry).ok).toBe(false);
+    expect(validateFlow({ ...f, nodes: f.nodes.map((n) => (n.id === "l" ? { ...n, params: { onError: "continue" } } : n)) }, registry).ok).toBe(true);
   });
 
   it("вложенные циклы: тело внешнего содержит внутренний цикл со своим телом", async () => {
@@ -193,6 +210,34 @@ describe("Loop: ошибки итераций, вложенность, собы�
     const r = await run(f, { signal: ac.signal });
     expect(Date.now() - t0).toBeLessThan(3000);
     expect(r.done?.error).toMatch(/Aborted/);
+  });
+});
+
+describe("Loop: внешние входы тела", () => {
+  /** Тело берёт второй вход от МЕДЛЕННОЙ ноды вне тела (Source → Wait): цикл обязан дождаться её, а не стартовать без данных. */
+  const slowFeeder = (waitMs: number): Flow => {
+    const f: Flow = flow(
+      [node("s", "source", { json: [1, 2] }), node("k", "source", { json: { mult: 100 } }), node("w", "wait", { amount: waitMs / 1000, unit: "seconds" }), node("l", "loop"), node("c", "code", { code: "return { out0: inputs.in0.item * inputs.in1.mult }" }), node("rb", "result"), node("rd", "result")],
+      [edge("s", "l", "out0", "in0", "e1"), edge("l", "c", "body", "in0", "e2"), edge("k", "w", "out0", "in0", "e3"), edge("w", "c", "out0", "in1", "e4"), edge("c", "rb", "out0", "in0", "e5"), edge("l", "rd", "out0", "in0", "e6")],
+    );
+    f.nodes = f.nodes.map((n) => (n.id === "c" ? { ...n, portsOverride: { inputs: [{ id: "in1" }], outputs: [] } } : n));
+    return f;
+  };
+
+  it("цикл ждёт медленный внешний вход тела (раньше тело стартовало без него, и результат был [null, null] как «успех»)", async () => {
+    const r = await run(slowFeeder(300));
+    expect(r.done?.error).toBeUndefined();
+    expect(r.done?.result).toEqual([100, 200]);
+  });
+
+  it("внешний вход, который не пришёл (ветка не пошла), не вешает цикл: нода тела пропускается как обычно", async () => {
+    const f = slowFeeder(10);
+    // k → Branch(false) → Wait: значение до тела не дойдёт
+    f.nodes.push(node("br", "branch", { field: "mult", operator: "eq", value: 1 }));
+    f.edges = f.edges.filter((e) => e.id !== "e3").concat([edge("k", "br", "out0", "in0", "e3a"), edge("br", "w", "out0", "in0", "e3b")]);
+    const r = await run(f);
+    expect(r.done?.error).toBeUndefined();
+    expect(r.done?.result).toEqual([null, null]);
   });
 });
 

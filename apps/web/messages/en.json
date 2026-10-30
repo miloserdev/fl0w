@@ -721,7 +721,7 @@
     },
     "onError": {
       "stop": "stop — stop the loop and fail",
-      "continue": "continue — skip the iteration, log the error"
+      "continue": "continue — skip the iteration, errors to the err port"
     }
   },
   "issues": {
@@ -781,7 +781,8 @@
     },
     "loop": {
       "out0": "done",
-      "body": "each iteration"
+      "body": "each iteration",
+      "err": "errors"
     }
   }
 }

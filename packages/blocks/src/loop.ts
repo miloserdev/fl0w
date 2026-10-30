@@ -1,4 +1,4 @@
-import type { Json, ParamSchema } from "@fl0w/schema";
+import type { Json, ParamSchema, PortsDef } from "@fl0w/schema";
 import { Block, type RunContext } from "./block";
 import { conditionParams, evalCondition } from "./conditions";
 import { getPath } from "./json-path";
@@ -20,7 +20,7 @@ const BODY = "body";
  *  - `while` — пока условие над результатом ПРЕДЫДУЩЕЙ итерации (для первой — над входом) истинно: `{ item: last, index }`;
  *  - `forever` — `while true`: до блока Break в теле (или до лимита итераций — это ошибка).
  * `maxIterations` ограничивает любой режим (по умолчанию 1000, не больше 10 000). `onError`: `stop` — ошибка итерации роняет цикл,
- * `continue` — итерация пропускается (результата нет), ошибка пишется в лог.
+ * `continue` — итерация пропускается (результата нет), ошибки уходят в порт `err` (виден только в этом режиме; выходит, только если ошибки были).
  */
 export class Loop extends Block {
   static type = "loop";
@@ -32,6 +32,12 @@ export class Loop extends Block {
     inputs: [{ id: "in0" }],
     outputs: [{ id: "out0", label: "done" }, { id: BODY, label: "each" }],
   };
+  /** При `onError: continue` появляется порт `err` — ошибки упавших итераций (`[{ index, item, error }]`), чтобы они не терялись. */
+  static override portsFor(params: Record<string, Json>): PortsDef | null {
+    return params["onError"] === "continue"
+      ? { inputs: [{ id: "in0" }], outputs: [{ id: "out0", label: "done" }, { id: BODY, label: "each" }, { id: "err", label: "errors" }] }
+      : null;
+  }
   static params: ParamSchema[] = [
     { name: "mode", type: "enum", default: "items", options: [{ value: "items" }, { value: "count" }, { value: "while" }, { value: "forever" }] },
     { name: "path", type: "string", default: "", showWhen: { param: "mode", in: ["items"] } },
@@ -78,6 +84,7 @@ export class Loop extends Block {
     } else throw new Error(`Unknown mode "${mode}"`);
 
     const results: Json[] = [];
+    const errors: Json[] = [];
     let last: Json = input;
     for (let index = 0; ; index++) {
       if (ctx.signal.aborted) throw new Error("Aborted");
@@ -88,13 +95,14 @@ export class Loop extends Block {
       if (!outcome.ok) {
         if (!keep) throw new Error(`Loop iteration ${index} failed: ${outcome.error}`);
         ctx.log(`iteration ${index} failed: ${outcome.error}`);
+        errors.push({ index, item: step.item, error: outcome.error });
         continue;
       }
       results.push(outcome.result);
       last = outcome.result;
       if (outcome.broke) break;
     }
-    return { out0: results };
+    return errors.length > 0 ? { out0: results, err: errors } : { out0: results };
   }
 }
 
