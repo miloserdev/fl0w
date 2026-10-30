@@ -35,6 +35,14 @@ export type RunState = {
 
 export const IDLE_RUN: RunState = { status: "idle", nodes: {}, nodeErrors: {}, logs: [], logsDropped: 0, nodeDetails: {} };
 
+/**
+ * Начало нового запуска в Watch: статусы, ошибки и данные нод прошлых запусков сохраняются — обновляются только те ноды,
+ * которые новый запуск реально затронет (дёрнули один вебхук — остальные ветки не «гаснут»). Лента и результат — заново.
+ */
+export function beginWatchRun(s: RunState): RunState {
+  return { ...IDLE_RUN, status: "running", nodes: s.nodes, nodeErrors: s.nodeErrors, nodeDetails: s.nodeDetails };
+}
+
 /** Применяет событие запуска к состоянию (общий редьюсер для ручного запуска и Watch). */
 export function reduceRun(state: RunState, e: RunnerEvent, allNodeIds: string[]): RunState {
   switch (e.event) {
@@ -42,6 +50,7 @@ export function reduceRun(state: RunState, e: RunnerEvent, allNodeIds: string[])
       return {
         ...state,
         nodes: { ...state.nodes, [e.nodeId]: "running" },
+        nodeErrors: Object.fromEntries(Object.entries(state.nodeErrors).filter(([id]) => id !== e.nodeId)),
         nodeDetails: { ...state.nodeDetails, [e.nodeId]: { input: e.input, params: e.params, logs: [] } },
       };
     case "node:log": {

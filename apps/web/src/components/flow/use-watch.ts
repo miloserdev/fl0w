@@ -2,7 +2,7 @@
 
 import { watchMessageSchema } from "@fl0w/schema";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { IDLE_RUN, reduceRun, type RunState } from "./use-run";
+import { beginWatchRun, IDLE_RUN, reduceRun, type RunState } from "./use-run";
 
 const RECONNECT_MS = 2000;
 
@@ -43,7 +43,7 @@ export function useWatch(flowId: string, enabled: boolean, nodeIds: string[]) {
               const parsed = watchMessageSchema.safeParse(JSON.parse(line));
               if (!parsed.success) continue;
               const m = parsed.data;
-              if (m.type === "run:start") setState((s) => ({ ...IDLE_RUN, status: "running", nodeDetails: s.nodeDetails }));
+              if (m.type === "run:start") setState(beginWatchRun);
               else if (m.type === "run:event") setState((s) => reduceRun(s, m.event, idsRef.current));
             }
           }

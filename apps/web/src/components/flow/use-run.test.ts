@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { IDLE_RUN, reduceRun } from "./use-run";
+import { beginWatchRun, IDLE_RUN, reduceRun } from "./use-run";
 
 const ids = ["a", "b"];
 
@@ -28,5 +28,38 @@ describe("reduceRun: данные нод", () => {
     for (let i = 0; i < 250; i++) s = reduceRun(s, { event: "node:log", nodeId: "a", message: String(i) }, ids);
     expect(s.nodeDetails["a"]!.logs).toHaveLength(200);
     expect(s.nodeDetails["a"]!.logs.at(-1)).toBe("249");
+  });
+});
+
+describe("Watch: новый запуск обновляет только задействованные ноды", () => {
+  it("статусы, ошибки и данные прошлого запуска сохраняются, затронутая нода начинается заново", () => {
+    let s = reduceRun(IDLE_RUN, { event: "node:start", nodeId: "a", input: { in0: 1 } }, ids);
+    s = reduceRun(s, { event: "node:done", nodeId: "a", output: { out0: 1 } }, ids);
+    s = reduceRun(s, { event: "node:start", nodeId: "b" }, ids);
+    s = reduceRun(s, { event: "node:error", nodeId: "b", error: "boom" }, ids);
+    s = reduceRun(s, { event: "flow:done", error: "x" }, ids);
+
+    s = beginWatchRun(s);
+    expect(s.status).toBe("running");
+    expect(s.nodes).toEqual({ a: "done", b: "error" });
+    expect(s.nodeDetails["a"]?.output).toEqual({ out0: 1 });
+    expect(s.logs).toEqual([]);
+    expect(s.result).toBeUndefined();
+
+    s = reduceRun(s, { event: "node:start", nodeId: "b" }, ids);
+    expect(s.nodes["b"]).toBe("running");
+    expect(s.nodeErrors["b"]).toBeUndefined(); // ошибка прошлого запуска этой ноды снята
+    expect(s.nodes["a"]).toBe("done"); // не затронутая нода не «гаснет»
+  });
+
+  it("flow:done не помечает пропущенными ноды, у которых уже есть статус из прошлых запусков", () => {
+    let s = reduceRun(IDLE_RUN, { event: "node:start", nodeId: "a" }, ids);
+    s = reduceRun(s, { event: "node:done", nodeId: "a", output: {} }, ids);
+    s = reduceRun(s, { event: "flow:done", result: null }, ids);
+    s = beginWatchRun(s);
+    s = reduceRun(s, { event: "node:start", nodeId: "b" }, ids);
+    s = reduceRun(s, { event: "node:done", nodeId: "b", output: {} }, ids);
+    s = reduceRun(s, { event: "flow:done", result: null }, ids);
+    expect(s.nodes).toEqual({ a: "done", b: "done" });
   });
 });
