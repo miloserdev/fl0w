@@ -1,0 +1,134 @@
+{
+  "version": 1,
+  "id": "flow_loop_example",
+  "name": "loop",
+  "nodes": [
+    {
+      "id": "src",
+      "type": "source",
+      "position": {
+        "x": 0,
+        "y": 120
+      },
+      "params": {
+        "json": {
+          "orders": [
+            {
+              "id": 1,
+              "qty": 2
+            },
+            {
+              "id": 2,
+              "qty": 5
+            },
+            {
+              "id": 3,
+              "qty": 0
+            }
+          ]
+        }
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "loop",
+      "type": "loop",
+      "position": {
+        "x": 260,
+        "y": 120
+      },
+      "params": {
+        "mode": "items",
+        "path": "orders"
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "calc",
+      "type": "code",
+      "position": {
+        "x": 560,
+        "y": 220
+      },
+      "params": {
+        "code": "const o = inputs.in0.item\nreturn { out0: { id: o.id, total: o.qty * 10, index: inputs.in0.index } }"
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "one",
+      "type": "result",
+      "position": {
+        "x": 820,
+        "y": 220
+      },
+      "params": {},
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "sum",
+      "type": "code",
+      "position": {
+        "x": 560,
+        "y": 20
+      },
+      "params": {
+        "code": "return { out0: { count: inputs.in0.length, totals: inputs.in0.map((r) => r.total) } }"
+      },
+      "portsOverride": null,
+      "cssOverride": null
+    },
+    {
+      "id": "res",
+      "type": "result",
+      "position": {
+        "x": 820,
+        "y": 20
+      },
+      "params": {},
+      "portsOverride": null,
+      "cssOverride": null
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "src",
+      "sourcePort": "out0",
+      "target": "loop",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e2",
+      "source": "loop",
+      "sourcePort": "body",
+      "target": "calc",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e3",
+      "source": "calc",
+      "sourcePort": "out0",
+      "target": "one",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e4",
+      "source": "loop",
+      "sourcePort": "out0",
+      "target": "sum",
+      "targetPort": "in0"
+    },
+    {
+      "id": "e5",
+      "source": "sum",
+      "sourcePort": "out0",
+      "target": "res",
+      "targetPort": "in0"
+    }
+  ]
+}

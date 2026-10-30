@@ -63,6 +63,9 @@ export type CallRequest = {
 /** Итог вызова: для shoot — всегда `ok` (факт отправки), для await — результат вызванного флоу или причина отказа/падения. */
 export type CallOutcome = { ok: true; result: Json } | { ok: false; error: string };
 
+/** Итог одной итерации тела цикла: значение Result тела (null, если Result нет) и просьба остановить цикл (Break) либо ошибка. */
+export type BodyOutcome = { ok: true; result: Json; broke: boolean } | { ok: false; error: string };
+
 export interface RunContext {
   log(msg: string): void;
   signal: AbortSignal;
@@ -76,6 +79,13 @@ export interface RunContext {
    * вызванный флоу идёт «в фоне» внутри этого же запуска и обрывается, если запуск закончится раньше (это логируется).
    */
   call?: (req: CallRequest) => Promise<CallOutcome>;
+  /**
+   * Только у блока цикла (`bodyPort`): выполнить тело цикла — ноды, достижимые от его порта `body`, — один раз с данными итерации
+   * (они выходят из порта `body`). Тело исполняется движком в том же запуске; события его нод видны на холсте.
+   */
+  runBody?: (data: Json) => Promise<BodyOutcome>;
+  /** Внутри тела цикла: остановить ближайший цикл после текущей итерации (блок Break). Снаружи тела — нет. */
+  breakLoop?: () => void;
   /** Порты выходов этой ноды, к которым подключены рёбра (нужно, чтобы не терять ошибку, если порт `err` ни к чему не ведёт). */
   connected?: string[];
   /** Флоу и нода, которую сейчас исполняют (у блоков, которым нужна «своя» идентичность — например, Counter). */
@@ -127,6 +137,11 @@ export abstract class Block {
    * данными), ни события, ни расписание его не стартуют.
    */
   static callOnly = false;
+  /**
+   * Блок цикла: id выходного порта, от которого начинается ТЕЛО цикла (ноды, достижимые от него, исполняются движком по
+   * итерациям, а не в основном потоке). null — обычный блок.
+   */
+  static bodyPort: string | null = null;
   /** Порты, зависящие от параметров (например, `err` только в режиме await); null — использовать `ports`. */
   static portsFor(_params: Record<string, Json>): PortsDef | null {
     return null;

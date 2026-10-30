@@ -61,6 +61,10 @@ describe("examples/*.json", () => {
     }
   });
 
+  it("loop: тело исполняется на каждый элемент, на выходе done — массив результатов тела", async () => {
+    expect(result(await run("loop.json"))).toEqual({ count: 3, totals: [20, 50, 0] });
+  });
+
   it("набор примеров", () => {
     expect([...files].sort()).toEqual([
       "cleanup.json",
@@ -71,6 +75,7 @@ describe("examples/*.json", () => {
       "error-handler.json",
       "file-report.json",
       "jwt-and-hash.json",
+      "loop.json",
       "showcase.json",
       "telegram-bot.json",
       "webhook-api.json",

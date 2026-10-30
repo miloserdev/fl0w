@@ -54,4 +54,4 @@ export { GroupFrame, LAYOUT_COLORS, StickyNote } from "./layout";
 export { CallTrigger, RunFlow } from "./flow-call";
 export { Counter } from "./counter";
 export { LOG_LEVELS, Log } from "./log";
-export { Loop, MAX_LOOP_CONCURRENCY, MAX_LOOP_ITEMS } from "./loop";
+export { DEFAULT_LOOP_ITERATIONS, Loop, LoopBreak, MAX_LOOP_ITERATIONS } from "./loop";

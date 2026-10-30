@@ -38,7 +38,7 @@ import { GroupFrame, StickyNote } from "./layout";
 import { CallTrigger, RunFlow } from "./flow-call";
 import { Counter } from "./counter";
 import { Log } from "./log";
-import { Loop } from "./loop";
+import { Loop, LoopBreak } from "./loop";
 import { CodeAgent } from "./code-agent";
 import { MemoryBank } from "./memory";
 import { CalculatorTool, CodeTool, DateTimeTool, RandomTool } from "./tools";
@@ -101,5 +101,6 @@ export const registry: Record<string, BlockClass> = {
   stop_and_error: StopAndError,
   run_flow: RunFlow,
   loop: Loop,
+  loop_break: LoopBreak,
   noop: NoOp,
 };

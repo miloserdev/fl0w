@@ -15,6 +15,7 @@ export type FlowIssueCode =
   | "port_kind"
   | "call_channel"
   | "call_same_graph"
+  | "loop_body_overlap"
   | "cycle"
   | "param_required"
   | "param_type"
@@ -168,6 +169,39 @@ export function validateFlow(input: unknown, registry: Registry): ValidationResu
   for (const p of validateCallChannels(flow)) issues.push({ code: "call_channel", nodeId: p.nodeId, message: p.message });
   // вызовы не порождают рекурсию: Emitter/Loop и Collector не в одном графе
   for (const p of validateCallGraph(flow)) issues.push({ code: p.code, nodeId: p.nodeId, message: p.message });
+
+  // цикл: тело (достижимое от порта `body`) не должно пересекаться с продолжением после цикла (достижимым от остальных выходов)
+  {
+    const data = dataView(flow, registry);
+    const out = new Map<string, { port: string; target: string }[]>();
+    for (const e of data.edges) out.set(e.source, [...(out.get(e.source) ?? []), { port: e.sourcePort, target: e.target }]);
+    const reach = (starts: string[]) => {
+      const seen = new Set<string>();
+      const stack = [...starts];
+      while (stack.length) {
+        const id = stack.pop()!;
+        if (seen.has(id)) continue;
+        seen.add(id);
+        for (const e of out.get(id) ?? []) stack.push(e.target);
+      }
+      return seen;
+    };
+    for (const n of flow.nodes) {
+      const bodyPort = registry[n.type]?.bodyPort;
+      if (!bodyPort) continue;
+      const body = reach((out.get(n.id) ?? []).filter((e) => e.port === bodyPort).map((e) => e.target));
+      const after = reach((out.get(n.id) ?? []).filter((e) => e.port !== bodyPort).map((e) => e.target));
+      const shared = [...body].filter((id) => after.has(id));
+      if (shared.length > 0) {
+        issues.push({
+          code: "loop_body_overlap",
+          nodeId: n.id,
+          nodeIds: shared,
+          message: `Loop "${n.id}": nodes ${shared.map((s) => `"${s}"`).join(", ")} are reachable both from its body and from its exit — the body must be separate from what follows the loop`,
+        });
+      }
+    }
+  }
 
   const topo = toposort(dataView(flow, registry));
   if (!topo.ok) {

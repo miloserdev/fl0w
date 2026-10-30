@@ -324,83 +324,9 @@ describe("рекурсии быть не может: Emitter/Loop и Collector �
     expect(validateCallGraph(apart)).toEqual([]);
   });
 
-  it("Loop считается исходящим вызовом: он не может быть в одном графе с Collector, а канал Loop делит 1:1 с Emitter", () => {
-    const same = flowOf([node("in", "call_trigger", { channelId: "body" }), node("l", "loop", { channelId: "body", mode: "times", times: 2 })], [edge("in", "l")]);
-    expect(validateCallGraph(same)).toHaveLength(1);
-    const two = flowOf([node("l", "loop", { channelId: "body" }), node("p", "run_flow", { channelId: "body" })], []);
-    expect(validateCallChannels(two).map((i) => i.code)).toEqual(["call_channel"]);
-    expect(channelsOf(flowOf([node("l", "loop", { channelId: "x" })], [])).outgoing).toEqual([{ nodeId: "l", channelId: "x" }]);
-  });
-
   it("следствие: вызванный граф сам никого не вызывает, поэтому цепочек и циклов вызовов не бывает (для повторения — Loop)", async () => {
     // попытка цепочки A → B → C: граф B с Collector не может содержать Emitter — валидатор отклоняет такой B
     const b = flowOf([node("in", "call_trigger", { channelId: "ab" }), node("p", "run_flow", { channelId: "bc" })], [edge("in", "p")], "B");
     expect(validateFlow(b, registry).ok).toBe(false);
-  });
-});
-
-describe("Loop: повторение без рекурсии", () => {
-  const body = (code_: string, id = "body"): Flow => callee(id, "body-ch", [code("m", code_)]);
-  const looper = (params: Record<string, Json>, input: Json = [1, 2, 3], extra: { err?: boolean } = {}): Flow => ({
-    ...flow(
-      [node("s", "source", { json: input }), node("l", "loop", { channelId: "body-ch", ...params }), node("r", "result"), ...(extra.err ? [node("er", "result")] : [])],
-      [edge("s", "l"), edge("l", "r"), ...(extra.err ? [edge("l", "er", "err", "in0", "e-err")] : [])],
-    ),
-    id: "looper",
-  });
-
-  it("по элементам массива: тело получает { item, index, total }, результаты собираются в массив по порядку", async () => {
-    const r = await run(looper({}), [body("return { out0: { n: inputs.in0.item * 10, i: inputs.in0.index, of: inputs.in0.total } }")]);
-    expect(r.done?.error).toBeUndefined();
-    expect(r.done?.result).toEqual([{ n: 10, i: 0, of: 3 }, { n: 20, i: 1, of: 3 }, { n: 30, i: 2, of: 3 }]);
-  });
-
-  it("path берёт массив из входа; times — N повторов с item = номер", async () => {
-    const withPath = await run(looper({ path: "rows" }, { rows: ["a", "b"] }), [body("return { out0: inputs.in0.item }")]);
-    expect(withPath.done?.result).toEqual(["a", "b"]);
-    const times = await run(looper({ mode: "times", times: 4 }, { any: 1 }), [body("return { out0: inputs.in0.item }")]);
-    expect(times.done?.result).toEqual([0, 1, 2, 3]);
-  });
-
-  it("порядок результатов сохраняется при concurrency > 1, даже если итерации кончаются не по порядку", async () => {
-    // чем меньше item, тем дольше Wait: без сортировки по индексу порядок бы перевернулся
-    const slowFirst = callee("body", "body-ch", [node("w", "wait", { amount: 1, unit: "seconds" })]);
-    const fast = body("return { out0: inputs.in0.item }");
-    const t0 = Date.now();
-    const r = await run(looper({ concurrency: 3 }, [1, 2, 3]), [fast]);
-    expect(r.done?.result).toEqual([1, 2, 3]);
-    expect(Date.now() - t0).toBeLessThan(2000);
-    expect(slowFirst.id).toBe("body");
-    // параллельность реальна: три Wait по секунде при concurrency 3 укладываются примерно в секунду, а не в три
-    const waitBody = callee("body", "body-ch", [node("w", "wait", { amount: 1, unit: "seconds" })]);
-    const t1 = Date.now();
-    await run(looper({ concurrency: 3 }, [1, 2, 3]), [waitBody]);
-    expect(Date.now() - t1).toBeLessThan(2200);
-  });
-
-  it("onError: stop — первая ошибка тела роняет ноду; continue — упавшие пропускаются, ошибки идут в порт err", async () => {
-    const b = body("if (inputs.in0.item === 2) throw new Error('bad item'); return { out0: inputs.in0.item }");
-    const stop = await run(looper({}), [b]);
-    expect(stop.done?.error).toMatch(/Loop item 1 failed:.*bad item/);
-    const cont = await run(looper({ onError: "continue" }, [1, 2, 3], { err: true }), [b]);
-    expect(cont.done?.error).toBeUndefined();
-    const res = cont.done?.result as Record<string, Json>;
-    expect(res["r"]).toEqual([1, 3]);
-    expect(res["er"]).toEqual([{ index: 1, item: 2, error: expect.stringContaining("bad item") }]);
-  });
-
-  it("порт err есть только при onError: continue; вход не массив, лимит итераций, нет канала — понятные ошибки", async () => {
-    expect(validateFlow(looper({ onError: "continue" }, [1], { err: true }), registry).ok).toBe(true);
-    expect(validateFlow(looper({}, [1], { err: true }), registry).ok).toBe(false);
-    expect((await run(looper({}, { not: "array" }), [body("return { out0: 1 }")])).done?.error).toMatch(/must be an array/);
-    expect((await run(looper({ path: "x" }, { x: 5 }), [body("return { out0: 1 }")])).done?.error).toMatch(/"x" is not an array/);
-    expect((await run(looper({}, Array.from({ length: 1001 }, (_, i) => i)), [body("return { out0: 1 }")])).done?.error).toMatch(/Too many items/);
-    expect((await run(looper({ channelId: "nope" }), [])).done?.error).toMatch(/No incoming call with channel "nope"/);
-  });
-
-  it("пустой массив — пустой результат без вызовов тела", async () => {
-    const r = await run(looper({ path: "rows" }, { rows: [] }), [body("throw new Error('must not run')")]);
-    expect(r.done?.error).toBeUndefined();
-    expect(r.done?.result).toEqual([]);
   });
 });

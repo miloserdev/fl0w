@@ -1,10 +1,8 @@
 import type { Flow } from "@fl0w/schema";
 
-/** Типы блоков вызова: исходящие — Emitter (`run_flow`) и Loop (`loop`, вызывает тело цикла), входящий — Collector (`call_trigger`). */
+/** Типы блоков вызова: исходящий — Emitter (`run_flow`), входящий — Collector (`call_trigger`). */
 export const CALL_OUT = "run_flow";
-export const CALL_LOOP = "loop";
 export const CALL_IN = "call_trigger";
-const isOut = (type: string) => type === CALL_OUT || type === CALL_LOOP;
 
 export type CallEnd = { nodeId: string; channelId: string };
 
@@ -13,7 +11,7 @@ export function channelsOf(flow: Pick<Flow, "nodes">): { incoming: CallEnd[]; ou
   const incoming: CallEnd[] = [];
   const outgoing: CallEnd[] = [];
   for (const n of flow.nodes) {
-    if (n.type !== CALL_IN && !isOut(n.type)) continue;
+    if (n.type !== CALL_IN && n.type !== CALL_OUT) continue;
     const channelId = typeof n.params["channelId"] === "string" ? n.params["channelId"].trim() : "";
     if (channelId === "") continue; // пустой канал — ошибка параметра, её даёт обычная проверка
     (n.type === CALL_IN ? incoming : outgoing).push({ nodeId: n.id, channelId });
@@ -95,9 +93,9 @@ export function graphsOf(flow: Pick<Flow, "nodes" | "edges">): Map<string, numbe
 export type CallGraphIssue = { code: "call_same_graph"; message: string; nodeId?: string };
 
 /**
- * Вызовы не должны порождать рекурсию: в одном графе (связанных блоках) не может быть и исходящего вызова (Emitter, Loop), и
+ * Вызовы не должны порождать рекурсию: в одном графе (связанных блоках) не может быть и исходящего вызова (Emitter), и
  * входящего (Collector). Поэтому вызванный граф сам никого не вызывает — цепочек и циклов вызовов не бывает. Для повторения —
- * блок Loop, тело которого (граф с Collector) вызывается по каналу.
+ * блок Loop (цикл с телом в том же графе, к вызовам отношения не имеет).
  */
 export function validateCallGraph(flow: Pick<Flow, "id" | "nodes" | "edges">): CallGraphIssue[] {
   const issues: CallGraphIssue[] = [];

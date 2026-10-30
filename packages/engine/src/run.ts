@@ -4,6 +4,7 @@ import {
   resolveParamExpressions,
   resolveParams,
   validateParams,
+  type BodyOutcome,
   type CallOutcome,
   type CallRequest,
   type RunContext,
@@ -38,12 +39,23 @@ export type RunOptions = {
   resolveCall?: (channelId: string) => Promise<{ flow: unknown; triggerId: string }>;
   /** Флоу, уже стоящие в цепочке вызовов (без текущего) — по ней отсекается рекурсия. Служебное: заполняет вложенный запуск. */
   callChain?: string[];
+  /**
+   * Служебное (тело цикла): исполнить ТОЛЬКО эти ноды (тело), а недостающие входы взять из `seeds` — вложенный запуск одной итерации
+   * цикла на том же, уже проверенном флоу (`validated`). Своих проверок старта нет, события замороженных нод не пишутся, shoot-вызовы
+   * принадлежат внешнему запуску (`shots`), `loopBreak` вызывает блок Break.
+   */
+  scope?: Set<string>;
+  validated?: boolean;
+  loopBreak?: () => void;
+  shots?: Set<unknown>;
 };
 
 /** Сколько нод одного запуска исполняется одновременно. */
 const MAX_PARALLEL = 16;
 /** Глубина вложенных вызовов — страховка (вызовы идут в одном процессе). */
 const MAX_CALL_DEPTH = 20;
+/** События нод тела цикла пересылаются только для стольких первых итераций. */
+const LOOP_EVENT_ITERATIONS = 20;
 
 // защита от потока логов из пользовательского кода: IPC и UI не должны захлебнуться
 const MAX_LOGS_PER_NODE = 1000;
@@ -105,8 +117,9 @@ export async function runFlow(
   const registry = opts.registry ?? defaultRegistry;
   // shoot-вызовы (outgoing call): запуск их не ждёт; если он закончился раньше — они обрываются, и это видно в ленте
   type Shot = { nodeId: string; abort: AbortController; done: Promise<void>; settled: boolean };
-  const shots = new Set<Shot>();
+  const shots = (opts.shots as Set<Shot> | undefined) ?? new Set<Shot>();
   const killShots = async () => {
+    if (opts.scope) return; // итерация цикла: shoot-вызовы живут, пока жив весь запуск
     const live = [...shots].filter((x) => !x.settled);
     for (const x of live) {
       x.abort.abort();
@@ -120,17 +133,21 @@ export async function runFlow(
     await onEvent({ event: "flow:done", ...e });
   };
 
-  const validation = validateFlow(input, registry);
-  if (!validation.ok) {
-    await finish({ error: `Invalid flow: ${formatIssues(validation.issues)}` });
-    return;
+  let flow: Flow;
+  if (opts.validated) flow = input as Flow; // вложенный запуск тела цикла: флоу уже проверен внешним запуском
+  else {
+    const validation = validateFlow(input, registry);
+    if (!validation.ok) {
+      await finish({ error: `Invalid flow: ${formatIssues(validation.issues)}` });
+      return;
+    }
+    flow = validation.flow;
   }
-  const flow: Flow = validation.flow;
 
   // --- вызовы outgoing call: вызванный флоу исполняется вложенным запуском в этом же процессе ---
   // Цепочка — пары «флоу#триггер»: рекурсия это повторный вход в ТОТ ЖЕ incoming call, а не в тот же флоу. Вызов другого графа
   // того же флоу (отдельный incoming call, не связанный с вызывающим) рекурсией не считается.
-  const callChain = [...(opts.callChain ?? []), `${flow.id}#${opts.trigger ?? "*"}`];
+  const callChain = opts.scope ? [...(opts.callChain ?? [])] : [...(opts.callChain ?? []), `${flow.id}#${opts.trigger ?? "*"}`];
   const failed = (error: string): CallOutcome => ({ ok: false, error });
   /** Один вызов: найти флоу по каналу, проверить рекурсию и глубину, исполнить как вложенный запуск и вернуть его результат. */
   const nestedCall = async (req: CallRequest, abort: AbortController): Promise<CallOutcome> => {
@@ -217,7 +234,7 @@ export async function runFlow(
 
   // Запускаются только ноды, связанные со стартовыми (триггеры / источники данных), — не любая «без входов».
   const participants = participatingNodes(flow, registry, opts.trigger);
-  if (opts.from === undefined && flow.nodes.some((n) => registry[n.type]?.isTrigger) && startNodes(flow, registry, opts.trigger).length === 0) {
+  if (!opts.scope && opts.from === undefined && flow.nodes.some((n) => registry[n.type]?.isTrigger) && startNodes(flow, registry, opts.trigger).length === 0) {
     await finish({ error: "Nothing to start manually: this flow begins with event triggers (webhook, file, Telegram, …). Publish it and send an event, or add a Manual trigger for testing" });
     return;
   }
@@ -244,6 +261,57 @@ export async function runFlow(
     needed = closure(rerun, (id) => inn.get(id) ?? []);
   }
 
+  // --- Циклы: тело цикла (ноды, достижимые от порта `body`) исполняет сам блок цикла по итерациям, а не основной поток ---
+  const loopBodies = new Map<string, Set<string>>();
+  for (const n of flow.nodes) {
+    const bodyPort = registry[n.type]?.bodyPort;
+    if (!bodyPort) continue;
+    const starts = (outgoing.get(n.id) ?? []).filter((e) => e.sourcePort === bodyPort).map((e) => e.target);
+    loopBodies.set(n.id, closure(starts, (id) => (outgoing.get(id) ?? []).map((e) => e.target)));
+  }
+  // основной поток пропускает ноды тел СВОИХ циклов; запуск-итерация (scope) — тела циклов внутри области (внешние циклы не в счёт)
+  const inBody = new Set<string>();
+  for (const [loopId, body] of loopBodies) {
+    if (opts.scope && !opts.scope.has(loopId)) continue;
+    for (const b of body) inBody.add(b);
+  }
+  if (opts.scope) {
+    // область: исполняются только ноды тела, прямые источники их входов «заморожены» и отдают данные из seeds
+    rerun = opts.scope;
+    needed = new Set(opts.scope);
+    for (const e of dataFlow.edges) if (opts.scope.has(e.target) && !opts.scope.has(e.source)) needed.add(e.source);
+  }
+
+  /** Одна итерация цикла: вложенный запуск тела (область), данные итерации выходят из порта `body` цикла. */
+  const iterations = new Map<string, number>();
+  const runBodyIteration = async (loopId: string, bodyPort: string, data: Json): Promise<BodyOutcome> => {
+    const body = loopBodies.get(loopId);
+    if (!body || body.size === 0) return { ok: false, error: 'The loop has no body: connect nodes to its "each" output' };
+    const seeds: Record<string, Record<string, Json>> = { [loopId]: { [bodyPort]: data } };
+    for (const e of dataFlow.edges) {
+      // значения, пришедшие в тело снаружи (из нод вне тела), берутся из уже вычисленных рёбер
+      if (body.has(e.target) && !body.has(e.source) && e.source !== loopId && edgeValues.has(e.id)) (seeds[e.source] ??= {})[e.sourcePort] = edgeValues.get(e.id)!;
+    }
+    const n = iterations.get(loopId) ?? 0;
+    iterations.set(loopId, n + 1);
+    // события нод тела видны на холсте только у первых итераций — иначе лента и IPC захлебнутся на длинном цикле
+    const forward = n < LOOP_EVENT_ITERATIONS;
+    let broke = false;
+    let done: { result?: Json; error?: string } | undefined;
+    await runFlow(
+      flow,
+      async (e) => {
+        if (e.event === "flow:done") done = e;
+        else if (forward) await onEvent(e);
+      },
+      { registry, signal: runSignal, trigger: opts.trigger, triggerData: opts.triggerData, callChain, resolveCall: opts.resolveCall, scope: body, seeds, validated: true, loopBreak: () => (broke = true), shots },
+    );
+    if (n === LOOP_EVENT_ITERATIONS) await onEvent({ event: "node:log", nodeId: loopId, message: `events of the iterations after ${LOOP_EVENT_ITERATIONS} are not shown` });
+    if (done === undefined) return { ok: false, error: "The loop body ended without a result" };
+    const d = done as { result?: Json; error?: string };
+    return d.error !== undefined ? { ok: false, error: d.error } : { ok: true, result: d.result ?? null, broke };
+  };
+
   // --- Параллельное исполнение: нода запускается, как только готовы ЕЁ входы; независимые ветки и графы идут одновременно,
   // долгая нода (Wait, HTTP…) задерживает только то, что от неё зависит. Порядок запуска одновременно готовых нод — топологический.
   const order = new Map(topo.order.map((id, i) => [id, i]));
@@ -266,13 +334,14 @@ export async function runFlow(
   const decide = (id: string): "wait" | "skip" | "run" | "error" => {
     const node = nodes.get(id)!;
     const cls = registry[node.type]!;
+    if (inBody.has(id)) return "skip"; // тело цикла исполняет сам цикл
     if (!(needed ? needed.has(id) : participants.has(id))) return "skip"; // нет связи со стартовой нодой / не нужна перезапуску
     if (cls.resource || cls.layout) return "skip"; // sub-node вызывает хозяин; заметки и группы — только оформление
     // данные вместо исполнения: закрепление (pin) или выход прошлого запуска для нод до точки перезапуска
     const pinned = manual ? (node.pinData ?? undefined) : undefined;
     const frozen = rerun && !rerun.has(id);
     if (pinned ?? (frozen ? opts.seeds?.[id] : undefined)) return "run";
-    if (frozen) return "error"; // нужны данные прошлого запуска, а их нет
+    if (frozen) return opts.scope ? "skip" : "error"; // нужны данные прошлого запуска, а их нет (у итерации цикла вход мог не прийти — ветка не пошла)
     // другие триггеры в этом запуске молчат: он начат от выбранного
     if (cls.isTrigger && (opts.trigger !== undefined ? id !== opts.trigger : cls.eventDriven)) return "skip";
     const edges = incoming.get(id) ?? [];
@@ -296,14 +365,16 @@ export async function runFlow(
     const fixed = pinned ?? (frozen ? opts.seeds?.[id] : undefined);
     const edges = incoming.get(id) ?? [];
     if (fixed !== undefined) {
-      await onEvent({ event: "node:start", nodeId: id, input: {}, params: {} });
-      await onEvent({ event: "node:log", nodeId: id, message: pinned ? "pinned data used (node not executed)" : "data from the previous run used (node not executed)" });
+      if (!opts.scope) {
+        await onEvent({ event: "node:start", nodeId: id, input: {}, params: {} });
+        await onEvent({ event: "node:log", nodeId: id, message: pinned ? "pinned data used (node not executed)" : "data from the previous run used (node not executed)" });
+      }
       for (const e of outgoing.get(id) ?? []) {
         const value = fixed[e.sourcePort];
         if (value !== undefined) edgeValues.set(e.id, value);
       }
       if (node.type === RESULT_TYPE) results.push([id, fixed["in0"] ?? null]);
-      await onEvent({ event: "node:done", nodeId: id, output: capRecord(fixed) });
+      if (!opts.scope) await onEvent({ event: "node:done", nodeId: id, output: capRecord(fixed) });
       return;
     }
     const inputs: Record<string, Json> = {};
@@ -327,6 +398,8 @@ export async function runFlow(
         signal: runSignal,
         triggerData: id === opts.trigger ? opts.triggerData : undefined,
         call: (req) => performCall(id, req),
+        ...(cls.bodyPort ? { runBody: (data: Json) => runBodyIteration(id, cls.bodyPort!, data) } : {}),
+        breakLoop: opts.loopBreak,
         connected: [...new Set((outgoing.get(id) ?? []).map((e) => e.sourcePort))],
         flowId: flow.id,
         nodeId: id,
