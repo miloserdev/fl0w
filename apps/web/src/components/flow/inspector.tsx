@@ -150,7 +150,7 @@ function DataBlock({ title, text, tone }: { title: string; text?: string; tone?:
       <h3 className="mb-1 text-xs font-medium">{title}</h3>
       <pre
         className={cn(
-          "bg-muted max-h-64 overflow-auto rounded-md p-2 font-mono text-xs break-words whitespace-pre-wrap",
+          "bg-muted max-h-64 overflow-auto rounded-md p-2 font-mono text-xs whitespace-pre-wrap [overflow-wrap:anywhere]",
           tone === "error" && "text-destructive",
         )}
       >

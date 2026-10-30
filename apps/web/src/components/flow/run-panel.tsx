@@ -41,9 +41,9 @@ export function RunPanel({
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="flex flex-col gap-3 p-3 text-sm">
           {state.status === "idle" && live && <p className="text-muted-foreground">{t("waiting")}</p>}
-          {state.error && <p className="text-destructive">{state.error}</p>}
+          {state.error && <p className="text-destructive [overflow-wrap:anywhere]">{state.error}</p>}
           {nodeErrors.map(([id, msg]) => (
-            <p key={id} className="text-destructive font-mono text-xs">
+            <p key={id} className="text-destructive font-mono text-xs [overflow-wrap:anywhere]">
               {id}: {msg}
             </p>
           ))}
@@ -54,7 +54,7 @@ export function RunPanel({
             ) : (
               <div className="flex flex-col gap-1">
                 <h3 className="text-muted-foreground text-xs uppercase">{t("result")}</h3>
-                <pre className="bg-muted rounded-md p-2 font-mono text-xs whitespace-pre-wrap">
+                <pre className="bg-muted rounded-md p-2 font-mono text-xs whitespace-pre-wrap [overflow-wrap:anywhere]">
                   {JSON.stringify(state.result, null, 2)}
                 </pre>
               </div>
@@ -62,7 +62,7 @@ export function RunPanel({
           {state.logs.length > 0 && (
             <div className="flex flex-col gap-1">
               <h3 className="text-muted-foreground text-xs uppercase">{t("logs")}</h3>
-              <pre className="bg-muted rounded-md p-2 font-mono text-xs whitespace-pre-wrap">
+              <pre className="bg-muted rounded-md p-2 font-mono text-xs whitespace-pre-wrap [overflow-wrap:anywhere]">
                 {state.logs.map((l) => `[${l.nodeId}] ${l.message}`).join("\n")}
               </pre>
               {state.logsDropped > 0 && (
