@@ -1,11 +1,14 @@
 # syntax=docker/dockerfile:1
 # Node Flow Board: Next.js-приложение + раннеры флоу (TypeScript через tsx — исходники пакетов нужны и в рантайме).
 ARG NODE_VERSION=26
+# версия pnpm = packageManager из package.json (в образах Node 25+ corepack больше нет)
+ARG PNPM_VERSION=11.3.0
 
 FROM node:${NODE_VERSION}-bookworm-slim AS base
 ENV PNPM_HOME=/pnpm CI=true NEXT_TELEMETRY_DISABLED=1
 ENV PATH=$PNPM_HOME:$PATH
-RUN corepack enable
+ARG PNPM_VERSION
+RUN npm install -g pnpm@${PNPM_VERSION}
 WORKDIR /app
 
 # манифесты отдельно: слой с зависимостями не пересобирается при правке кода

@@ -13,7 +13,7 @@
 
 ## Локально без Docker
 
-Нужны Node 26+ и pnpm 11 (`corepack enable`).
+Нужны Node 26+ и pnpm 11 (`npm install -g pnpm@11`).
 
 ```bash
 pnpm install
