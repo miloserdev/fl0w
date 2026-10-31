@@ -1,0 +1,22 @@
+# docker compose up -d --build     — собрать и запустить
+# Данные (флоу, банки памяти, файлы) лежат в томах/каталогах хоста и переживают удаление контейнера.
+# Не используйте `docker compose down -v`: ключ -v удаляет и тома.
+services:
+  fl0w:
+    image: ${FL0W_IMAGE:-fl0w:local}
+    build: .
+    init: true
+    restart: unless-stopped
+    ports:
+      - "${FL0W_BIND:-127.0.0.1}:${FL0W_PORT:-3000}:3000"
+    # FL0W_ALLOW_SHELL, FL0W_PUBLIC_URL, FL0W_SECRET_* и прочее — из .env (если файла нет, всё по умолчанию)
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ${FL0W_DATA:-fl0w-data}:/data
+      - ${FL0W_FILES:-fl0w-files}:/data/files
+
+volumes:
+  fl0w-data:
+  fl0w-files:

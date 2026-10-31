@@ -258,6 +258,8 @@ multipart). В `sendMediaGroup` элементы могут быть любой 
 | `FL0W_FILES_DIR` | единственный каталог, доступный блокам Files, Local File Trigger и рабочей папке Shell | `apps/web/.data/files` |
 | `FL0W_ALLOW_SHELL` | `1` / `true` разрешает блок Shell | не задана — Shell отключён |
 | `FL0W_DATA_DIR` | где хранятся опубликованные флоу | `apps/web/.data/flows` |
+| `FL0W_MEMORY_DIR` | банки памяти (Memory Bank, Counter) | `apps/web/.data/memory` |
+| `FL0W_PUBLIC_URL` | публичный https-адрес сервера (вебхуки Telegram) | не задана |
 | `FL0W_SECRET_*` | секреты, на которые можно ссылаться из параметров как `env:FL0W_SECRET_…` (токен Telegram и т.п.) | не заданы |
 | `FL0W_TELEGRAM_API` | адрес Bot API | `https://api.telegram.org` |
 

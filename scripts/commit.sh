@@ -13,9 +13,9 @@ git add -A
 if git diff --cached --quiet; then echo "nothing to commit"; exit 0; fi
 
 # секреты и данные сервера в коммит не попадают
-if git diff --cached --name-only | grep -E '(^|/)(\.env(\..*)?|\.data/)|\.(pem|key)$' >/dev/null; then
+if git diff --cached --name-only | grep -E '(^|/)(\.env(\..*)?|\.data/)|\.(pem|key)$' | grep -vE '(^|/)\.env\.example$' >/dev/null; then
   echo "refusing to commit: staged files look like secrets or server data:" >&2
-  git diff --cached --name-only | grep -E '(^|/)(\.env(\..*)?|\.data/)|\.(pem|key)$' >&2
+  git diff --cached --name-only | grep -E '(^|/)(\.env(\..*)?|\.data/)|\.(pem|key)$' | grep -vE '(^|/)\.env\.example$' >&2
   exit 1
 fi
 
