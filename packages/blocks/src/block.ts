@@ -27,6 +27,27 @@ export type TelegramSpec = {
   dropPending: boolean;
 };
 
+/** Подписка Mail Trigger: опрос почтового ящика. Содержит расшифрованный пароль — только в памяти сервера, в логи и ответы не попадает. */
+export type MailWatchSpec = {
+  /** Параметры подключения (provider, host/port/…, tenantId/clientId) — те же, что у блока Mail. */
+  connection: Record<string, Json>;
+  username: string;
+  password: string;
+  folder: string;
+  unreadOnly: boolean;
+  fromFilter: string;
+  subjectFilter: string;
+  /** Период опроса, с. */
+  intervalSec: number;
+  /** Что сделать с письмом после запуска флоу. */
+  action: "none" | "markRead";
+  /** Сохранять вложения в каталог файлов (подпапка `attachmentsDir`). */
+  saveAttachments: boolean;
+  attachmentsDir: string;
+  /** Обработать письма, уже лежащие в ящике на момент публикации (иначе стартуют только новые). */
+  processExisting: boolean;
+};
+
 export type LifecycleReason = "publish" | "update" | "startup";
 export type LifecycleSpec = Record<LifecycleReason, boolean>;
 
@@ -156,6 +177,10 @@ export abstract class Block {
   }
   /** Для триггеров по файловой системе: что отслеживать (путь относительно каталога файлов); null — не файловый. */
   static fileWatch(_params: Record<string, Json>): FileWatchSpec | null {
+    return null;
+  }
+  /** Для Mail Trigger: что опрашивать в почтовом ящике; null — не такой триггер. */
+  static mailWatch(_params: Record<string, Json>): MailWatchSpec | null {
     return null;
   }
   /** Для Telegram Trigger: подписка на обновления бота; null — не такой триггер. */

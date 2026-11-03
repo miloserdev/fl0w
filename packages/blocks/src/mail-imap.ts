@@ -1,6 +1,6 @@
 import type { Json } from "@fl0w/schema";
 import { redact } from "./secrets";
-import { MAX_BODY_CHARS, type ListQuery, type MailDriver, type MailItem, type OutMail } from "./mail-types";
+import { MAX_ATTACHMENT_TOTAL, MAX_BODY_CHARS, type ListQuery, type MailAttachment, type MailDriver, type MailItem, type OutMail } from "./mail-types";
 
 export type ImapSmtpConfig = {
   host: string;
@@ -54,32 +54,97 @@ export function imapSmtpDriver(cfg: ImapSmtpConfig): MailDriver {
     return client;
   };
 
+  /** Отправка через SMTP (общая для send и reply). */
+  const smtp = async (mail: OutMail & { inReplyTo?: string; references?: string[] }): Promise<Json> => {
+    const nodemailer = await import(/* webpackIgnore: true */ /* turbopackIgnore: true */ "nodemailer");
+    const transport = nodemailer.createTransport({
+      host: cfg.smtpHost,
+      port: cfg.smtpPort,
+      secure: cfg.smtpSecure,
+      auth: { user: cfg.username, pass: cfg.password },
+      tls,
+      connectionTimeout: cfg.timeoutMs,
+      socketTimeout: cfg.timeoutMs,
+    });
+    try {
+      const info = await transport.sendMail({
+        from: mail.from || cfg.username,
+        to: mail.to,
+        cc: mail.cc,
+        bcc: mail.bcc,
+        subject: mail.subject,
+        ...(mail.html ? { html: mail.body } : { text: mail.body }),
+        ...(mail.inReplyTo ? { inReplyTo: mail.inReplyTo, references: mail.references } : {}),
+      });
+      return { ok: true, messageId: info.messageId ?? null, accepted: info.accepted.map(String), rejected: info.rejected.map(String) };
+    } finally {
+      transport.close();
+    }
+  };
+
+  /** Разбирает письмо целиком (заголовки, тело, вложения с содержимым). */
+  const parse = async (folder: string, id: string) => {
+    const client = await connect();
+    const lock = await client.getMailboxLock(folder);
+    try {
+      const m = await client.fetchOne(id, { source: true, flags: true, uid: true }, { uid: true });
+      if (!m || !m.source) throw new Error(`message ${id} not found in ${folder}`);
+      const { simpleParser } = await import(/* webpackIgnore: true */ /* turbopackIgnore: true */ "mailparser");
+      return { parsed: await simpleParser(m.source), flags: m.flags };
+    } finally {
+      lock.release();
+    }
+  };
+
   return {
     async send(mail: OutMail) {
       try {
-        const nodemailer = await import(/* webpackIgnore: true */ /* turbopackIgnore: true */ "nodemailer");
-        const transport = nodemailer.createTransport({
-          host: cfg.smtpHost,
-          port: cfg.smtpPort,
-          secure: cfg.smtpSecure,
-          auth: { user: cfg.username, pass: cfg.password },
-          tls,
-          connectionTimeout: cfg.timeoutMs,
-          socketTimeout: cfg.timeoutMs,
-        });
+        return await smtp(mail);
+      } catch (e) {
+        return wrap(e);
+      }
+    },
+
+    async reply(folder: string, id: string, body: string, html: boolean, all: boolean) {
+      try {
+        const { parsed } = await parse(folder, id);
+        const own = cfg.username.toLowerCase();
+        const list = (a: typeof parsed.to) => (a ? [a].flat().flatMap((x) => x.value.map((v) => v.address ?? "")) : []).filter((x) => x && x.toLowerCase() !== own);
+        const to = list(parsed.replyTo ?? parsed.from);
+        if (to.length === 0) throw new Error("the message has no sender to reply to");
+        const cc = all ? [...new Set([...list(parsed.to), ...list(parsed.cc)].filter((x) => !to.includes(x)))] : [];
+        const subject = /^re:/i.test(parsed.subject ?? "") ? (parsed.subject ?? "") : `Re: ${parsed.subject ?? ""}`;
+        const refs = parsed.references ? [parsed.references].flat() : [];
+        return await smtp({ to, cc, bcc: [], subject: subject.replace(/[\r\n]+/g, " "), body, html, ...(parsed.messageId ? { inReplyTo: parsed.messageId, references: [...refs, parsed.messageId] } : {}) });
+      } catch (e) {
+        return wrap(e);
+      }
+    },
+
+    async move(folder: string, id: string, destination: string) {
+      try {
+        const client = await connect();
+        const lock = await client.getMailboxLock(folder);
         try {
-          const info = await transport.sendMail({
-            from: mail.from || cfg.username,
-            to: mail.to,
-            cc: mail.cc,
-            bcc: mail.bcc,
-            subject: mail.subject,
-            ...(mail.html ? { html: mail.body } : { text: mail.body }),
-          });
-          return { ok: true, messageId: info.messageId ?? null, accepted: info.accepted.map(String), rejected: info.rejected.map(String) };
+          await client.messageMove(id, destination, { uid: true });
+          return { ok: true, id, destination };
         } finally {
-          transport.close();
+          lock.release();
         }
+      } catch (e) {
+        return wrap(e);
+      }
+    },
+
+    async attachments(folder: string, id: string): Promise<MailAttachment[]> {
+      try {
+        const { parsed } = await parse(folder, id);
+        let total = 0;
+        return parsed.attachments.map((a) => {
+          total += a.content.byteLength;
+          if (total > MAX_ATTACHMENT_TOTAL) throw new Error("attachments are too large");
+          return { filename: a.filename ?? "", contentType: a.contentType, size: a.size, bytes: a.content };
+        });
       } catch (e) {
         return wrap(e);
       }

@@ -3,12 +3,13 @@ import { Block, type RunContext } from "./block";
 import { interpolate } from "./json-path";
 import { graphDriver } from "./mail-graph";
 import { imapSmtpDriver } from "./mail-imap";
+import { saveAttachments, withAttachmentPaths } from "./mail-attachments";
 import { MAX_LIST, type MailDriver } from "./mail-types";
 import { resolveSecret } from "./secrets";
 import { textOf } from "./value-io";
 
 export const MAIL_PROVIDERS = ["imap", "graph"] as const;
-export const MAIL_OPERATIONS = ["sendMail", "listMail", "getMail", "markMailRead"] as const;
+export const MAIL_OPERATIONS = ["sendMail", "listMail", "getMail", "markMailRead", "replyMail", "moveMail"] as const;
 const ADDRESS = /^[^\s<>@,;"']+@[^\s<>@,;"']+\.[^\s<>@,;"']+$/;
 const MAX_RECIPIENTS = 100;
 
@@ -30,8 +31,8 @@ function oneLine(s: string, field: string): string {
 }
 
 /**
- * Mail: почта без привязки к конкретному сервису. Операции — отправить, список писем (фильтры), прочитать письмо, пометить
- * прочитанным; их выполняет драйвер провайдера:
+ * Mail: почта без привязки к конкретному сервису. Операции — отправить, список писем (фильтры), прочитать письмо (с сохранением
+ * вложений), пометить прочитанным, ответить, переместить; их выполняет драйвер провайдера:
  *  • `imap` — любой почтовый сервер по IMAP (чтение) и SMTP (отправка): Exchange/Outlook, Gmail, Yandex, свой сервер;
  *  • `graph` — Microsoft Graph (Outlook / Microsoft 365) через приложение Azure AD, без дополнительных библиотек.
  * Новый провайдер добавляется драйвером (`MailDriver`) без изменения блока и флоу.
@@ -66,22 +67,28 @@ export class Mail extends Block {
     { name: "username", type: "string", required: true, expressions: false },
     { name: "password", type: "string", required: true, expressions: false },
     // --- операции ---
-    { name: "folder", type: "string", default: "INBOX", showWhen: op("listMail", "getMail", "markMailRead") },
+    { name: "folder", type: "string", default: "INBOX", showWhen: op("listMail", "getMail", "markMailRead", "replyMail", "moveMail") },
     { name: "unreadOnly", type: "boolean", default: false, showWhen: op("listMail") },
     { name: "fromFilter", type: "string", default: "", showWhen: op("listMail") },
     { name: "subjectFilter", type: "string", default: "", showWhen: op("listMail") },
     // с какой даты (ISO, например 2026-01-31); пусто — без ограничения
     { name: "since", type: "string", default: "", showWhen: op("listMail") },
     { name: "limit", type: "number", default: 20, min: 1, max: MAX_LIST, showWhen: op("listMail") },
-    { name: "messageId", type: "string", default: "", showWhen: op("getMail", "markMailRead") },
+    { name: "messageId", type: "string", default: "", showWhen: op("getMail", "markMailRead", "replyMail", "moveMail") },
     { name: "read", type: "boolean", default: true, showWhen: op("markMailRead") },
+    // сохранить вложения в каталог файлов: <attachmentsDir>/<id письма>/<имя>; в результате у вложений появится path
+    { name: "saveAttachments", type: "boolean", default: false, showWhen: op("getMail") },
+    { name: "attachmentsDir", type: "string", default: "mail", expressions: false, showWhen: op("getMail") },
+    { name: "replyAll", type: "boolean", default: false, showWhen: op("replyMail") },
+    // куда переместить: папка IMAP (например Archive) или у Graph — archive, trash, junk, drafts, sent либо id папки
+    { name: "destination", type: "string", default: "", showWhen: op("moveMail") },
     { name: "to", type: "string", default: "", showWhen: op("sendMail") },
     { name: "cc", type: "string", default: "", showWhen: op("sendMail") },
     { name: "bcc", type: "string", default: "", showWhen: op("sendMail") },
     { name: "from", type: "string", default: "", showWhen: op("sendMail") },
     { name: "subject", type: "string", default: "", showWhen: op("sendMail") },
-    { name: "body", type: "string", multiline: true, default: "", showWhen: op("sendMail") },
-    { name: "html", type: "boolean", default: false, showWhen: op("sendMail") },
+    { name: "body", type: "string", multiline: true, default: "", showWhen: op("sendMail", "replyMail") },
+    { name: "html", type: "boolean", default: false, showWhen: op("sendMail", "replyMail") },
     { name: "timeoutMs", type: "number", default: 30_000, min: 1000, max: 300_000 },
   ];
 
@@ -97,7 +104,7 @@ export class Mail extends Block {
     // входные данные проверяем до подключения: ошибка в параметрах не должна открывать соединение с сервером
     const folder = text("folder") || "INBOX";
     const messageId = text("messageId");
-    if ((operation === "getMail" || operation === "markMailRead") && messageId === "") throw new Error('Mail: "messageId" is empty');
+    if (["getMail", "markMailRead", "replyMail", "moveMail"].includes(operation) && messageId === "") throw new Error('Mail: "messageId" is empty');
     let out: { to: string[]; cc: string[]; bcc: string[]; from: string; subject: string; body: string } | null = null;
     if (operation === "sendMail") {
       const to = addresses(text("to"), "to");
@@ -109,6 +116,13 @@ export class Mail extends Block {
       if (from !== "" && !ADDRESS.test(from)) throw new Error(`Mail: "from" is not an email address`);
       out = { to, cc: addresses(text("cc"), "cc"), bcc: addresses(text("bcc"), "bcc"), from, subject, body };
     }
+    let replyBody = "";
+    if (operation === "replyMail") {
+      replyBody = textOf(interpolate(typeof params["body"] === "string" ? params["body"] : "", data));
+      if (replyBody.trim() === "") throw new Error('Mail: the reply "body" is empty');
+    }
+    const destination = text("destination");
+    if (operation === "moveMail" && destination === "") throw new Error('Mail: "destination" is empty');
     let since: Date | null = null;
     if (operation === "listMail" && text("since") !== "") {
       since = new Date(text("since"));
@@ -119,7 +133,7 @@ export class Mail extends Block {
     if (username === "") throw new Error('Mail: "username" is required');
     const password = resolveSecret(typeof params["password"] === "string" ? params["password"].trim() : "", undefined);
 
-    const driver = this.driver(provider, params, { username, password, timeoutMs, signal: ctx.signal });
+    const driver = buildMailDriver(provider, params, { username, password, timeoutMs, signal: ctx.signal });
     try {
       switch (operation) {
         case "sendMail":
@@ -128,8 +142,18 @@ export class Mail extends Block {
           const limit = Math.min(Math.max(Math.trunc(Number(params["limit"] ?? 20)) || 20, 1), MAX_LIST);
           return { out0: (await driver.list({ folder, unreadOnly: params["unreadOnly"] === true, from: text("fromFilter"), subject: text("subjectFilter"), since, limit })) as unknown as Json };
         }
-        case "getMail":
-          return { out0: await driver.get(folder, messageId) };
+        case "getMail": {
+          const msg = await driver.get(folder, messageId);
+          if (params["saveAttachments"] === true && msg !== null && typeof msg === "object" && !Array.isArray(msg) && Array.isArray(msg["attachments"]) && msg["attachments"].length > 0) {
+            const saved = await saveAttachments(typeof params["attachmentsDir"] === "string" ? params["attachmentsDir"] : "mail", messageId, await driver.attachments(folder, messageId));
+            msg["attachments"] = withAttachmentPaths(msg["attachments"], saved);
+          }
+          return { out0: msg };
+        }
+        case "replyMail":
+          return { out0: await driver.reply(folder, messageId, replyBody, params["html"] === true, params["replyAll"] === true) };
+        case "moveMail":
+          return { out0: await driver.move(folder, messageId, destination) };
         default:
           return { out0: await driver.markRead(folder, messageId, params["read"] !== false) };
       }
@@ -137,33 +161,33 @@ export class Mail extends Block {
       await driver.close().catch(() => undefined);
     }
   }
+}
 
-  private driver(provider: string, params: Record<string, Json>, c: { username: string; password: string; timeoutMs: number; signal: AbortSignal }): MailDriver {
-    const str = (name: string) => (typeof params[name] === "string" ? (params[name] as string).trim() : "");
-    const num = (name: string, fallback: number) => {
-      const n = Math.trunc(Number(params[name] ?? fallback));
-      return Number.isFinite(n) && n >= 1 && n <= 65535 ? n : fallback;
-    };
-    if (provider === "graph") {
-      const tenantId = str("tenantId");
-      const clientId = str("clientId");
-      if (tenantId === "" || clientId === "") throw new Error('Mail: "tenantId" and "clientId" are required for Microsoft Graph');
-      return graphDriver({ tenantId, clientId, clientSecret: c.password, mailbox: c.username, timeoutMs: c.timeoutMs, signal: c.signal });
-    }
-    const host = str("host");
-    if (host === "") throw new Error('Mail: "host" (IMAP server) is required');
-    return imapSmtpDriver({
-      host,
-      port: num("port", 993),
-      secure: params["secure"] !== false,
-      smtpHost: str("smtpHost") || host,
-      smtpPort: num("smtpPort", 465),
-      smtpSecure: params["smtpSecure"] !== false,
-      username: c.username,
-      password: c.password,
-      tlsInsecure: params["tlsInsecure"] === true,
-      timeoutMs: c.timeoutMs,
-      signal: c.signal,
-    });
+export function buildMailDriver(provider: string, params: Record<string, Json>, c: { username: string; password: string; timeoutMs: number; signal: AbortSignal }): MailDriver {
+  const str = (name: string) => (typeof params[name] === "string" ? (params[name] as string).trim() : "");
+  const num = (name: string, fallback: number) => {
+    const n = Math.trunc(Number(params[name] ?? fallback));
+    return Number.isFinite(n) && n >= 1 && n <= 65535 ? n : fallback;
+  };
+  if (provider === "graph") {
+    const tenantId = str("tenantId");
+    const clientId = str("clientId");
+    if (tenantId === "" || clientId === "") throw new Error('Mail: "tenantId" and "clientId" are required for Microsoft Graph');
+    return graphDriver({ tenantId, clientId, clientSecret: c.password, mailbox: c.username, timeoutMs: c.timeoutMs, signal: c.signal });
   }
+  const host = str("host");
+  if (host === "") throw new Error('Mail: "host" (IMAP server) is required');
+  return imapSmtpDriver({
+    host,
+    port: num("port", 993),
+    secure: params["secure"] !== false,
+    smtpHost: str("smtpHost") || host,
+    smtpPort: num("smtpPort", 465),
+    smtpSecure: params["smtpSecure"] !== false,
+    username: c.username,
+    password: c.password,
+    tlsInsecure: params["tlsInsecure"] === true,
+    timeoutMs: c.timeoutMs,
+    signal: c.signal,
+  });
 }

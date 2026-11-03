@@ -1,6 +1,6 @@
 import type { Json } from "@fl0w/schema";
 import { isPlainObject } from "./json-path";
-import { MAX_BODY_CHARS, type ListQuery, type MailDriver, type MailItem, type OutMail } from "./mail-types";
+import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TOTAL, MAX_BODY_CHARS, type ListQuery, type MailAttachment, type MailDriver, type MailItem, type OutMail } from "./mail-types";
 import { MAX_RESPONSE_BYTES, readCapped } from "./http-request";
 import { redact } from "./secrets";
 
@@ -155,6 +155,39 @@ export function graphDriver(cfg: GraphConfig): MailDriver {
       await auth();
       await call("PATCH", `${user()}/messages/${encodeURIComponent(id)}`, { body: { isRead: read } });
       return { ok: true, id, read };
+    },
+
+    async reply(_folder: string, id: string, body: string, html: boolean, all: boolean) {
+      await auth();
+      await call("POST", `${user()}/messages/${encodeURIComponent(id)}/${all ? "replyAll" : "reply"}`, {
+        body: html ? { message: { body: { contentType: "HTML", content: body } } } : { comment: body },
+      });
+      return { ok: true, id, all };
+    },
+
+    async move(_folder: string, id: string, destination: string) {
+      await auth();
+      const dest = WELL_KNOWN[destination.trim().toLowerCase()] ?? destination;
+      const moved = await call("POST", `${user()}/messages/${encodeURIComponent(id)}/move`, { body: { destinationId: dest } });
+      return { ok: true, id: isPlainObject(moved) && typeof moved["id"] === "string" ? moved["id"] : id, destination };
+    },
+
+    async attachments(_folder: string, id: string): Promise<MailAttachment[]> {
+      await auth();
+      const res = await call("GET", `${user()}/messages/${encodeURIComponent(id)}/attachments?${new URLSearchParams({ $select: "name,contentType,size,contentBytes" })}`);
+      const items = isPlainObject(res) && Array.isArray(res["value"]) ? res["value"] : [];
+      let total = 0;
+      const out: MailAttachment[] = [];
+      for (const x of items) {
+        // только файловые вложения: у вложенных писем и ссылок нет contentBytes
+        if (!isPlainObject(x) || typeof x["contentBytes"] !== "string") continue;
+        const bytes = Buffer.from(x["contentBytes"], "base64");
+        if (bytes.byteLength > MAX_ATTACHMENT_BYTES) throw new Error(`Mail: attachment "${String(x["name"] ?? "")}" is too large`);
+        total += bytes.byteLength;
+        if (total > MAX_ATTACHMENT_TOTAL) throw new Error("Mail: attachments are too large");
+        out.push({ filename: typeof x["name"] === "string" ? x["name"] : "", contentType: typeof x["contentType"] === "string" ? x["contentType"] : "", size: bytes.byteLength, bytes });
+      }
+      return out;
     },
 
     async close() {

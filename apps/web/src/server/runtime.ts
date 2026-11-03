@@ -1,7 +1,7 @@
 import path from "node:path";
 import { registry } from "@fl0w/blocks";
 import { processSchedulerRun } from "@fl0w/engine/process";
-import { createFileWatcher, createTelegramSources, FlowStore, RunHub, Scheduler } from "@fl0w/engine/server";
+import { createFileWatcher, createMailPoller, createTelegramSources, FlowStore, RunHub, Scheduler } from "@fl0w/engine/server";
 import { engineDir } from "./engine-dir";
 
 /** Предел времени одного запуска; дальше процесс-раннер убивается. */
@@ -34,6 +34,8 @@ class Runtime {
       watchFiles: createFileWatcher({ baseDir: filesDir, log: (msg) => console.log(`[file-watch] ${msg}`) }),
       // Telegram Trigger: опрос (по умолчанию, только исходящие запросы) или вебхук (нужен FL0W_PUBLIC_URL)
       pollTelegram: this.telegram.factory,
+      // Mail Trigger: опрос почтового ящика (IMAP или Microsoft Graph)
+      pollMail: createMailPoller({ log: (msg) => console.log(`[mail] ${msg}`) }),
       log: (msg) => console.log(`[scheduler] ${msg}`),
     });
   }

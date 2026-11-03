@@ -107,7 +107,8 @@
     "loop": "Цикл (Loop)",
     "loop_break": "Выход из цикла (Break)",
     "atlassian": "Atlassian (Jira)",
-    "mail": "Почта"
+    "mail": "Почта",
+    "mail_trigger": "Почта: новое письмо"
   },
   "node": {
     "unknown": "Неизвестный блок: {type}",
@@ -533,7 +534,31 @@
       "subject": "Тема",
       "body": "Текст",
       "html": "Текст — HTML",
-      "timeoutMs": "Таймаут, мс"
+      "timeoutMs": "Таймаут, мс",
+      "saveAttachments": "Сохранять вложения (в каталог файлов)",
+      "attachmentsDir": "Папка вложений (в каталоге файлов)",
+      "replyAll": "Ответить всем",
+      "destination": "Куда переместить (папка)"
+    },
+    "mail_trigger": {
+      "provider": "Провайдер",
+      "host": "Сервер IMAP",
+      "port": "Порт IMAP",
+      "secure": "TLS (порт 993)",
+      "tlsInsecure": "Не проверять сертификат сервера",
+      "tenantId": "Tenant ID (Azure AD)",
+      "clientId": "Client ID приложения",
+      "username": "Логин (адрес ящика)",
+      "password": "Пароль / client secret (или env:FL0W_SECRET_…)",
+      "folder": "Папка",
+      "unreadOnly": "Только непрочитанные",
+      "fromFilter": "От кого (адрес)",
+      "subjectFilter": "Тема содержит",
+      "intervalSec": "Проверять каждые, с",
+      "action": "После запуска",
+      "processExisting": "Обработать и уже лежащие письма",
+      "saveAttachments": "Сохранять вложения",
+      "attachmentsDir": "Папка вложений (в каталоге файлов)"
     }
   },
   "run": {
@@ -679,7 +704,9 @@
       "sendMail": "Отправить письмо",
       "listMail": "Список писем",
       "getMail": "Прочитать письмо",
-      "markMailRead": "Пометить прочитанным"
+      "markMailRead": "Пометить прочитанным",
+      "replyMail": "Ответить на письмо",
+      "moveMail": "Переместить письмо"
     },
     "part": {
       "year": "год",
@@ -711,7 +738,9 @@
       "choose_sticker": "выбирает стикер",
       "find_location": "ищет место",
       "record_video_note": "записывает кружок",
-      "upload_video_note": "отправляет кружок"
+      "upload_video_note": "отправляет кружок",
+      "markRead": "пометить прочитанным",
+      "none": "ничего не делать"
     },
     "algorithm": {
       "md5": "md5",

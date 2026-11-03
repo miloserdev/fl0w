@@ -107,7 +107,8 @@
     "loop": "Loop",
     "loop_break": "Break",
     "atlassian": "Atlassian (Jira)",
-    "mail": "Mail"
+    "mail": "Mail",
+    "mail_trigger": "Mail: new message"
   },
   "node": {
     "unknown": "Unknown block: {type}",
@@ -533,7 +534,31 @@
       "subject": "Subject",
       "body": "Body",
       "html": "Body is HTML",
-      "timeoutMs": "Timeout, ms"
+      "timeoutMs": "Timeout, ms",
+      "saveAttachments": "Save attachments (to the files directory)",
+      "attachmentsDir": "Attachments folder (inside the files directory)",
+      "replyAll": "Reply to all",
+      "destination": "Move to (folder)"
+    },
+    "mail_trigger": {
+      "provider": "Provider",
+      "host": "IMAP server",
+      "port": "IMAP port",
+      "secure": "TLS (port 993)",
+      "tlsInsecure": "Do not verify the server certificate",
+      "tenantId": "Tenant ID (Azure AD)",
+      "clientId": "Application client ID",
+      "username": "Login (mailbox address)",
+      "password": "Password / client secret (or env:FL0W_SECRET_…)",
+      "folder": "Folder",
+      "unreadOnly": "Unread only",
+      "fromFilter": "From (address)",
+      "subjectFilter": "Subject contains",
+      "intervalSec": "Check every, s",
+      "action": "After the run",
+      "processExisting": "Also process messages already in the mailbox",
+      "saveAttachments": "Save attachments",
+      "attachmentsDir": "Attachments folder (inside the files directory)"
     }
   },
   "run": {
@@ -679,7 +704,9 @@
       "sendMail": "Send mail",
       "listMail": "List mail",
       "getMail": "Read mail",
-      "markMailRead": "Mark as read"
+      "markMailRead": "Mark as read",
+      "replyMail": "Reply to message",
+      "moveMail": "Move message"
     },
     "part": {
       "year": "year",
@@ -711,7 +738,9 @@
       "choose_sticker": "choosing a sticker",
       "find_location": "finding a location",
       "record_video_note": "recording a video note",
-      "upload_video_note": "uploading a video note"
+      "upload_video_note": "uploading a video note",
+      "markRead": "mark as read",
+      "none": "do nothing"
     },
     "algorithm": {
       "md5": "md5",

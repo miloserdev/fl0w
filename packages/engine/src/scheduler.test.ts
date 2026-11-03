@@ -789,3 +789,66 @@ describe("Scheduler: Telegram Trigger", () => {
     }
   });
 });
+
+describe("Scheduler: Mail Trigger", () => {
+  const mailFlow = (id: string, params: Record<string, Json> = {}, status: "published" | "draft" = "published") =>
+    withNodes(id, [node("mt", "mail_trigger", { provider: "imap", host: "imap.test", username: "me@x.io", password: "mail-pw-123", ...params })], status);
+
+  function mailSetup() {
+    const subs: { spec: import("@fl0w/blocks").MailWatchSpec; emit: (m: Json) => void; stopped: boolean }[] = [];
+    const base = setup();
+    const scheduler = new Scheduler({
+      store: new FlowStore("/nonexistent"),
+      hub: base.hub,
+      registry: testRegistry,
+      run: async (f, onEvent, o) => {
+        base.calls.push({ flowId: f.id, trigger: o.trigger, triggerData: o.triggerData });
+        onEvent({ event: "flow:done" });
+      },
+      log: (m) => base.logs.push(m),
+      pollMail: (spec, emit) => {
+        const s = { spec, emit, stopped: false };
+        subs.push(s);
+        return () => void (s.stopped = true);
+      },
+    });
+    return { ...base, scheduler, subs };
+  }
+
+  it("публикация запускает опрос ящика; письмо запускает флоу с данными письма", async () => {
+    const { scheduler, subs, calls } = mailSetup();
+    scheduler.sync(mailFlow("a", { folder: "Work", intervalSec: 30, action: "none", fromFilter: "boss@x.io" }));
+    expect(subs).toHaveLength(1);
+    expect(subs[0]!.spec).toMatchObject({ username: "me@x.io", password: "mail-pw-123", folder: "Work", intervalSec: 30, action: "none", fromFilter: "boss@x.io", unreadOnly: true });
+    subs[0]!.emit({ id: "7", subject: "Привет" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls).toEqual([{ flowId: "a", trigger: "mt", triggerData: { id: "7", subject: "Привет" } }]);
+  });
+
+  it("пароль не попадает в лог", () => {
+    const { scheduler, logs } = mailSetup();
+    scheduler.sync(mailFlow("a"));
+    expect(logs.join("\n")).toContain("polls mailbox imap:me@x.io");
+    expect(logs.join("\n")).not.toContain("mail-pw-123");
+  });
+
+  it("снятие с публикации, отключение триггера и stop прекращают опрос", () => {
+    const { scheduler, subs } = mailSetup();
+    scheduler.sync(mailFlow("a"));
+    scheduler.sync(mailFlow("a", {}, "draft"));
+    expect(subs[0]!.stopped).toBe(true);
+    scheduler.sync(withNodes("b", [{ ...node("mt", "mail_trigger", { provider: "imap", host: "h", username: "u@x.io", password: "pw-12345" }), disabled: true }], "published"));
+    expect(subs).toHaveLength(1); // отключённый триггер не опрашивает
+    scheduler.sync(mailFlow("c"));
+    scheduler.stop();
+    expect(subs.every((s) => s.stopped)).toBe(true);
+  });
+
+  it("неверные параметры (частота ниже 15 с, нет хоста) видны при публикации", () => {
+    const { scheduler } = mailSetup();
+    expect(scheduler.problems(mailFlow("a", { intervalSec: 5 })).join(" ")).toMatch(/intervalSec/);
+    expect(scheduler.problems(mailFlow("a", { host: "" })).join(" ")).toMatch(/host/);
+    expect(scheduler.problems(mailFlow("a", { password: "env:PATH" })).join(" ")).toMatch(/FL0W_SECRET_/);
+    expect(scheduler.problems(mailFlow("a"))).toEqual([]);
+  });
+});

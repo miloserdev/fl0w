@@ -19,6 +19,7 @@ import { Summarize } from "./summarize";
 import { Switch } from "./switch";
 import { Atlassian } from "./atlassian";
 import { Mail } from "./mail";
+import { MailTrigger } from "./mail-trigger";
 import { Telegram } from "./telegram";
 import { TelegramTrigger } from "./telegram-trigger";
 import { Wait } from "./wait";
@@ -54,6 +55,7 @@ export const registry: Record<string, BlockClass> = {
   every: Every,
   webhook: Webhook,
   telegram_trigger: TelegramTrigger,
+  mail_trigger: MailTrigger,
   local_file_trigger: LocalFileTrigger,
   error_trigger: ErrorTrigger,
   workflow_trigger: WorkflowTrigger,

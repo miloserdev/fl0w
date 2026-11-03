@@ -183,14 +183,14 @@ describe("Every (триггер)", () => {
   it("без входов; триггером является только Every", () => {
     expect(Every.ports.inputs).toEqual([]);
     expect(Object.values(registry).filter((c) => c.isTrigger).map((c) => c.type).sort()).toEqual([
-      "activation_trigger", "call_trigger", "error_trigger", "every", "local_file_trigger", "manual", "telegram_trigger", "webhook", "workflow_trigger",
+      "activation_trigger", "call_trigger", "error_trigger", "every", "local_file_trigger", "mail_trigger", "manual", "telegram_trigger", "webhook", "workflow_trigger",
     ]);
     expect(Object.values(registry).filter((c) => c.autoTrigger).map((c) => c.type).sort()).toEqual([
-      "activation_trigger", "call_trigger", "error_trigger", "every", "local_file_trigger", "telegram_trigger", "webhook", "workflow_trigger",
+      "activation_trigger", "call_trigger", "error_trigger", "every", "local_file_trigger", "mail_trigger", "telegram_trigger", "webhook", "workflow_trigger",
     ]);
     // ждут внешнего события — ручной запуск их не стартует (Every и Manual стартуют)
     expect(Object.values(registry).filter((c) => c.eventDriven).map((c) => c.type).sort()).toEqual([
-      "activation_trigger", "call_trigger", "error_trigger", "local_file_trigger", "telegram_trigger", "webhook", "workflow_trigger",
+      "activation_trigger", "call_trigger", "error_trigger", "local_file_trigger", "mail_trigger", "telegram_trigger", "webhook", "workflow_trigger",
     ]);
     expect(Object.values(registry).filter((c) => c.type !== "every").every((c) => c.intervalMs({}) === null)).toBe(true);
   });
@@ -270,10 +270,10 @@ describe("HttpRequest", () => {
 });
 
 describe("реестр и метаданные", () => {
-  it("53 блока: MVP + аналоги core-нод n8n + Telegram + Code Agent, инструменты и банк памяти", () => {
+  it("54 блока: MVP + аналоги core-нод n8n + Telegram + Code Agent, инструменты и банк памяти", () => {
     expect(Object.keys(registry).sort()).toEqual([
       "activation_trigger", "aggregate", "atlassian", "branch", "call_trigger", "code", "code_agent", "compare_datasets", "counter", "crypto", "datetime", "error_trigger", "every",
-      "files", "filter", "group", "http_request", "jwt", "limit", "local_file_trigger", "log", "loop", "loop_break", "mail", "manual", "memory_bank", "merge", "noop", "note", "notify", "remove_duplicates",
+      "files", "filter", "group", "http_request", "jwt", "limit", "local_file_trigger", "log", "loop", "loop_break", "mail", "mail_trigger", "manual", "memory_bank", "merge", "noop", "note", "notify", "remove_duplicates",
       "rename_keys", "respond_to_webhook", "result", "run_flow", "set", "shell", "sort", "source", "split_out", "stop_and_error",
       "summarize", "switch", "telegram", "telegram_trigger", "tool_calculator", "tool_code", "tool_datetime", "tool_random",
       "transform", "wait", "webhook", "workflow_trigger",

@@ -1,4 +1,4 @@
-import type { FileWatchSpec, LifecycleReason, TelegramSpec } from "@fl0w/blocks";
+import type { FileWatchSpec, LifecycleReason, MailWatchSpec, TelegramSpec } from "@fl0w/blocks";
 import type { Flow, Json, RunnerEvent } from "@fl0w/schema";
 import type { RunHub } from "./hub";
 import type { FlowStore } from "./store";
@@ -14,6 +14,9 @@ export type SchedulerRun = (
 
 /** Подписка на изменения файлов: возвращает функцию отписки. Реализация — `createFileWatcher` (file-watch.ts). */
 export type FileWatchFactory = (spec: FileWatchSpec, onChange: (payload: Json) => void) => () => void;
+
+/** Опрос почтового ящика для Mail Trigger: на каждое новое письмо вызывает `onMail`; возвращает функцию остановки. Реализация — `createMailPoller`. */
+export type MailPollFactory = (spec: MailWatchSpec, onMail: (message: Json) => void) => () => void;
 
 /** Подписка на обновления Telegram-бота; возвращает функцию отписки. Реализация — `createTelegramPoller`. */
 export type TelegramPollFactory = (spec: TelegramSpec, onUpdate: (update: Json) => void) => () => void;
@@ -34,6 +37,8 @@ export type SchedulerDeps = {
   watchFiles?: FileWatchFactory;
   /** Опрос Telegram для Telegram Trigger; без него такие триггеры не активируются. */
   pollTelegram?: TelegramPollFactory;
+  /** Опрос почты для Mail Trigger; без него такие триггеры не активируются. */
+  pollMail?: MailPollFactory;
 };
 
 /** Слишком много одновременных запусков по вебхукам. */
@@ -167,6 +172,16 @@ export class Scheduler {
             this.log(`flow ${flow.id}: trigger ${node.id} ${tg.mode === "webhook" ? "receives webhooks of" : "polls"} Telegram bot ${tg.token.split(":")[0]} for ${tg.updates.join(", ")}`);
           }
         }
+        const mail = cls.mailWatch(node.params);
+        if (mail) {
+          if (!this.deps.pollMail) {
+            this.log(`flow ${flow.id}: trigger ${node.id} needs a mail poller, none is configured`);
+          } else {
+            const stop = this.deps.pollMail(mail, (message) => this.enqueueEvent(flow.id, node.id, message));
+            jobs.push({ nodeId: node.id, stop });
+            this.log(`flow ${flow.id}: trigger ${node.id} polls mailbox ${String(mail.connection["provider"] ?? "imap")}:${mail.username} (${mail.folder}) every ${mail.intervalSec} s`);
+          }
+        }
         const scope = cls.errorScope(node.params);
         if (scope) {
           handlers.push({ nodeId: node.id, flows: scope.flows });
@@ -209,6 +224,7 @@ export class Scheduler {
         cls.intervalMs(node.params);
         cls.fileWatch(node.params);
         cls.telegram(node.params);
+        cls.mailWatch(node.params);
         cls.errorScope(node.params);
         cls.lifecycle(node.params);
         const hook = cls.webhook(node.params);

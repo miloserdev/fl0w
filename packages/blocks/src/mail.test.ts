@@ -3,7 +3,11 @@ import type { AddressInfo } from "node:net";
 import { SMTPServer } from "smtp-server";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Json } from "@fl0w/schema";
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { Mail } from "./mail";
+import { MailTrigger } from "./mail-trigger";
 import { resolveParams } from "./params";
 import { registry } from "./registry";
 
@@ -36,7 +40,10 @@ vi.mock("imapflow", () => ({
     }
     async fetchOne(id: string) {
       imapCalls.push(`fetchOne ${id}`);
-      return { source: Buffer.from("From: Ann <ann@x.io>\r\nTo: me@x.io\r\nSubject: Привет\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nтекст письма\r\n"), flags: new Set<string>() };
+      return { source: Buffer.from("Message-ID: <orig-1@x.io>\r\nFrom: Ann <ann@x.io>\r\nReply-To: Ann Reply <ann.reply@x.io>\r\nTo: me@x.io, boss@x.io\r\nCc: team@x.io\r\nSubject: Привет\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nтекст письма\r\n"), flags: new Set<string>() };
+    }
+    async messageMove(id: string, dest: string) {
+      imapCalls.push(`move ${id} -> ${dest}`);
     }
     async messageFlagsAdd(id: string, flags: string[]) {
       imapCalls.push(`flags+ ${id} ${flags.join(",")}`);
@@ -250,5 +257,104 @@ describe("Mail: Microsoft Graph", () => {
     const ac = new AbortController();
     ac.abort();
     await expect(run({ ...GRAPH, operation: "listMail" }, undefined, ac.signal)).rejects.toThrow("Aborted");
+  });
+});
+
+describe("Mail: ответ, перемещение, вложения", () => {
+  it("IMAP: ответ уходит отправителю (Reply-To) с «Re:», In-Reply-To и ссылкой на исходное письмо; replyAll добавляет остальных, но не меня", async () => {
+    const smtpCfg = { ...IMAP, smtpHost: "127.0.0.1", smtpPort: smtpPort, smtpSecure: false, operation: "replyMail", messageId: "42", body: "Спасибо, {{ who }}" } as const;
+    await run(smtpCfg, { who: "Анна" });
+    let m = smtpGot.at(-1)!;
+    expect(m.to).toEqual(["ann.reply@x.io"]);
+    expect(m.data).toMatch(/^In-Reply-To: <orig-1@x\.io>/m);
+    expect(m.data).toMatch(/^References: .*<orig-1@x\.io>/m);
+    expect(m.data).toMatch(/^Subject: =\?UTF-8\?/m);
+    await run({ ...smtpCfg, replyAll: true });
+    m = smtpGot.at(-1)!;
+    expect(m.to.sort()).toEqual(["ann.reply@x.io", "boss@x.io", "team@x.io"]); // me@x.io (это я) не включён
+  });
+
+  it("IMAP: перемещение письма в папку; параметры проверяются до подключения", async () => {
+    expect((await run({ ...IMAP, operation: "moveMail", messageId: "7", destination: "Archive" }))["out0"]).toEqual({ ok: true, id: "7", destination: "Archive" });
+    expect(imapCalls).toContain("move 7 -> Archive");
+    imapCalls.length = 0;
+    await expect(run({ ...IMAP, operation: "moveMail", messageId: "7", destination: "" })).rejects.toThrow(/destination/);
+    await expect(run({ ...IMAP, operation: "replyMail", messageId: "7", body: "" })).rejects.toThrow(/reply "body" is empty/);
+    expect(imapCalls).toEqual([]);
+  });
+
+  it("Graph: ответ (текст и HTML), ответить всем, перемещение в известную папку", async () => {
+    tokenRoute();
+    routes["POST /v1.0/users/me%40x.io/messages/AAA%3D/reply"] = [202, undefined];
+    routes["POST /v1.0/users/me%40x.io/messages/AAA%3D/replyAll"] = [202, undefined];
+    routes["POST /v1.0/users/me%40x.io/messages/AAA%3D/move"] = [201, { id: "BBB=" }];
+    await run({ ...GRAPH, operation: "replyMail", messageId: "AAA=", body: "Принято" });
+    expect(JSON.parse(seen.at(-1)!.raw)).toEqual({ comment: "Принято" });
+    await run({ ...GRAPH, operation: "replyMail", messageId: "AAA=", body: "<b>ok</b>", html: true, replyAll: true });
+    expect(seen.at(-1)!.url).toBe("/v1.0/users/me%40x.io/messages/AAA%3D/replyAll");
+    expect(JSON.parse(seen.at(-1)!.raw)).toEqual({ message: { body: { contentType: "HTML", content: "<b>ok</b>" } } });
+    expect((await run({ ...GRAPH, operation: "moveMail", messageId: "AAA=", destination: "Trash" }))["out0"]).toEqual({ ok: true, id: "BBB=", destination: "Trash" });
+    expect(JSON.parse(seen.at(-1)!.raw)).toEqual({ destinationId: "deleteditems" });
+  });
+
+  describe("сохранение вложений", () => {
+    let dir: string;
+    const saved = process.env["FL0W_FILES_DIR"];
+    const mk = () => {
+      dir = mkdtempSync(path.join(tmpdir(), "fl0w-mail-"));
+      process.env["FL0W_FILES_DIR"] = dir;
+    };
+    afterEach(() => {
+      rmSync(dir, { recursive: true, force: true });
+      if (saved === undefined) delete process.env["FL0W_FILES_DIR"];
+      else process.env["FL0W_FILES_DIR"] = saved;
+    });
+
+    it("Graph: вложения пишутся в <каталог>/<id>/<имя>, у результата появляется path; опасные имена обезврежены, одинаковые различаются", async () => {
+      mk();
+      tokenRoute();
+      routes["GET /v1.0/users/me%40x.io/messages/AAA%3D"] = [200, { id: "AAA=", subject: "S", hasAttachments: true, body: { contentType: "text", content: "x" } }];
+      const b64 = (t: string) => Buffer.from(t).toString("base64");
+      routes["GET /v1.0/users/me%40x.io/messages/AAA%3D/attachments"] = [
+        200,
+        { value: [
+          { name: "отчёт.txt", contentType: "text/plain", size: 5, contentBytes: b64("hello") },
+          { name: "../../evil.sh", contentType: "text/plain", size: 3, contentBytes: b64("pwn") },
+          { name: "отчёт.txt", contentType: "text/plain", size: 5, contentBytes: b64("again") },
+          { name: "письмо.eml", contentType: "message/rfc822", size: 1 }, // вложенное письмо без содержимого — пропускается
+        ] },
+      ];
+      const r = (await run({ ...GRAPH, operation: "getMail", messageId: "AAA=", saveAttachments: true, attachmentsDir: "inbox" }))["out0"] as { attachments: { filename: string; path?: string }[] };
+      const files = readdirSync(path.join(dir, "inbox", "AAA_"));
+      expect(files.sort()).toEqual(["evil.sh", "отчёт (2).txt", "отчёт.txt"]);
+      expect(readFileSync(path.join(dir, "inbox", "AAA_", "отчёт.txt"), "utf8")).toBe("hello");
+      expect(r.attachments.map((a) => a.path ?? null)).toEqual(["inbox/AAA_/отчёт.txt", "inbox/AAA_/evil.sh", "inbox/AAA_/отчёт (2).txt", null]);
+    });
+
+    it("IMAP: путь к каталогу вне каталога файлов отвергается; без включённого saveAttachments файлы не пишутся", async () => {
+      mk();
+      await run({ ...IMAP, operation: "getMail", messageId: "42" });
+      expect(readdirSync(dir)).toEqual([]);
+      await expect(run({ ...IMAP, operation: "getMail", messageId: "42", saveAttachments: true, attachmentsDir: "../x" })).resolves.toBeDefined(); // нет вложений — каталога не касаемся
+    });
+  });
+});
+
+describe("Mail Trigger: параметры подписки", () => {
+  const base = { provider: "imap", host: "imap.test", username: "me@x.io", password: "pw-12345" };
+  it("разумные значения по умолчанию и подстановка пароля из окружения", () => {
+    process.env["FL0W_SECRET_MAILBOX"] = "from-env";
+    const w = MailTrigger.mailWatch({ ...base, password: "env:FL0W_SECRET_MAILBOX" });
+    delete process.env["FL0W_SECRET_MAILBOX"];
+    expect(w).toMatchObject({ username: "me@x.io", password: "from-env", folder: "INBOX", unreadOnly: true, intervalSec: 60, action: "markRead", processExisting: false, saveAttachments: false });
+  });
+  it("проверки: период 15…3600 с, хост/tenant, действие, каталог вложений", () => {
+    expect(() => MailTrigger.mailWatch({ ...base, intervalSec: 5 })).toThrow(/intervalSec/);
+    expect(() => MailTrigger.mailWatch({ ...base, intervalSec: 99999 })).toThrow(/intervalSec/);
+    expect(() => MailTrigger.mailWatch({ ...base, host: "" })).toThrow(/host/);
+    expect(() => MailTrigger.mailWatch({ provider: "graph", username: "u@x.io", password: "pw-12345" })).toThrow(/tenantId/);
+    expect(() => MailTrigger.mailWatch({ ...base, action: "delete" })).toThrow(/action/);
+    expect(() => MailTrigger.mailWatch({ ...base, attachmentsDir: "../x" })).toThrow(/must not contain/);
+    expect(() => MailTrigger.mailWatch({ ...base, provider: "pigeon" })).toThrow(/provider/);
   });
 });

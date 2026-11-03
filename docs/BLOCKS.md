@@ -119,6 +119,7 @@
 | **Notification** `notify` | in0 / out0 (вход без изменений) | `title`, `message` (пусто — весь вход), `urgency` low/normal/critical, `icon` (имя из темы), `appName`, `timeoutMs` — уведомление рабочего стола через `notify-send` |
 | **Atlassian** `atlassian` | in0 / out0 ответ API | `baseUrl`, `auth` form/basic/session/bearer, `username`, `password` (`env:FL0W_SECRET_…`), `operation` searchIssues/getIssue/createIssue/updateIssue/addComment/transitionIssue/request, `apiVersion`, поля операции — Jira Server/DC и Cloud |
 | **Mail** `mail` | in0 / out0 результат операции | `provider` imap/graph, `operation` sendMail/listMail/getMail/markMailRead, `host`/`smtpHost`/… или `tenantId`/`clientId`, `username`, `password`, поля операции — почта без привязки к сервису |
+| **Mail Trigger** `mail_trigger` | — / out0 письмо `{id, from, to, cc, subject, date, unread, text, html, attachments, folder}` | `provider`, подключение, `folder`, `unreadOnly`, `fromFilter`, `subjectFilter`, `intervalSec` (15…3600), `action` markRead/none, `processExisting`, `saveAttachments` — срабатывает на каждое новое письмо |
 | **Result** `result` | in0 / — | — |
 
 ### Данные
@@ -496,11 +497,26 @@ memories.notes.get("x")                             // банки по имен�
   `password` = client secret) с правами `Mail.Read` / `Mail.ReadWrite` / `Mail.Send` на ящик `username`. Адреса Graph и входа можно
   заменить переменными `FL0W_GRAPH_URL` и `FL0W_GRAPH_LOGIN_URL` (национальные облака).
 
-Операции: `sendMail` — `to`/`cc`/`bcc` (адреса через запятую, `;` или перевод строки), `subject`, `body` (текст или HTML при `html`);
+Операции: `replyMail` (ответ автору; `replyAll` — всем; с In-Reply-To), `moveMail` (в папку; в корзину — перемещением) и `sendMail` — `to`/`cc`/`bcc` (адреса через запятую, `;` или перевод строки), `subject`, `body` (текст или HTML при `html`);
 `listMail` — `folder` (INBOX, sent, drafts, …), `unreadOnly`, `fromFilter`, `subjectFilter`, `since`, `limit` (до 100), новые первыми;
-`getMail` — по `messageId` (у IMAP это UID в папке, у Graph — id письма): заголовки, `text`, `html`, список вложений (содержимое не
-загружается); `markMailRead`. В `to`, `subject`, `body`, фильтрах работают `{{ путь }}` из входа.
+`getMail` — по `messageId` (у IMAP это UID в папке, у Graph — id письма): заголовки, `text`, `html`, список вложений; с `saveAttachments`
+вложения сохраняются в `<каталог файлов>/<attachmentsDir>/<id письма>/<имя>` (имена очищаются, одинаковые различаются, до 50 файлов и 100 МБ),
+а в метаданных появляется `path`; `markMailRead`. В `to`, `subject`, `body`, фильтрах работают `{{ путь }}` из входа.
 
 **Безопасность.** Пароль — текстом (хранится во флоу) или ссылкой `env:FL0W_SECRET_…`; в ошибки и логи не попадает. Получатели
 проверяются, тема и адреса — строго одна строка (нельзя подменить заголовки переносом строки). Тело и ответы ограничены по размеру.
 Без доверенного сервера пароль по открытому каналу не отправляйте: для IMAP/SMTP оставляйте TLS включённым.
+
+### Mail Trigger (новое письмо)
+
+Как Email Trigger (IMAP) и Microsoft Outlook Trigger в n8n, но один блок на любого провайдера: срабатывает на каждое новое письмо ящика,
+**один запуск на письмо**, старые первыми; на выходе — письмо целиком (как `getMail`). Работает у опубликованного флоу: сервер раз в `intervalSec`
+(не реже 15 с) опрашивает ящик через драйвер провайдера (IMAP или Microsoft Graph) — входящих соединений не нужно.
+
+- `action: markRead` (по умолчанию) — после запуска пометить письмо прочитанным; письма, лежавшие в ящике на момент публикации, при этом
+  тоже обрабатываются. `action: none` — письма не трогаются, а уже лежавшие на момент публикации пропускаются (если не включён
+  `processExisting`). Список «уже видел» живёт в памяти сервера, поэтому для надёжности между перезапусками используйте `markRead`.
+- Фильтры `folder`, `unreadOnly`, `fromFilter`, `subjectFilter`; `saveAttachments` сохраняет вложения в каталог файлов (см. выше).
+- Сбой (сеть, пароль) — повтор с растущей паузой (5 с … 5 мин), пароль в логе вырезан. Параметры проверяются при публикации.
+- Чего нет по сравнению с n8n: IDLE (мгновенное уведомление — у нас опрос), форматов Simple/Resolved/RAW (вывод один), произвольных IMAP-правил
+  (вместо них фильтры), событий календаря и контактов Outlook.
