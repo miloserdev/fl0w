@@ -18,6 +18,7 @@ import { StopAndError } from "./stop-and-error";
 import { Summarize } from "./summarize";
 import { Switch } from "./switch";
 import { Atlassian } from "./atlassian";
+import { Mail } from "./mail";
 import { Telegram } from "./telegram";
 import { TelegramTrigger } from "./telegram-trigger";
 import { Wait } from "./wait";
@@ -70,6 +71,7 @@ export const registry: Record<string, BlockClass> = {
   // приложения
   telegram: Telegram,
   atlassian: Atlassian,
+  mail: Mail,
   // данные
   transform: Transform,
   set: SetFields,

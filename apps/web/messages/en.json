@@ -106,7 +106,8 @@
     "log": "Log",
     "loop": "Loop",
     "loop_break": "Break",
-    "atlassian": "Atlassian (Jira)"
+    "atlassian": "Atlassian (Jira)",
+    "mail": "Mail"
   },
   "node": {
     "unknown": "Unknown block: {type}",
@@ -502,6 +503,37 @@
       "path": "Path (/rest/api/2/…)",
       "body": "Body (empty — input)",
       "timeoutMs": "Timeout, ms"
+    },
+    "mail": {
+      "provider": "Provider",
+      "operation": "Operation",
+      "host": "IMAP server",
+      "port": "IMAP port",
+      "secure": "TLS (port 993)",
+      "smtpHost": "SMTP server (empty — same)",
+      "smtpPort": "SMTP port",
+      "smtpSecure": "TLS on connect (465); off — STARTTLS (587)",
+      "tlsInsecure": "Do not verify the server certificate",
+      "tenantId": "Tenant ID (Azure AD)",
+      "clientId": "Application client ID",
+      "username": "Login (mailbox address)",
+      "password": "Password / client secret (or env:FL0W_SECRET_…)",
+      "folder": "Folder",
+      "unreadOnly": "Unread only",
+      "fromFilter": "From (address)",
+      "subjectFilter": "Subject contains",
+      "since": "Since date (2026-01-31)",
+      "limit": "Max results",
+      "messageId": "Message id",
+      "read": "Read",
+      "to": "To",
+      "cc": "Cc",
+      "bcc": "Bcc",
+      "from": "From (empty — login)",
+      "subject": "Subject",
+      "body": "Body",
+      "html": "Body is HTML",
+      "timeoutMs": "Timeout, ms"
     }
   },
   "run": {
@@ -643,7 +675,11 @@
       "updateIssue": "Update issue",
       "addComment": "Add comment",
       "transitionIssue": "Transition issue",
-      "request": "Custom REST request"
+      "request": "Custom REST request",
+      "sendMail": "Send mail",
+      "listMail": "List mail",
+      "getMail": "Read mail",
+      "markMailRead": "Mark as read"
     },
     "part": {
       "year": "year",
@@ -790,6 +826,10 @@
     "apiVersion": {
       "2": "2 (Server/DC and Cloud)",
       "3": "3 (Cloud, ADF)"
+    },
+    "provider": {
+      "imap": "IMAP / SMTP (any server: Exchange, Outlook, Gmail…)",
+      "graph": "Microsoft Graph (Outlook / Microsoft 365)"
     }
   },
   "issues": {

@@ -118,6 +118,7 @@
 | **Shell** `shell` | in0 / out0 `{stdout, stderr, exitCode, signal}` | `script`, `args`, `env`, `stdin`, `cwd`, `shell` bash/sh, `timeoutMs`, `failOnError` — **отключён по умолчанию** |
 | **Notification** `notify` | in0 / out0 (вход без изменений) | `title`, `message` (пусто — весь вход), `urgency` low/normal/critical, `icon` (имя из темы), `appName`, `timeoutMs` — уведомление рабочего стола через `notify-send` |
 | **Atlassian** `atlassian` | in0 / out0 ответ API | `baseUrl`, `auth` form/basic/session/bearer, `username`, `password` (`env:FL0W_SECRET_…`), `operation` searchIssues/getIssue/createIssue/updateIssue/addComment/transitionIssue/request, `apiVersion`, поля операции — Jira Server/DC и Cloud |
+| **Mail** `mail` | in0 / out0 результат операции | `provider` imap/graph, `operation` sendMail/listMail/getMail/markMailRead, `host`/`smtpHost`/… или `tenantId`/`clientId`, `username`, `password`, поля операции — почта без привязки к сервису |
 | **Result** `result` | in0 / — | — |
 
 ### Данные
@@ -481,3 +482,25 @@ memories.notes.get("x")                             // банки по имен�
 на страницу входа — ошибка). Ответ ограничен 10 МБ. Для `http://` пароль идёт открытым текстом — используйте https или доверенную сеть.
 
 `apiVersion` 2 (по умолчанию) работает и на Server/DC, и на Cloud (описание обычным текстом); 3 — Cloud, текст автоматически превращается в ADF.
+
+## Mail (почта)
+
+Блок не привязан к конкретному почтовому сервису: операции (отправить, список писем с фильтрами, прочитать письмо, пометить прочитанным)
+выполняет **драйвер провайдера**; сейчас их два, новый добавляется драйвером (`MailDriver` в `packages/blocks/src/mail-types.ts`) без
+изменения блока и флоу.
+
+- **`imap`** — любой почтовый сервер по IMAP (чтение) и SMTP (отправка): Exchange/Outlook, Gmail, Yandex, собственный.
+  `host`/`port`/`secure` — IMAP (993, TLS), `smtpHost` (пусто — тот же)/`smtpPort`/`smtpSecure` — SMTP (465 с TLS сразу или 587 со STARTTLS),
+  `username` — логин (обычно адрес ящика), `password`. `tlsInsecure` отключает проверку сертификата (внутренние серверы с самоподписанным).
+- **`graph`** — Microsoft Graph (Outlook / Microsoft 365) без доп. библиотек. Нужно приложение Azure AD (`tenantId`, `clientId`,
+  `password` = client secret) с правами `Mail.Read` / `Mail.ReadWrite` / `Mail.Send` на ящик `username`. Адреса Graph и входа можно
+  заменить переменными `FL0W_GRAPH_URL` и `FL0W_GRAPH_LOGIN_URL` (национальные облака).
+
+Операции: `sendMail` — `to`/`cc`/`bcc` (адреса через запятую, `;` или перевод строки), `subject`, `body` (текст или HTML при `html`);
+`listMail` — `folder` (INBOX, sent, drafts, …), `unreadOnly`, `fromFilter`, `subjectFilter`, `since`, `limit` (до 100), новые первыми;
+`getMail` — по `messageId` (у IMAP это UID в папке, у Graph — id письма): заголовки, `text`, `html`, список вложений (содержимое не
+загружается); `markMailRead`. В `to`, `subject`, `body`, фильтрах работают `{{ путь }}` из входа.
+
+**Безопасность.** Пароль — текстом (хранится во флоу) или ссылкой `env:FL0W_SECRET_…`; в ошибки и логи не попадает. Получатели
+проверяются, тема и адреса — строго одна строка (нельзя подменить заголовки переносом строки). Тело и ответы ограничены по размеру.
+Без доверенного сервера пароль по открытому каналу не отправляйте: для IMAP/SMTP оставляйте TLS включённым.

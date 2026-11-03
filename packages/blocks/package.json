@@ -11,10 +11,17 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@fl0w/schema": "workspace:*"
+    "@fl0w/schema": "workspace:*",
+    "imapflow": "^2.10.0",
+    "mailparser": "^3.14.1",
+    "nodemailer": "^10.3.1"
   },
   "devDependencies": {
+    "@types/mailparser": "^3.9.0",
     "@types/node": "^22.20.5",
+    "@types/nodemailer": "^8.0.2",
+    "@types/smtp-server": "^3.5.13",
+    "smtp-server": "^3.21.3",
     "vitest": "^5.0.5"
   }
 }

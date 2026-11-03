@@ -106,7 +106,8 @@
     "log": "Лог",
     "loop": "Цикл (Loop)",
     "loop_break": "Выход из цикла (Break)",
-    "atlassian": "Atlassian (Jira)"
+    "atlassian": "Atlassian (Jira)",
+    "mail": "Почта"
   },
   "node": {
     "unknown": "Неизвестный блок: {type}",
@@ -502,6 +503,37 @@
       "path": "Путь (/rest/api/2/…)",
       "body": "Тело (пусто — вход)",
       "timeoutMs": "Таймаут, мс"
+    },
+    "mail": {
+      "provider": "Провайдер",
+      "operation": "Операция",
+      "host": "Сервер IMAP",
+      "port": "Порт IMAP",
+      "secure": "TLS (порт 993)",
+      "smtpHost": "Сервер SMTP (пусто — тот же)",
+      "smtpPort": "Порт SMTP",
+      "smtpSecure": "TLS сразу (465); выкл. — STARTTLS (587)",
+      "tlsInsecure": "Не проверять сертификат сервера",
+      "tenantId": "Tenant ID (Azure AD)",
+      "clientId": "Client ID приложения",
+      "username": "Логин (адрес ящика)",
+      "password": "Пароль / client secret (или env:FL0W_SECRET_…)",
+      "folder": "Папка",
+      "unreadOnly": "Только непрочитанные",
+      "fromFilter": "От кого (адрес)",
+      "subjectFilter": "Тема содержит",
+      "since": "С даты (2026-01-31)",
+      "limit": "Сколько вернуть",
+      "messageId": "Id письма",
+      "read": "Прочитано",
+      "to": "Кому",
+      "cc": "Копия",
+      "bcc": "Скрытая копия",
+      "from": "От (пусто — логин)",
+      "subject": "Тема",
+      "body": "Текст",
+      "html": "Текст — HTML",
+      "timeoutMs": "Таймаут, мс"
     }
   },
   "run": {
@@ -643,7 +675,11 @@
       "updateIssue": "Изменить задачу",
       "addComment": "Добавить комментарий",
       "transitionIssue": "Перевести по статусам",
-      "request": "Свой REST-запрос"
+      "request": "Свой REST-запрос",
+      "sendMail": "Отправить письмо",
+      "listMail": "Список писем",
+      "getMail": "Прочитать письмо",
+      "markMailRead": "Пометить прочитанным"
     },
     "part": {
       "year": "год",
@@ -790,6 +826,10 @@
     "apiVersion": {
       "2": "2 (Server/DC и Cloud)",
       "3": "3 (Cloud, ADF)"
+    },
+    "provider": {
+      "imap": "IMAP / SMTP (любой сервер: Exchange, Outlook, Gmail…)",
+      "graph": "Microsoft Graph (Outlook / Microsoft 365)"
     }
   },
   "issues": {
