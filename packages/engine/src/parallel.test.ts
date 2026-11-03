@@ -34,14 +34,14 @@ const order = (events: { event: string; nodeId?: string }[], kind: string) => ev
 describe("параллельное исполнение независимых веток", () => {
   it("две независимые ветки идут одновременно: общее время ≈ самой долгой, а не сумме", async () => {
     const f = flow(
-      [node("s", "source", { json: { v: 1 } }), node("a", "sleep", { ms: 400 }), node("b", "sleep", { ms: 400 }), node("ra", "result"), node("rb", "result")],
+      [node("s", "source", { json: { v: 1 } }), node("a", "sleep", { ms: 1000 }), node("b", "sleep", { ms: 1000 }), node("ra", "result"), node("rb", "result")],
       [edge("s", "a"), edge("s", "b"), edge("a", "ra"), edge("b", "rb")],
     );
     const t0 = Date.now();
     const r = await run(f);
     const ms = Date.now() - t0;
     expect(r.done?.error).toBeUndefined();
-    expect(ms).toBeLessThan(750); // последовательно было бы ≥ 800
+    expect(ms).toBeLessThan(1700); // последовательно было бы ≥ 2000; запас большой, чтобы тест не мигал под нагрузкой
     expect(r.done?.result).toEqual({ ra: { v: 1 }, rb: { v: 1 } }); // порядок ключей — топологический, как раньше
   });
 

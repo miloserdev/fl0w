@@ -811,5 +811,20 @@
       "body": "each iteration",
       "err": "errors"
     }
+  },
+  "tabs": {
+    "label": "Flows",
+    "new": "New flow or open from server",
+    "newFlow": "New flow",
+    "fromServer": "From server",
+    "loading": "Loading…",
+    "noServerFlows": "No flows on the server yet",
+    "close": "Close tab",
+    "rename": "Flow name",
+    "published": "Published",
+    "running": "Running",
+    "dismiss": "Dismiss",
+    "confirmClose": "This flow is not saved on the server and will be lost when the tab is closed (you can keep a copy via File → Save). Close it?",
+    "tooMany": "Too many tabs are open (max {max}) — close some"
   }
 }

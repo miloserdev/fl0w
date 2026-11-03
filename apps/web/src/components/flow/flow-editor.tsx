@@ -19,7 +19,7 @@ import {
 } from "@xyflow/react";
 import { registry } from "@fl0w/blocks";
 import { validateFlow } from "@fl0w/engine";
-import { flowSchema } from "@fl0w/schema";
+import type { Flow } from "@fl0w/schema";
 import { Grid3x3, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
@@ -41,7 +41,6 @@ import {
   fromReactFlow,
   getPorts,
   nodePortKind,
-  newFlowId,
   newNodeId,
   nodeTypeFor,
   toReactFlow,
@@ -52,6 +51,7 @@ import {
   type BlockNodeType,
   type FlowMeta,
 } from "@/lib/flow-convert";
+import { readFlow, writeFlow } from "@/lib/workspace";
 import { canConnect } from "@/lib/connection";
 import { isLayoutBlock, isResizableBlock, layoutNodeProps, layoutPalette, layoutSize, nodeBox, nodesInsideGroup } from "@/lib/layout";
 import { FLOATING } from "@/lib/floating";
@@ -81,8 +81,6 @@ const noopSubscribe = () => () => {};
 const GRID = 20;
 /** Ключ настройки «привязка к сетке» в localStorage. */
 const SNAP_KEY = "fl0w:snap-to-grid";
-/** Ключ автосохранения в localStorage (формат — тот же JSON-флоу, что и в файле). */
-const STORAGE_KEY = "fl0w:flow:v1";
 const AUTOSAVE_DELAY_MS = 400;
 /** Примерный размер ноды: чтобы новый блок встал центром, а не углом в центр экрана. */
 const NODE_HALF = { x: 90, y: 40 };
@@ -93,7 +91,21 @@ function miniMapColor(n: { data: unknown }): string {
   return isLayoutBlock(d.blockType) ? layoutPalette(d.params.color).mini : "";
 }
 
-function Editor() {
+export type EditorInfo = { id: string; hasServerCopy: boolean; published: boolean; nodeCount: number; running: boolean };
+
+type EditorProps = {
+  /** Идентификатор флоу этой вкладки: содержимое автосохраняется под ним. */
+  flowId: string;
+  name: string;
+  onRename: (name: string) => void;
+  onInfo: (info: EditorInfo) => void;
+  /** Открыть флоу из файла: рабочее пространство решает, в какой вкладке. */
+  onOpenFile: (flow: Flow) => void;
+  /** Флоу остальных вкладок: пробный запуск находит в них Collector для Emitter. */
+  getOthers: () => Flow[];
+};
+
+function Editor({ flowId, name, onRename, onInfo, onOpenFile, getOthers }: EditorProps) {
   const t = useTranslations();
   const { resolvedTheme } = useTheme();
   // На сервере тема неизвестна: до гидрации рендерим light, иначе class у React Flow расходится с клиентом.
@@ -102,7 +114,7 @@ function Editor() {
   const { screenToFlowPosition, getEdges, getNodes, fitView } = useReactFlow();
   const [nodes, setNodes, onNodesChange] = useNodesState<BlockNodeType>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const [meta, setMeta] = useState<FlowMeta>(() => ({ id: newFlowId(), name: "flow" }));
+  const meta = useMemo<FlowMeta>(() => ({ id: flowId, name }), [flowId, name]);
   // привязка к сетке при перетаскивании; настройка запоминается в браузере (читается после гидратации)
   const [snap, setSnap] = useState(false);
   useEffect(() => {
@@ -144,17 +156,14 @@ function Editor() {
   useEffect(() => {
     const timer = setTimeout(() => {
       try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) {
-          const parsed = flowSchema.safeParse(JSON.parse(raw));
-          // структурно валидный флоу восстанавливаем и с неверными params — их подсветит живая валидация
-          if (parsed.success && parsed.data.nodes.every((n) => registry[n.type])) {
-            const rf = toReactFlow(parsed.data);
-            setNodes(rf.nodes);
-            setEdges(rf.edges);
-            setMeta({ id: parsed.data.id, name: parsed.data.name });
-            if (rf.nodes.length > 0) fitSoon();
-          }
+        // структурно валидный флоу восстанавливаем и с неверными params — их подсветит живая валидация
+        const saved = readFlow(localStorage, flowId);
+        if (saved && saved.nodes.every((n) => registry[n.type])) {
+          const rf = toReactFlow(saved);
+          setNodes(rf.nodes);
+          setEdges(rf.edges);
+          if (saved.name !== name) onRename(saved.name);
+          if (rf.nodes.length > 0) fitSoon();
         }
       } catch {
         // нет доступа к хранилищу или битые данные — стартуем с пустого холста
@@ -162,17 +171,16 @@ function Editor() {
       setRestored(true);
     }, 0);
     return () => clearTimeout(timer);
-  }, [setNodes, setEdges, fitSoon]);
+    // восстановление один раз при монтировании вкладки
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setNodes, setEdges, fitSoon, flowId]);
 
   // Автосохранение с задержкой; до восстановления не пишем, иначе затрём сохранённое пустым холстом.
   useEffect(() => {
     if (!restored) return;
     const timer = setTimeout(() => {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(fromReactFlow(nodes, edges, meta)));
-      } catch {
-        // квота или приватный режим — автосохранение просто не работает
-      }
+      // квота или приватный режим — автосохранение просто не работает (writeFlow глотает ошибку)
+      writeFlow(localStorage, fromReactFlow(nodes, edges, meta));
     }, AUTOSAVE_DELAY_MS);
     return () => clearTimeout(timer);
   }, [restored, nodes, edges, meta]);
@@ -278,6 +286,12 @@ function Editor() {
   const watch = useWatch(meta.id, watching, server?.nodeIds ?? []);
   const view = watching ? watch.state : runState;
   // строки лога и подписи по нодам — для терминала (Log) и числа вместо иконки (Counter) на холсте
+  // вкладка сообщает рабочему пространству то, что нужно полосе вкладок и закрытию
+  const hasServerCopy = server !== null;
+  const running = runState.status === "running";
+  useEffect(() => {
+    onInfo({ id: flowId, hasServerCopy, published, nodeCount: nodes.length, running });
+  }, [onInfo, flowId, hasServerCopy, published, nodes.length, running]);
   const nodeLogs = useMemo(() => Object.fromEntries(Object.entries(view.nodeDetails).map(([id, d]) => [id, { logs: d.logs, display: d.display }])), [view.nodeDetails]);
 
   const onPublish = async () => {
@@ -375,7 +389,7 @@ function Editor() {
     setError(null);
     setStartedBy(trigger ?? null);
     // перезапуск с ноды: предшественники берут выходы из последнего запуска
-    void run(checked.flow, { ...(from ? { from: { nodeId: from, seeds: collectSeeds(runState.nodeDetails) } } : {}), ...(trigger ? { trigger } : {}) });
+    void run(checked.flow, { others: getOthers(), ...(from ? { from: { nodeId: from, seeds: collectSeeds(runState.nodeDetails) } } : {}), ...(trigger ? { trigger } : {}) });
   };
 
   // кнопка запуска на ноде Manual: недоступна, пока идёт запуск или включено наблюдение
@@ -415,26 +429,23 @@ function Editor() {
         setError({ title: t("errors.invalidFile"), items: checked.issues.map(issueText) });
         return;
       }
-      const rf = toReactFlow(checked.flow);
-      setNodes(rf.nodes);
-      setEdges(rf.edges);
-      setMeta({ id: checked.flow.id, name: checked.flow.name });
       setError(null);
-      resetRun();
-      fitSoon();
+      onOpenFile(checked.flow);
     } catch {
       setError({ title: t("errors.notJson"), items: [] });
     }
   };
 
   return (
-    <div ref={wrapper} className="relative h-dvh w-full overflow-hidden">
+    <div ref={wrapper} className="relative h-full w-full overflow-hidden">
       <NodeIssuesProvider value={nodeIssues}>
         <TriggerRunProvider value={triggerRunApi}>
         <CurrentFlowProvider value={meta.id}>
         <NodeLogsProvider value={nodeLogs}>
         <RunStatusProvider value={view.nodes}>
           <ReactFlow
+            // уникальный id на вкладку: у React Flow от него зависят id SVG-паттернов фона и маркеров рёбер — общий давал пустой фон у соседних холстов
+            id={flowId}
             nodes={nodes}
             edges={edges}
             nodeTypes={nodeTypes}
@@ -466,7 +477,7 @@ function Editor() {
             // на больших флоу рисуем только то, что в кадре
             onlyRenderVisibleElements
           >
-            <Background gap={GRID} />
+            <Background id={flowId} gap={GRID} />
             <Controls position="bottom-center" orientation="horizontal" showInteractive={false}>
               <ControlButton
                 onClick={toggleSnap}
@@ -541,7 +552,7 @@ function Editor() {
         <Inspector node={selectedNode} onChange={updateNodeData} onClose={() => selectNode(null)} />
       )}
       {/* правая колонка: общий результат запуска, под ним — данные выбранной ноды (отдельное окно) */}
-      <div className="pointer-events-none absolute top-[4.25rem] right-3 z-10 flex max-h-[calc(100dvh-16.5rem)] w-96 max-w-[calc(100%-1.5rem)] flex-col gap-3">
+      <div className="pointer-events-none absolute top-[4.25rem] right-3 z-10 flex max-h-[calc(100dvh-18.75rem)] w-96 max-w-[calc(100%-1.5rem)] flex-col gap-3">
   <RunPanel
         state={view}
         live={watching ? { connected: watch.connected } : undefined}
@@ -565,10 +576,10 @@ function Editor() {
   );
 }
 
-export function FlowEditor() {
+export function FlowEditor(props: EditorProps) {
   return (
     <ReactFlowProvider>
-      <Editor />
+      <Editor {...props} />
     </ReactFlowProvider>
   );
 }

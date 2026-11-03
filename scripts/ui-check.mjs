@@ -79,7 +79,7 @@ try {
   await sleep(2500);
   if (args.flow || args.theme) {
     const flow = args.flow ? readFileSync(args.flow, "utf8") : null;
-    await evalJs(`${flow ? `localStorage.setItem("fl0w:flow:v1", ${JSON.stringify(flow)});` : ""}${args.theme ? `localStorage.setItem("theme", ${JSON.stringify(args.theme)});` : ""}`);
+    await evalJs(`${flow ? `(() => { const f = JSON.parse(${JSON.stringify(flow)}); localStorage.setItem("fl0w:flow:" + f.id, JSON.stringify(f)); localStorage.setItem("fl0w:tabs:v2", JSON.stringify({ tabs: [{ id: f.id, name: f.name }], active: f.id })); })();` : ""}${args.theme ? `localStorage.setItem("theme", ${JSON.stringify(args.theme)});` : ""}`);
     await send("Page.navigate", { url });
     await sleep(3500);
   }

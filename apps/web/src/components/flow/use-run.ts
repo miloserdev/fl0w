@@ -2,7 +2,7 @@
 
 import { isLayoutBlock } from "@/lib/layout";
 import { runnerEventSchema, type Flow, type Json, type RunnerEvent } from "@fl0w/schema";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { NodeRunStatus } from "./run-status";
 
 export type RunStatus = "idle" | "running" | "done" | "error" | "aborted";
@@ -111,7 +111,7 @@ export function useRun() {
   const controller = useRef<AbortController | null>(null);
   const runId = useRef<string | null>(null);
 
-  const run = useCallback(async (flow: Flow, opts?: { from?: { nodeId: string; seeds: Record<string, Record<string, Json>> }; trigger?: string }) => {
+  const run = useCallback(async (flow: Flow, opts?: { from?: { nodeId: string; seeds: Record<string, Record<string, Json>> }; trigger?: string; others?: Flow[] }) => {
     const from = opts?.from;
     controller.current?.abort();
     const ac = new AbortController();
@@ -128,7 +128,7 @@ export function useRun() {
       const res = await fetch("/api/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ runId: id, flow, ...(from ? { from: from.nodeId, seeds: from.seeds } : {}), ...(opts?.trigger ? { trigger: opts.trigger } : {}) }),
+        body: JSON.stringify({ runId: id, flow, ...(opts?.others?.length ? { others: opts.others } : {}), ...(from ? { from: from.nodeId, seeds: from.seeds } : {}), ...(opts?.trigger ? { trigger: opts.trigger } : {}) }),
         signal: ac.signal,
       });
       if (!res.ok || !res.body) {
@@ -160,6 +160,8 @@ export function useRun() {
   }, []);
 
   const stop = useCallback(() => controller.current?.abort(), []);
+  // закрытая вкладка не должна оставлять идущий запуск
+  useEffect(() => () => controller.current?.abort(), []);
   const control = useCallback((action: "pause" | "resume") => {
     if (runId.current) void fetch("/api/run/control", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ runId: runId.current, action }) }).catch(() => {});
   }, []);

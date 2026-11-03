@@ -1,5 +1,5 @@
-import { FlowEditor } from "@/components/flow/flow-editor";
+import { FlowWorkspace } from "@/components/flow/flow-workspace";
 
 export default function Home() {
-  return <FlowEditor />;
+  return <FlowWorkspace />;
 }
