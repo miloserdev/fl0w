@@ -80,7 +80,7 @@ export class HttpRequest extends Block {
 }/** Предел размера тела ответа: больше — ошибка, а не память процесса (`Content-Length` проверяется сразу, поток режется по ходу чтения). */
 export const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 
-async function readCapped(res: Response, limit: number): Promise<string> {
+export async function readCapped(res: Response, limit: number): Promise<string> {
   const declared = Number(res.headers.get("content-length") ?? 0);
   if (declared > limit) throw new Error(`Response is larger than ${limit} bytes`);
   if (!res.body) return "";

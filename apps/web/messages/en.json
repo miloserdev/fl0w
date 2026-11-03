@@ -105,7 +105,8 @@
     "counter": "Counter",
     "log": "Log",
     "loop": "Loop",
-    "loop_break": "Break"
+    "loop_break": "Break",
+    "atlassian": "Atlassian (Jira)"
   },
   "node": {
     "unknown": "Unknown block: {type}",
@@ -478,6 +479,29 @@
       "value": "Value",
       "maxIterations": "Max iterations (safety)",
       "onError": "On iteration error"
+    },
+    "atlassian": {
+      "baseUrl": "Site URL",
+      "auth": "Sign-in",
+      "username": "Username",
+      "password": "Password (or reference env:FL0W_SECRET_…)",
+      "operation": "Operation",
+      "apiVersion": "REST API version",
+      "jql": "JQL",
+      "maxResults": "Max results",
+      "fields": "Fields",
+      "issueKey": "Issue key (PROJ-123)",
+      "project": "Project key",
+      "issueType": "Issue type",
+      "summary": "Summary",
+      "description": "Description",
+      "extraFields": "Extra fields (JSON)",
+      "comment": "Comment",
+      "transition": "Transition (id or name)",
+      "method": "Method",
+      "path": "Path (/rest/api/2/…)",
+      "body": "Body (empty — input)",
+      "timeoutMs": "Timeout, ms"
     }
   },
   "run": {
@@ -612,7 +636,14 @@
       "sendSticker": "Message: send sticker",
       "sendVideo": "Message: send video",
       "reset": "reset — set to zero",
-      "count": "count — count a trigger"
+      "count": "count — count a trigger",
+      "searchIssues": "Search by JQL",
+      "getIssue": "Get issue",
+      "createIssue": "Create issue",
+      "updateIssue": "Update issue",
+      "addComment": "Add comment",
+      "transitionIssue": "Transition issue",
+      "request": "Custom REST request"
     },
     "part": {
       "year": "year",
@@ -749,6 +780,16 @@
     "onError": {
       "stop": "stop — stop the loop and fail",
       "continue": "continue — skip the iteration, errors to the err port"
+    },
+    "auth": {
+      "form": "username + password (Jira login form)",
+      "basic": "username + password / API token",
+      "bearer": "personal access token (PAT)",
+      "session": "session (/rest/auth/1/session)"
+    },
+    "apiVersion": {
+      "2": "2 (Server/DC and Cloud)",
+      "3": "3 (Cloud, ADF)"
     }
   },
   "issues": {

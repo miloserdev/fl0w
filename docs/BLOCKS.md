@@ -117,6 +117,7 @@
 | **Read/Write Files** `files` | in0 / out0 | `operation` read/write/append/list, `path` (шаблоны; маска `* ? [] **` для read и list), `format` text/json/base64, `content`, `createDirs`, `overwrite` |
 | **Shell** `shell` | in0 / out0 `{stdout, stderr, exitCode, signal}` | `script`, `args`, `env`, `stdin`, `cwd`, `shell` bash/sh, `timeoutMs`, `failOnError` — **отключён по умолчанию** |
 | **Notification** `notify` | in0 / out0 (вход без изменений) | `title`, `message` (пусто — весь вход), `urgency` low/normal/critical, `icon` (имя из темы), `appName`, `timeoutMs` — уведомление рабочего стола через `notify-send` |
+| **Atlassian** `atlassian` | in0 / out0 ответ API | `baseUrl`, `auth` form/basic/session/bearer, `username`, `password` (`env:FL0W_SECRET_…`), `operation` searchIssues/getIssue/createIssue/updateIssue/addComment/transitionIssue/request, `apiVersion`, поля операции — Jira Server/DC и Cloud |
 | **Result** `result` | in0 / — | — |
 
 ### Данные
@@ -456,3 +457,27 @@ memories.notes.get("x")                             // банки по имен�
 Флоу независимы: опубликованные работают на сервере по своим триггерам вне зависимости от открытых вкладок. Вызывать друг друга они
 могут через Emitter/Collector (канал 1:1). Пробный запуск из редактора находит Collector в остальных **открытых вкладках** (в том числе
 несохранённых), затем в сохранённых на сервере копиях; в рабочем режиме действуют только опубликованные.
+
+## Atlassian (Jira)
+
+Блок для Jira (Server/Data Center и Cloud): поиск по JQL, получение, создание и правка задач, комментарий, перевод по статусам
+(по id или по имени перехода) и произвольный REST-запрос `request` — им же можно ходить в Confluence (`/rest/api/content?...`).
+В `jql`, `summary`, `description`, `comment`, `issueKey` работают `{{ путь }}` из входа.
+
+**Вход (`auth`)** — токен API не нужен
+- `form` (по умолчанию) — логин и пароль через форму входа Jira `POST /login.jsp` (`os_username`/`os_password`, как в браузере):
+  успех — заголовок `X-Seraph-LoginReason: OK` и cookie `JSESSIONID`; неверный пароль или капча — понятная ошибка;
+- `basic` — логин и пароль заголовком Basic (в Cloud — e-mail и API-токен);
+- `session` — вход через `POST /rest/auth/1/session` (то же в виде REST);
+- `bearer` — персональный токен (PAT, Server/DC 8.14+), `username` не нужен.
+Для `form` и `session` cookie живёт один вызов блока, в конце сессия гасится (`DELETE /rest/auth/1/session`).
+
+**Пароль.** Поле `password` — пароль текстом (хранится в файле флоу и в браузере: не публикуйте такие флоу и файлы) либо ссылка
+`env:FL0W_SECRET_ИМЯ` на переменную окружения сервера (`FL0W_SECRET_JIRA_PASSWORD=… pnpm start` или `.env` в Docker) — тогда в флоу пароля нет.
+В логи, события и сообщения об ошибках пароль не попадает.
+
+**Безопасность адреса.** Запросы идут только на `baseUrl` (без учётных данных, query и fragment в нём); путь у `request` должен начинаться
+с одного `/` и не содержать `..`, схемы и пробелов — он не может увести запрос на другой хост; редиректы не выполняются (перенаправление
+на страницу входа — ошибка). Ответ ограничен 10 МБ. Для `http://` пароль идёт открытым текстом — используйте https или доверенную сеть.
+
+`apiVersion` 2 (по умолчанию) работает и на Server/DC, и на Cloud (описание обычным текстом); 3 — Cloud, текст автоматически превращается в ADF.

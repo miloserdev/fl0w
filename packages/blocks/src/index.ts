@@ -45,6 +45,7 @@ export { ActivationTrigger, WorkflowTrigger } from "./lifecycle-triggers";
 export { globToRegExp, globBase, hasGlob } from "./glob";
 export { FILES_DIR_ENV, assertRelativePath, filesBaseDir, resolveInside } from "./sandbox";
 export { Telegram, TELEGRAM_OPERATIONS, TELEGRAM_TOKEN_ENV } from "./telegram";
+export { Atlassian, ATLASSIAN_AUTH, ATLASSIAN_OPERATIONS } from "./atlassian";
 export { TELEGRAM_API_ENV, TelegramError, apiBase, callTelegram, downloadTelegramFile } from "./telegram-api";
 export { SECRET_ENV_PREFIX, redact, resolveSecret } from "./secrets";
 export { PUBLIC_URL_ENV, TelegramTrigger, TELEGRAM_UPDATE_TYPES, TELEGRAM_OPT_IN_UPDATES } from "./telegram-trigger";

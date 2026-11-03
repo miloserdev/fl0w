@@ -105,7 +105,8 @@
     "counter": "Счётчик",
     "log": "Лог",
     "loop": "Цикл (Loop)",
-    "loop_break": "Выход из цикла (Break)"
+    "loop_break": "Выход из цикла (Break)",
+    "atlassian": "Atlassian (Jira)"
   },
   "node": {
     "unknown": "Неизвестный блок: {type}",
@@ -478,6 +479,29 @@
       "value": "Значение",
       "maxIterations": "Макс. итераций (защита)",
       "onError": "При ошибке итерации"
+    },
+    "atlassian": {
+      "baseUrl": "Адрес сайта",
+      "auth": "Вход",
+      "username": "Пользователь",
+      "password": "Пароль (или ссылка env:FL0W_SECRET_…)",
+      "operation": "Операция",
+      "apiVersion": "Версия REST API",
+      "jql": "JQL",
+      "maxResults": "Сколько вернуть",
+      "fields": "Поля",
+      "issueKey": "Ключ задачи (PROJ-123)",
+      "project": "Ключ проекта",
+      "issueType": "Тип задачи",
+      "summary": "Заголовок",
+      "description": "Описание",
+      "extraFields": "Доп. поля задачи (JSON)",
+      "comment": "Комментарий",
+      "transition": "Переход (id или имя)",
+      "method": "Метод",
+      "path": "Путь (/rest/api/2/…)",
+      "body": "Тело (пусто — вход)",
+      "timeoutMs": "Таймаут, мс"
     }
   },
   "run": {
@@ -612,7 +636,14 @@
       "sendSticker": "Сообщение: отправить стикер",
       "sendVideo": "Сообщение: отправить видео",
       "reset": "reset — обнулить",
-      "count": "count — считать срабатывание"
+      "count": "count — считать срабатывание",
+      "searchIssues": "Поиск по JQL",
+      "getIssue": "Получить задачу",
+      "createIssue": "Создать задачу",
+      "updateIssue": "Изменить задачу",
+      "addComment": "Добавить комментарий",
+      "transitionIssue": "Перевести по статусам",
+      "request": "Свой REST-запрос"
     },
     "part": {
       "year": "год",
@@ -749,6 +780,16 @@
     "onError": {
       "stop": "stop — остановить цикл и упасть",
       "continue": "continue — пропустить итерацию, ошибки в порт err"
+    },
+    "auth": {
+      "form": "логин и пароль (форма входа Jira)",
+      "basic": "логин + пароль / API-токен",
+      "bearer": "персональный токен (PAT)",
+      "session": "сессия (/rest/auth/1/session)"
+    },
+    "apiVersion": {
+      "2": "2 (Server/DC и Cloud)",
+      "3": "3 (Cloud, ADF)"
     }
   },
   "issues": {

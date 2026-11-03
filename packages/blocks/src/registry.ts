@@ -17,6 +17,7 @@ import { SplitOut } from "./split-out";
 import { StopAndError } from "./stop-and-error";
 import { Summarize } from "./summarize";
 import { Switch } from "./switch";
+import { Atlassian } from "./atlassian";
 import { Telegram } from "./telegram";
 import { TelegramTrigger } from "./telegram-trigger";
 import { Wait } from "./wait";
@@ -68,6 +69,7 @@ export const registry: Record<string, BlockClass> = {
   result: ResultBlock,
   // приложения
   telegram: Telegram,
+  atlassian: Atlassian,
   // данные
   transform: Transform,
   set: SetFields,
