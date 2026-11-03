@@ -38,6 +38,7 @@ export { listAt, stableKey, stringList, compareJson } from "./list-utils";
 export { textOf, valueOf, withOutputField } from "./value-io";
 export { Files } from "./files";
 export { Shell, SHELL_ALLOW_ENV, isShellEnabled } from "./shell";
+export { Notification, NOTIFY_URGENCIES } from "./notify";
 export { LocalFileTrigger } from "./local-file-trigger";
 export { ErrorTrigger } from "./error-trigger";
 export { ActivationTrigger, WorkflowTrigger } from "./lifecycle-triggers";

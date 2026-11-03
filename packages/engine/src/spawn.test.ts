@@ -161,6 +161,15 @@ describe("runFlowInProcess (устойчивость)", () => {
   });
 });
 
+/** Ждёт условия опросом (старт раннера через tsx под нагрузкой занимает по-разному). */
+async function until(cond: () => boolean, ms = 20_000) {
+  const t0 = Date.now();
+  while (!cond()) {
+    if (Date.now() - t0 > ms) throw new Error("timed out waiting for a runner event");
+    await new Promise((r) => setTimeout(r, 25));
+  }
+}
+
 describe("пауза запуска (реальный раннер)", () => {
   const slow = flow(
     [node("src", "source", { json: { n: 1 } }), node("w", "wait", { unit: "seconds", amount: 0.15 }), node("res", "result")],
@@ -170,7 +179,6 @@ describe("пауза запуска (реальный раннер)", () => {
   it("пауза не даёт стартовать следующей ноде, работающая доделывается; продолжение завершает запуск", async () => {
     const events: RunnerEvent[] = [];
     let ctl: { pause: () => void; resume: () => void } | undefined;
-    const t0 = Date.now();
     const finished = runFlowInProcess(
       slow,
       (e) => {
@@ -179,7 +187,8 @@ describe("пауза запуска (реальный раннер)", () => {
       },
       { onControl: (c) => (ctl = c) },
     );
-    await new Promise((r) => setTimeout(r, 1200));
+    await until(() => events.some((e) => e.event === "node:done" && e.nodeId === "w") && events.some((e) => e.event === "run:paused"));
+    await new Promise((r) => setTimeout(r, 300)); // дать шанс (ошибочно) стартовать следующей ноде
     const names = events.map((e) => e.event + ("nodeId" in e ? `:${e.nodeId}` : ""));
     expect(names).toContain("run:paused");
     expect(names).toContain("node:done:w");
@@ -189,7 +198,6 @@ describe("пауза запуска (реальный раннер)", () => {
     await finished;
     expect(events.at(-1)).toMatchObject({ event: "flow:done" });
     expect(events.map((e) => e.event === "node:start" && e.nodeId)).toContain("res");
-    expect(Date.now() - t0).toBeGreaterThan(1200);
   });
 
   it("остановка на паузе завершает запуск ошибкой Aborted", async () => {
@@ -204,7 +212,7 @@ describe("пауза запуска (реальный раннер)", () => {
       },
       { onControl: (c) => (ctl = c), signal: ac.signal },
     );
-    await new Promise((r) => setTimeout(r, 1000));
+    await until(() => events.some((e) => e.event === "run:paused"));
     ac.abort();
     await finished;
     expect(events.at(-1)).toMatchObject({ event: "flow:done", error: "Aborted" });

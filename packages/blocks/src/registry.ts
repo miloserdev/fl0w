@@ -29,6 +29,7 @@ import { Every } from "./every";
 import { Files } from "./files";
 import { LocalFileTrigger } from "./local-file-trigger";
 import { Shell } from "./shell";
+import { Notification } from "./notify";
 import { HttpRequest } from "./http-request";
 import { Merge } from "./merge";
 import { ResultBlock } from "./result";
@@ -62,6 +63,7 @@ export const registry: Record<string, BlockClass> = {
   respond_to_webhook: RespondToWebhook,
   files: Files,
   shell: Shell,
+  notify: Notification,
   log: Log,
   result: ResultBlock,
   // приложения

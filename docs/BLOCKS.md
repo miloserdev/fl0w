@@ -116,6 +116,7 @@
 | **Respond to Webhook** `respond_to_webhook` | in0 / — | `status`, `body` (пусто — вход; шаблоны), `headers` |
 | **Read/Write Files** `files` | in0 / out0 | `operation` read/write/append/list, `path` (шаблоны; маска `* ? [] **` для read и list), `format` text/json/base64, `content`, `createDirs`, `overwrite` |
 | **Shell** `shell` | in0 / out0 `{stdout, stderr, exitCode, signal}` | `script`, `args`, `env`, `stdin`, `cwd`, `shell` bash/sh, `timeoutMs`, `failOnError` — **отключён по умолчанию** |
+| **Notification** `notify` | in0 / out0 (вход без изменений) | `title`, `message` (пусто — весь вход), `urgency` low/normal/critical, `icon` (имя из темы), `appName`, `timeoutMs` — уведомление рабочего стола через `notify-send` |
 | **Result** `result` | in0 / — | — |
 
 ### Данные
@@ -428,3 +429,18 @@ memories.notes.get("x")                             // банки по имен�
 нельзя. Затвор общий для вложенных запусков (тела циклов, вызовы флоу). **Остановка** — обрыв запуска (как кнопка «Остановить»),
 в том числе с паузы. Работает только для пробных запусков (`POST /api/run` с `runId`, пауза — `POST /api/run/control`); у
 опубликованных флоу управления нет.
+
+## Notification (уведомления рабочего стола)
+
+Блок показывает уведомление на машине, где работает сервер: KDE Plasma, GNOME и любой демон freedesktop-уведомлений —
+через `notify-send` (пакет libnotify: Arch/Manjaro `libnotify`, Debian/Ubuntu `libnotify-bin`). В `title` и `message` работают
+`{{ путь }}` из входа; пустой `message` — весь вход текстом. Данные проходят дальше без изменений.
+
+- Команда запускается без оболочки, аргументы — массивом, заголовок и текст идут после `--`: данные из флоу не становятся
+  флагами или командами. Иконка — только имя из темы (путь к файлу отвергается). Команде передаётся лишь окружение сессии
+  (`PATH`, `DBUS_SESSION_BUS_ADDRESS`, `XDG_RUNTIME_DIR`, `DISPLAY`, `WAYLAND_DISPLAY`…), секреты сервера — нет.
+- Нужна сессия рабочего стола у процесса сервера. Запуск `pnpm dev` / `pnpm start` из терминала в вашей сессии KDE работает.
+  Под systemd-сервисом или в Docker-контейнере сессионной шины нет — блок ответит ошибкой; в Docker можно пробросить сокет
+  (`-v $XDG_RUNTIME_DIR/bus:/run/user/1000/bus -e DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus`) и поставить
+  `libnotify-bin` в образ — по умолчанию этого нет.
+- `urgency: critical` в Plasma остаётся на экране, пока его не закроют.

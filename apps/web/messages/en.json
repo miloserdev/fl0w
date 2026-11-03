@@ -82,6 +82,7 @@
     "noop": "No Operation",
     "files": "Read/Write Files",
     "shell": "Shell",
+    "notify": "Notification",
     "local_file_trigger": "Local File Trigger",
     "error_trigger": "Error Trigger",
     "workflow_trigger": "Workflow Trigger",
@@ -343,6 +344,14 @@
       "shell": "Shell",
       "timeoutMs": "Timeout, ms",
       "failOnError": "Fail on non-zero exit"
+    },
+    "notify": {
+      "title": "Title",
+      "message": "Text (empty — whole input)",
+      "urgency": "Urgency",
+      "icon": "Icon (theme name)",
+      "appName": "App name",
+      "timeoutMs": "Show for, ms (0 — default)"
     },
     "local_file_trigger": {
       "path": "File or folder",
@@ -676,6 +685,11 @@
     "shell": {
       "bash": "bash",
       "sh": "sh"
+    },
+    "urgency": {
+      "low": "low",
+      "normal": "normal",
+      "critical": "critical"
     },
     "parseMode": {
       "none": "plain text",
