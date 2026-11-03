@@ -24,13 +24,16 @@
     "publishBlocked": {
       "issues": "Fix the flow problems first",
       "noTrigger": "An automatic trigger is required: “Every” or “Webhook”"
-    }
+    },
+    "file": "File",
+    "settings": "Settings"
   },
   "theme": {
     "toggle": "Toggle theme",
     "light": "Light",
     "dark": "Dark",
-    "system": "System"
+    "system": "System",
+    "label": "Theme"
   },
   "language": {
     "label": "Language",

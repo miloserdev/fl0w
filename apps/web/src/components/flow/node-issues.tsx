@@ -1,12 +1,14 @@
 "use client";
 
-import { createContext, useContext } from "react";
+import { createKeyedStore } from "@/lib/keyed-store";
 
 /** nodeId → локализованные тексты проблем этой ноды (для подсветки на холсте). */
-const NodeIssuesContext = createContext<Record<string, string[]>>({});
+const store = createKeyedStore<string[]>();
 
-export const NodeIssuesProvider = NodeIssuesContext.Provider;
+export const NodeIssuesProvider = store.Provider;
+
+const identity = <T,>(v: T) => v;
 
 export function useNodeIssues(nodeId: string): string[] | undefined {
-  return useContext(NodeIssuesContext)[nodeId];
+  return store.useSelected(nodeId, identity);
 }

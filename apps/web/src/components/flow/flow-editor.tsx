@@ -48,6 +48,7 @@ import {
   type BlockNodeData,
   collectSeeds,
   flowFingerprint,
+  sameStructure,
   type BlockNodeType,
   type FlowMeta,
 } from "@/lib/flow-convert";
@@ -239,8 +240,15 @@ function Editor() {
   );
 
   // Живая валидация: те же правила, что в движке и API. Проблемные ноды подсвечиваются на холсте.
-  const deferredNodes = useDeferredValue(nodes);
-  const deferredEdges = useDeferredValue(edges);
+  const liveNodes = useDeferredValue(nodes);
+  const liveEdges = useDeferredValue(edges);
+  // перетаскивание меняет только положение — тогда структура (и дорогая валидация всего флоу) остаётся прежней
+  const [structure, setStructure] = useState({ nodes: liveNodes, edges: liveEdges });
+  if ((structure.nodes !== liveNodes || structure.edges !== liveEdges) && !sameStructure(structure, { nodes: liveNodes, edges: liveEdges })) {
+    setStructure({ nodes: liveNodes, edges: liveEdges });
+  }
+  const deferredNodes = structure.nodes;
+  const deferredEdges = structure.edges;
   const deferredFlow = useMemo(
     () => fromReactFlow(deferredNodes, deferredEdges, meta),
     [deferredNodes, deferredEdges, meta],
@@ -371,16 +379,24 @@ function Editor() {
   };
 
   // кнопка запуска на ноде Manual: недоступна, пока идёт запуск или включено наблюдение
-  const triggerRunApi: TriggerRunApi = {
-    run: (nodeId) => onRun(undefined, nodeId),
-    disabled: runState.status === "running" || watching,
-    running: runState.status === "running" && !watching,
-    startedBy,
-    paused: runState.paused === true,
-    pause,
-    resume,
-    stop,
-  };
+  // значение контекста стабильно, пока не меняется запуск: иначе все ноды перерисовывались бы при каждом движении мыши
+  const onRunRef = useRef(onRun);
+  useEffect(() => {
+    onRunRef.current = onRun;
+  });
+  const triggerRunApi = useMemo<TriggerRunApi>(
+    () => ({
+      run: (nodeId) => onRunRef.current(undefined, nodeId),
+      disabled: runState.status === "running" || watching,
+      running: runState.status === "running" && !watching,
+      startedBy,
+      paused: runState.paused === true,
+      pause,
+      resume,
+      stop,
+    }),
+    [runState.status, runState.paused, watching, startedBy, pause, resume, stop],
+  );
 
   const onSave = () => {
     const flow = fromReactFlow(nodes, edges, meta);
@@ -447,6 +463,8 @@ function Editor() {
             minZoom={0.2}
             maxZoom={2}
             fitView
+            // на больших флоу рисуем только то, что в кадре
+            onlyRenderVisibleElements
           >
             <Background gap={GRID} />
             <Controls position="bottom-center" orientation="horizontal" showInteractive={false}>

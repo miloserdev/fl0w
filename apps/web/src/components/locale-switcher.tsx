@@ -4,31 +4,30 @@ import { Languages } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
-import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
-  DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu";
 import { setLocale } from "@/i18n/actions";
 import { locales } from "@/i18n/config";
 
-export function LocaleSwitcher() {
+/** Подменю «Язык» для меню настроек. */
+export function LocaleSubmenu() {
   const t = useTranslations("language");
   const locale = useLocale();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon" aria-label={t("label")} disabled={pending}>
-          <Languages className="size-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger disabled={pending}>
+        <Languages className="size-4" />
+        {t("label")}
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent>
         <DropdownMenuRadioGroup
           value={locale}
           onValueChange={(next) =>
@@ -44,7 +43,7 @@ export function LocaleSwitcher() {
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
   );
 }

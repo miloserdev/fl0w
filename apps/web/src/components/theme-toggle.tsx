@@ -1,37 +1,38 @@
 "use client";
 
-import { Moon, Sun } from "lucide-react";
+import { Palette } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
-import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu";
 
 const themes = ["light", "dark", "system"] as const;
 
-export function ThemeToggle() {
+/** Подменю «Тема» для меню настроек. */
+export function ThemeSubmenu() {
   const t = useTranslations("theme");
-  const { setTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon" aria-label={t("toggle")}>
-          <Sun className="size-4 scale-100 dark:scale-0" />
-          <Moon className="absolute size-4 scale-0 dark:scale-100" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {themes.map((name) => (
-          <DropdownMenuItem key={name} onClick={() => setTheme(name)}>
-            {t(name)}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger>
+        <Palette className="size-4" />
+        {t("label")}
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent>
+        <DropdownMenuRadioGroup value={theme ?? "system"} onValueChange={setTheme}>
+          {themes.map((name) => (
+            <DropdownMenuRadioItem key={name} value={name}>
+              {t(name)}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
   );
 }

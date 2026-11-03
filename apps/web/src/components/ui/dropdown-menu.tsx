@@ -225,7 +225,9 @@ function DropdownMenuSubContent({
   className,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.SubContent>) {
+  // в портал: иначе подменю рисуется внутри родителя с overflow-y-auto и обрезается им
   return (
+    <DropdownMenuPrimitive.Portal>
     <DropdownMenuPrimitive.SubContent
       data-slot="dropdown-menu-sub-content"
       className={cn(
@@ -234,6 +236,7 @@ function DropdownMenuSubContent({
       )}
       {...props}
     />
+    </DropdownMenuPrimitive.Portal>
   )
 }
 

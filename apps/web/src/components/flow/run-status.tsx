@@ -1,13 +1,15 @@
 "use client";
 
-import { createContext, useContext } from "react";
+import { createKeyedStore } from "@/lib/keyed-store";
 
 export type NodeRunStatus = "running" | "done" | "error" | "skipped";
 
-const RunStatusContext = createContext<Record<string, NodeRunStatus>>({});
+const store = createKeyedStore<NodeRunStatus>();
 
-export const RunStatusProvider = RunStatusContext.Provider;
+export const RunStatusProvider = store.Provider;
+
+const identity = <T,>(v: T) => v;
 
 export function useNodeRunStatus(nodeId: string): NodeRunStatus | undefined {
-  return useContext(RunStatusContext)[nodeId];
+  return store.useSelected(nodeId, identity);
 }

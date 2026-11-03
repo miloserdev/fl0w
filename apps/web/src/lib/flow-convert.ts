@@ -96,6 +96,23 @@ function paramsOf(n: BlockNodeType): Record<string, Json> {
   return { ...n.data.params, ...size };
 }
 
+/**
+ * Одинаковы ли два набора нод/рёбер для валидации и отпечатка: положение, выделение и размеры не в счёт, учитываются id,
+ * объект `data` (меняется только при правке параметров/портов/CSS/закрепления/отключения) и подключения.
+ */
+export function sameStructure(a: { nodes: BlockNodeType[]; edges: Edge[] }, b: { nodes: BlockNodeType[]; edges: Edge[] }): boolean {
+  if (a.nodes.length !== b.nodes.length || a.edges.length !== b.edges.length) return false;
+  for (let i = 0; i < a.nodes.length; i++) {
+    if (a.nodes[i]!.id !== b.nodes[i]!.id || a.nodes[i]!.data !== b.nodes[i]!.data) return false;
+  }
+  for (let i = 0; i < a.edges.length; i++) {
+    const x = a.edges[i]!;
+    const y = b.edges[i]!;
+    if (x.id !== y.id || x.source !== y.source || x.target !== y.target || x.sourceHandle !== y.sourceHandle || x.targetHandle !== y.targetHandle) return false;
+  }
+  return true;
+}
+
 export function toReactFlow(flow: Flow): { nodes: BlockNodeType[]; edges: Edge[] } {
   return {
     nodes: flow.nodes.map((n) => ({

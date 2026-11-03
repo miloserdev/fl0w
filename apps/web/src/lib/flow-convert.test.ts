@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { collectSeeds, edgeClassFor, flowFingerprint, fromReactFlow, nodePortKind, parsePin, splitPorts, toReactFlow } from "./flow-convert";
+import { collectSeeds, edgeClassFor, flowFingerprint, fromReactFlow, nodePortKind, parsePin, sameStructure, splitPorts, toReactFlow } from "./flow-convert";
 import type { Flow } from "@fl0w/schema";
 
 describe("splitPorts", () => {
@@ -151,5 +151,32 @@ describe("порты, зависящие от параметров (outgoing cal
     expect(ids({ mode: "shoot" })).toEqual(["out0"]);
     expect(nodePortKind("run_flow", null, "outputs", "err", { mode: "await" })).toBe("data");
     expect(nodePortKind("run_flow", null, "outputs", "err", { mode: "shoot" })).toBeNull();
+  });
+});
+
+describe("sameStructure (перетаскивание не должно запускать валидацию заново)", () => {
+  const flow: Flow = {
+    version: 1,
+    id: "f",
+    name: "n",
+    nodes: [
+      { id: "a", type: "source", position: { x: 0, y: 0 }, params: { json: {} }, portsOverride: null, cssOverride: null },
+      { id: "b", type: "result", position: { x: 1, y: 1 }, params: {}, portsOverride: null, cssOverride: null },
+    ],
+    edges: [{ id: "e", source: "a", sourcePort: "out0", target: "b", targetPort: "in0" }],
+  };
+  const rf = () => toReactFlow(flow);
+
+  it("смена положения, выделения и размера — та же структура", () => {
+    const a = rf();
+    const moved = { nodes: a.nodes.map((n) => ({ ...n, position: { x: 99, y: 99 }, selected: true, width: 5 })), edges: a.edges.map((e) => ({ ...e })) };
+    expect(sameStructure(a, moved)).toBe(true);
+  });
+
+  it("правка параметров, добавление ноды и смена подключения — другая структура", () => {
+    const a = rf();
+    expect(sameStructure(a, { nodes: a.nodes.map((n, i) => (i === 0 ? { ...n, data: { ...n.data, params: { json: { x: 1 } } } } : n)), edges: a.edges })).toBe(false);
+    expect(sameStructure(a, { nodes: a.nodes.slice(0, 1), edges: a.edges })).toBe(false);
+    expect(sameStructure(a, { nodes: a.nodes, edges: a.edges.map((e) => ({ ...e, targetHandle: "in1" })) })).toBe(false);
   });
 });

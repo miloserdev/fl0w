@@ -1,12 +1,12 @@
 "use client";
 
-import { Eye, FolderOpen, Play, Plus, Rocket, Save, Square } from "lucide-react";
+import { ChevronDown, Eye, File, FolderOpen, Play, Plus, Rocket, Save, Square } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRef } from "react";
 import { IssuesMenu, type IssueEntry } from "@/components/issues-menu";
-import { LocaleSwitcher } from "@/components/locale-switcher";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { SettingsMenu } from "@/components/settings-menu";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
 import { FLOATING } from "@/lib/floating";
 import { Tip } from "@/components/tip";
@@ -70,6 +70,8 @@ export function Topbar({
   return (
     <header className="pointer-events-none absolute inset-x-3 top-3 z-20 flex items-start justify-between gap-2">
       <div className={GROUP}>
+        <SettingsMenu />
+        <Separator orientation="vertical" className="mx-0.5 h-5" />
         <Button size="sm" variant="secondary" onClick={onAdd}>
           <Plus className="size-4" />
           {t("add")}
@@ -85,14 +87,25 @@ export function Topbar({
             {t("run")}
           </Button>
         )}
-        <Button size="sm" variant="outline" onClick={onSave}>
-          <Save className="size-4" />
-          {t("save")}
-        </Button>
-        <Button size="sm" variant="outline" onClick={() => fileInput.current?.click()}>
-          <FolderOpen className="size-4" />
-          {t("load")}
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm" variant="outline">
+              <File className="size-4" />
+              {t("file")}
+              <ChevronDown className="size-3.5 opacity-60" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem onSelect={onSave}>
+              <Save className="size-4" />
+              {t("save")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => fileInput.current?.click()}>
+              <FolderOpen className="size-4" />
+              {t("load")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <input
           ref={fileInput}
           type="file"
@@ -154,10 +167,6 @@ export function Topbar({
         <span className="text-muted-foreground mx-1 hidden text-sm md:inline">
           {t("runtime")}: {tRun(`status.${runStatus}`)}
         </span>
-      </div>
-      <div className={GROUP}>
-        <LocaleSwitcher />
-        <ThemeToggle />
       </div>
     </header>
   );
