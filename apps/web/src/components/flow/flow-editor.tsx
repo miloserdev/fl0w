@@ -52,6 +52,8 @@ import {
   type FlowMeta,
 } from "@/lib/flow-convert";
 import { readFlow, writeFlow } from "@/lib/workspace";
+import { parseClipboard, pasteNodes, serializeSelection } from "@/lib/clipboard";
+import { History } from "@/lib/history";
 import { canConnect } from "@/lib/connection";
 import { isLayoutBlock, isResizableBlock, layoutNodeProps, layoutPalette, layoutSize, nodeBox, nodesInsideGroup } from "@/lib/layout";
 import { FLOATING } from "@/lib/floating";
@@ -82,6 +84,8 @@ const GRID = 20;
 /** Ключ настройки «привязка к сетке» в localStorage. */
 const SNAP_KEY = "fl0w:snap-to-grid";
 const AUTOSAVE_DELAY_MS = 400;
+/** Пауза после последней правки, после которой она становится шагом истории (ввод в поле — один шаг, а не по букве). */
+const HISTORY_DELAY_MS = 350;
 /** Примерный размер ноды: чтобы новый блок встал центром, а не углом в центр экрана. */
 const NODE_HALF = { x: 90, y: 40 };
 
@@ -97,6 +101,8 @@ type EditorProps = {
   /** Идентификатор флоу этой вкладки: содержимое автосохраняется под ним. */
   flowId: string;
   name: string;
+  /** Вкладка видна: горячие клавиши и буфер обмена работают только в активной. */
+  active: boolean;
   onRename: (name: string) => void;
   onInfo: (info: EditorInfo) => void;
   /** Открыть флоу из файла: рабочее пространство решает, в какой вкладке. */
@@ -105,7 +111,7 @@ type EditorProps = {
   getOthers: () => Flow[];
 };
 
-function Editor({ flowId, name, onRename, onInfo, onOpenFile, getOthers }: EditorProps) {
+function Editor({ flowId, name, active, onRename, onInfo, onOpenFile, getOthers }: EditorProps) {
   const t = useTranslations();
   const { resolvedTheme } = useTheme();
   // На сервере тема неизвестна: до гидрации рендерим light, иначе class у React Flow расходится с клиентом.
@@ -184,6 +190,100 @@ function Editor({ flowId, name, onRename, onInfo, onOpenFile, getOthers }: Edito
     }, AUTOSAVE_DELAY_MS);
     return () => clearTimeout(timer);
   }, [restored, nodes, edges, meta]);
+
+  // --- история (Ctrl+Z / Ctrl+Shift+Z), буфер обмена (Ctrl+C / X / V), прочие клавиши ---
+  const history = useRef(new History());
+  const latest = useRef({ nodes, edges });
+  useEffect(() => {
+    latest.current = { nodes, edges };
+  });
+  // после восстановления флоу история начинается с него: иначе Ctrl+Z «отменил» бы саму загрузку
+  useEffect(() => {
+    if (restored) history.current.reset({ nodes: latest.current.nodes, edges: latest.current.edges });
+  }, [restored]);
+  // правка «устоялась» (мышь отпущена, ввод закончен) — в историю уходит один шаг
+  useEffect(() => {
+    if (!restored || nodes.some((n) => n.dragging)) return;
+    const timer = setTimeout(() => history.current.commit({ nodes, edges }), HISTORY_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [restored, nodes, edges]);
+  const applyDoc = useCallback(
+    (doc: { nodes: BlockNodeType[]; edges: Edge[] } | null) => {
+      if (!doc) return;
+      setNodes(doc.nodes);
+      setEdges(doc.edges);
+    },
+    [setNodes, setEdges],
+  );
+
+  useEffect(() => {
+    if (!active) return;
+    /** Поле ввода, редактор кода и т.п.: там клавиши и буфер обмена принадлежат самому полю. */
+    const editable = (t: EventTarget | null) =>
+      t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.closest(".monaco-editor, [role=dialog], [role=menu]") !== null);
+    const removeSelected = () => {
+      const { nodes: ns } = latest.current;
+      const ids = new Set(ns.filter((n) => n.selected).map((n) => n.id));
+      if (ids.size === 0) return;
+      setNodes((cur) => cur.filter((n) => !ids.has(n.id)));
+      setEdges((cur) => cur.filter((e) => !ids.has(e.source) && !ids.has(e.target)));
+    };
+    const doPaste = (text: string) => {
+      const clip = parseClipboard(text);
+      if (!clip) return false;
+      const pasted = pasteNodes(clip, latest.current.nodes);
+      setNodes((cur) => [...cur.map((n) => (n.selected ? { ...n, selected: false } : n)), ...pasted.nodes]);
+      setEdges((cur) => [...cur.map((e) => (e.selected ? { ...e, selected: false } : e)), ...pasted.edges]);
+      return true;
+    };
+    const onCopy = (e: ClipboardEvent, cut: boolean) => {
+      if (editable(e.target) || (window.getSelection()?.toString() ?? "") !== "") return;
+      const text = serializeSelection(latest.current.nodes, latest.current.edges);
+      if (text === null || !e.clipboardData) return;
+      e.preventDefault();
+      e.clipboardData.setData("text/plain", text);
+      if (cut) removeSelected();
+    };
+    const copy = (e: ClipboardEvent) => onCopy(e, false);
+    const cut = (e: ClipboardEvent) => onCopy(e, true);
+    const paste = (e: ClipboardEvent) => {
+      if (editable(e.target)) return;
+      if (doPaste(e.clipboardData?.getData("text/plain") ?? "")) e.preventDefault();
+    };
+    const keydown = (e: KeyboardEvent) => {
+      if (editable(e.target) || e.defaultPrevented || e.isComposing) return;
+      const mod = e.ctrlKey || e.metaKey;
+      // по физической клавише (code): работает и в русской раскладке
+      if (mod && e.code === "KeyZ") {
+        e.preventDefault();
+        applyDoc(e.shiftKey ? history.current.redo() : history.current.undo());
+      } else if (mod && e.code === "KeyY") {
+        e.preventDefault();
+        applyDoc(history.current.redo());
+      } else if (mod && e.code === "KeyA") {
+        e.preventDefault();
+        setNodes((cur) => cur.map((n) => (n.selected ? n : { ...n, selected: true })));
+      } else if (mod && e.code === "KeyD") {
+        // дублировать выделенное: копирование и вставка без участия системного буфера
+        e.preventDefault();
+        const text = serializeSelection(latest.current.nodes, latest.current.edges);
+        if (text) doPaste(text);
+      } else if (!mod && !e.altKey && e.shiftKey && e.code === "KeyA") {
+        e.preventDefault();
+        setAddOpen(true);
+      }
+    };
+    document.addEventListener("copy", copy);
+    document.addEventListener("cut", cut);
+    document.addEventListener("paste", paste);
+    document.addEventListener("keydown", keydown);
+    return () => {
+      document.removeEventListener("copy", copy);
+      document.removeEventListener("cut", cut);
+      document.removeEventListener("paste", paste);
+      document.removeEventListener("keydown", keydown);
+    };
+  }, [active, applyDoc, setNodes, setEdges]);
 
   /** Новый блок встаёт в центр видимой области и сразу выбирается — слева открывается его окно. */
   const addBlock = (blockType: string) => {

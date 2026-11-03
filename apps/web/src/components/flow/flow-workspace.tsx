@@ -217,6 +217,7 @@ export function FlowWorkspace() {
             <FlowEditor
               flowId={tab.id}
               name={tab.name}
+              active={tab.id === state.active}
               onRename={(name) => update((s) => renameTab(s, tab.id, name))}
               onInfo={onInfo}
               onOpenFile={openFile}

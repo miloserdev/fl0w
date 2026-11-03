@@ -2,7 +2,7 @@
 
 import { registry } from "@fl0w/blocks";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +35,9 @@ export function AddBlockDialog({
   const t = useTranslations();
   const blockLabel = useBlockLabel();
   const [query, setQuery] = useState("");
+  // выбранный клавишами блок: индекс в плоском списке в порядке показа
+  const [active, setActive] = useState(0);
+  const tiles = useRef<(HTMLButtonElement | null)[]>([]);
 
   const needle = query.trim().toLowerCase();
   const groups = new Map<string, string[]>();
@@ -46,12 +49,51 @@ export function AddBlockDialog({
 
   // порядок категорий: известные — по списку, остальные — следом в порядке реестра
   const ordered = [...groups].sort(([a], [b]) => categoryRank(a) - categoryRank(b));
+  const flat = ordered.flatMap(([, types]) => types);
+  const current = Math.min(active, Math.max(flat.length - 1, 0));
+
+  // выбранная плитка всегда в видимой части окна
+  useEffect(() => {
+    tiles.current.length = flat.length; // после фильтрации остаются только показанные плитки
+    tiles.current[current]?.scrollIntoView({ block: "nearest" });
+    // flat пересоздаётся каждый рендер; зависим от того, что реально меняет список
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current, query, open]);
+
+  /** Соседняя плитка вверх/вниз по экрану: ближайшая в следующей строке, с ближайшим по горизонтали центром. */
+  const vertical = (dir: 1 | -1) => {
+    const from = tiles.current[current]?.getBoundingClientRect();
+    if (!from) return;
+    const cx = from.left + from.width / 2;
+    let best = -1;
+    let bestScore = Infinity;
+    tiles.current.forEach((el, i) => {
+      if (!el || i === current) return;
+      const r = el.getBoundingClientRect();
+      const dy = dir === 1 ? r.top - from.top : from.top - r.top;
+      if (dy < from.height / 2) return; // та же строка или не в нужную сторону
+      const score = dy * 1000 + Math.abs(r.left + r.width / 2 - cx);
+      if (score < bestScore) {
+        bestScore = score;
+        best = i;
+      }
+    });
+    if (best >= 0) setActive(best);
+  };
+  const pick = (type: string) => {
+    setQuery("");
+    setActive(0);
+    onPick(type);
+  };
 
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next) setQuery("");
+        if (!next) {
+          setQuery("");
+          setActive(0);
+        }
         onOpenChange(next);
       }}
     >
@@ -63,13 +105,36 @@ export function AddBlockDialog({
         <Input
           autoFocus
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setActive(0);
+          }}
+          onKeyDown={(e) => {
+            if (e.nativeEvent.isComposing) return;
+            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+              e.preventDefault();
+              vertical(e.key === "ArrowDown" ? 1 : -1);
+            } else if (e.key === "ArrowRight" && e.currentTarget.selectionStart === e.currentTarget.value.length) {
+              e.preventDefault();
+              setActive(Math.min(current + 1, flat.length - 1));
+            } else if (e.key === "ArrowLeft" && e.currentTarget.selectionStart === 0 && current > 0) {
+              e.preventDefault();
+              setActive(current - 1);
+            } else if (e.key === "Enter" && flat[current]) {
+              e.preventDefault();
+              pick(flat[current]!);
+            }
+          }}
           placeholder={t("addBlock.search")}
           aria-label={t("addBlock.search")}
+          role="combobox"
+          aria-expanded
+          aria-controls="add-block-list"
+          aria-activedescendant={flat[current] ? `add-block-${flat[current]}` : undefined}
         />
         {groups.size === 0 && <p className="text-muted-foreground text-sm">{t("addBlock.empty")}</p>}
         {ordered.map(([category, types]) => (
-          <section key={category} className="flex flex-col gap-2">
+          <section key={category} id={category === ordered[0]?.[0] ? "add-block-list" : undefined} role="listbox" aria-label={t.has(`categories.${category}`) ? t(`categories.${category}`) : category} className="flex flex-col gap-2">
             <h3 className="text-muted-foreground text-xs uppercase">
               {t.has(`categories.${category}`) ? t(`categories.${category}`) : category}
             </h3>
@@ -77,12 +142,20 @@ export function AddBlockDialog({
               {types.map((type) => (
                 <button
                   key={type}
-                  type="button"
-                  onClick={() => {
-                    setQuery("");
-                    onPick(type);
+                  id={`add-block-${type}`}
+                  ref={(el) => {
+                    tiles.current[flat.indexOf(type)] = el;
                   }}
-                  className="hover:bg-accent focus-visible:ring-ring flex flex-col items-start gap-2 rounded-lg border p-3 text-left text-sm outline-none focus-visible:ring-2"
+                  type="button"
+                  role="option"
+                  aria-selected={flat[current] === type}
+                  tabIndex={-1}
+                  onClick={() => pick(type)}
+                  onMouseMove={() => flat[current] !== type && setActive(flat.indexOf(type))}
+                  className={cn(
+                    "hover:bg-accent focus-visible:ring-ring flex flex-col items-start gap-2 rounded-lg border p-3 text-left text-sm outline-none focus-visible:ring-2",
+                    flat[current] === type && "bg-accent ring-ring ring-2",
+                  )}
                 >
                   <BlockIcon name={registry[type]?.icon ?? ""} className="text-muted-foreground size-5" />
                   <span className="font-medium">{blockLabel(type)}</span>
