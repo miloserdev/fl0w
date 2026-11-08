@@ -10,10 +10,11 @@ Regenerate it after changing dependencies.
 - **Dual-licensed packages are used under the permissive option**: `dompurify` (MPL-2.0 OR Apache-2.0) under **MPL-2.0**,
   `@zone-eu/mailsplit` ((MIT OR EUPL-1.1+)) under **MIT**.
 - **Apache-2.0 components** (`sharp`, `@swc/core`, `@swc/helpers`, `@swc/counter`, `@swc/types`, `detect-libc`,
-  `baseline-browser-mapping`, `class-variance-authority`) arrive mostly through Next.js and its tooling. The Apache License 2.0 is
-  not compatible with *GPL-2.0-only* when both are combined into a single distributed work. FL0W's own source code uses
-  `class-variance-authority` directly; redistributing a *built* bundle or a Docker image that contains these components should be
-  reviewed with that in mind (relicensing FL0W as GPL-2.0-or-later would resolve it, because Apache-2.0 is compatible with GPLv3).
+  `baseline-browser-mapping`) arrive through Next.js and its tooling; FL0W's own source code does not use any Apache-2.0 library
+  directly. The Apache License 2.0 is not compatible with *GPL-2.0-only* when both are combined into a single distributed work, so
+  redistributing a *built* bundle or a Docker image that contains these components should be reviewed with that in mind (licensing
+  FL0W as GPL-2.0-or-later would remove the question, because Apache-2.0 is compatible with GPLv3). The source repository itself
+  contains no Apache-2.0 code.
 - **LGPL-3.0-or-later**: `@img/sharp-libvips-*` (a native library used by the optional image optimiser `sharp`); it is loaded as a
   separate shared library and is not linked into FL0W's code.
 - **CC-BY-4.0**: `caniuse-lite` — browser-support data from [caniuse.com](https://caniuse.com), used by build tooling; attribution
@@ -34,9 +35,9 @@ Regenerate it after changing dependencies.
 
 `d3-color@3.1.0`, `d3-dispatch@3.0.1`, `d3-drag@3.0.0`, `d3-interpolate@3.0.1`, `d3-selection@3.0.0`, `d3-timer@3.0.1`, `d3-transition@3.0.1`, `d3-zoom@3.0.0`, `electron-to-chromium@1.5.467`, `lru-cache@5.1.1`, `lucide-react@1.63.0`, `picocolors@1.1.1`, `semver@6.3.1`, `split2@4.2.0`, `yallist@3.1.1`
 
-### Apache-2.0 (9)
+### Apache-2.0 (8)
 
-`@img/sharp-linux-x64@0.35.5`, `@swc/core@1.16.20`, `@swc/counter@0.1.3`, `@swc/helpers@0.5.23`, `@swc/types@0.1.28`, `baseline-browser-mapping@2.11.34`, `class-variance-authority@0.7.1`, `detect-libc@2.1.2`, `sharp@0.35.5`
+`@img/sharp-linux-x64@0.35.5`, `@swc/core@1.16.20`, `@swc/counter@0.1.3`, `@swc/helpers@0.5.23`, `@swc/types@0.1.28`, `baseline-browser-mapping@2.11.34`, `detect-libc@2.1.2`, `sharp@0.35.5`
 
 ### BSD-2-Clause (4)
 
