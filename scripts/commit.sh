@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
-# Коммит от имени Claude: без GPG-подписи и без запросов пароля (см. CLAUDE.md, «Git»).
+# Коммит от имени владельца (user.name/user.email из git config): без GPG-подписи и без запросов пароля (см. CLAUDE.md, «Git»).
 # Использование: scripts/commit.sh "тема" ["тело"]
-# Глобальные настройки git и ключи не трогаются — только локальный конфиг этого репозитория.
+# Глобальные настройки git и ключи не трогаются: подпись отключается только ключами -c на время этой команды.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
 [ $# -ge 1 ] || { echo 'usage: scripts/commit.sh "subject" ["body"]' >&2; exit 2; }
-git config --local user.name  >/dev/null || git config --local user.name  "Claude"
-git config --local user.email >/dev/null || git config --local user.email "noreply@anthropic.com"
+git config user.name >/dev/null && git config user.email >/dev/null || { echo "git user.name / user.email are not set" >&2; exit 2; }
 
 git add -A
 if git diff --cached --quiet; then echo "nothing to commit"; exit 0; fi

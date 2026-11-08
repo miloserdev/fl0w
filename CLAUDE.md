@@ -67,7 +67,7 @@
 
 ## Git
 
-- Только `scripts/commit.sh` (автор — Claude, `noreply@anthropic.com`, **без GPG-подписи**, `GIT_TERMINAL_PROMPT=0`, **без trailer `Co-Authored-By`**).
+- Только `scripts/commit.sh` (автор — владелец: `user.name`/`user.email` из git config, **без GPG-подписи**, `GIT_TERMINAL_PROMPT=0`, **без trailer `Co-Authored-By`**).
   Сообщения коммитов — **на английском**. У владельца глобально включена подпись с запросом пароля — **глобальные настройки и ключи не трогать**.
 - Не `push`, не `--amend`, не `reset --hard`, не `--force`. Коммит — осмысленный, одна тема, тело объясняет «почему».
 - В коммит не попадают `.env*`, `.data/`, ключи (скрипт откажется).
