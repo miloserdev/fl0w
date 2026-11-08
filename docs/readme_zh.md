@@ -85,6 +85,9 @@ pnpm start          # → http://localhost:3000
 
 流程、记忆库和文件默认保存在 `apps/web/.data/`（见[配置](#配置)）。
 
+换端口：`PORT=3001 pnpm start`（或 `PORT=3001 pnpm dev`）。若在慢速网络下 `pnpm install` 超时，请用
+`pnpm install --fetch-timeout 600000` 重试——已下载的包会被复用。
+
 ### 使用 Docker 运行
 
 ```bash

@@ -93,6 +93,9 @@ For development with hot reload use `pnpm dev` instead of the last two commands 
 
 Flows, memory banks and files are stored under `apps/web/.data/` by default (see [configuration](#configuration)).
 
+Another port: `PORT=3001 pnpm start` (or `PORT=3001 pnpm dev`). If `pnpm install` times out on a slow connection, retry with
+`pnpm install --fetch-timeout 600000` — packages that were already downloaded are reused.
+
 ### Run with Docker
 
 ```bash
