@@ -2,7 +2,7 @@ import type { Json, ParamSchema } from "@fl0w/schema";
 import { Block } from "./block";
 import { listAt } from "./list-utils";
 
-/** Limit: оставляет первые или последние N элементов списка. */
+/** Limit: keeps the first or last N items of a list. */
 export class Limit extends Block {
   static type = "limit";
   static label = "Limit";

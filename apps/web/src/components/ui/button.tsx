@@ -1,5 +1,5 @@
 import * as React from "react"
-import { cva, type VariantProps } from "class-variance-authority"
+import { cva, type VariantProps } from "@/lib/variants"
 import { cn } from "@/lib/utils"
 import { Slot } from "radix-ui"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -60,7 +60,7 @@ function Button({
       {...props}
     />
   )
-  // `title` — наша подсказка вместо нативной «хромовой» плашки; у отключённой кнопки нет событий мыши, поэтому нужна обёртка
+  // `title` is our tooltip instead of the native Chrome box; a disabled button has no mouse events, so a wrapper is needed
   if (!title) return button
   return (
     <Tooltip>

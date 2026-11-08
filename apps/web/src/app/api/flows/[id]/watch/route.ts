@@ -7,8 +7,8 @@ export const dynamic = "force-dynamic";
 const HEARTBEAT_MS = 15_000;
 
 /**
- * GET /api/flows/:id/watch — живая лента запусков флоу, NDJSON (`WatchMessage`).
- * Сначала воспроизводится последний запуск, затем идут новые события. Пустая строка — heartbeat.
+ * GET /api/flows/:id/watch — live feed of the flow's runs, NDJSON (`WatchMessage`).
+ * The last run is replayed first, then new events follow. An empty line is a heartbeat.
  */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -25,7 +25,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         try {
           controller.enqueue(encoder.encode(chunk));
         } catch {
-          cleanup(); // поток уже закрыт клиентом
+          cleanup(); // the stream is already closed by the client
         }
       };
       const unsubscribe = rt.hub.subscribe(id, (m) => write(`${JSON.stringify(m)}\n`));
@@ -36,7 +36,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         try {
           controller.close();
         } catch {
-          // уже закрыт
+          // already closed
         }
       };
       req.signal.addEventListener("abort", () => cleanup(), { once: true });

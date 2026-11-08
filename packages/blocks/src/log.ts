@@ -6,9 +6,9 @@ import { textOf } from "./value-io";
 export const LOG_LEVELS = ["info", "warn", "error"] as const;
 
 /**
- * Лог: пишет сообщение в журнал запуска и показывает его на самой ноде — чёрное окошко как терминал, в нём последние строки
- * последнего запуска. Данные проходят дальше без изменений. Пустое сообщение — весь вход как JSON; в сообщении работают
- * `{{ путь }}` из входа (и `{{ inputs.in0.путь }}`).
+ * Log: writes a message into the run journal and shows it on the node itself, a black window like a terminal with the last lines
+ * of the last run. Data passes on unchanged. An empty message means the whole input as JSON; in the message
+ * `{{ path }}` from the input (and `{{ inputs.in0.path }}`) work.
  */
 export class Log extends Block {
   static type = "log";
@@ -30,7 +30,7 @@ export class Log extends Block {
     const text = raw.trim() === "" ? textOf(data) : textOf(interpolate(raw, data));
     const level = String(params["level"] ?? "info");
     if (!(LOG_LEVELS as readonly string[]).includes(level)) throw new Error(`Unknown level "${level}"`);
-    // строки с уровнем помечаются префиксом — по нему терминал красит их
+    // lines with a level are marked with a prefix: the terminal colours them by it
     for (const line of text.split("\n")) ctx.log(level === "info" ? line : `[${level}] ${line}`);
     return { out0: data };
   }

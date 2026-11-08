@@ -82,7 +82,7 @@
   }
 }
 
-/* Пульсация ноды, пока она выполняется: кольцо расходится от рамки и затухает. */
+/* Node pulse while it is running: a ring spreads from the border and fades out. */
 @keyframes fl-pulse {
   0% {
     box-shadow: 0 0 0 0 oklch(0.623 0.214 259.815 / 0.55);
@@ -103,7 +103,7 @@
   }
 }
 
-/* Ресурсные рёбра (инструменты, память) — пунктиром. */
+/* Resource edges (tools, memory) are dashed. */
 .react-flow__edge.fl-edge-resource .react-flow__edge-path {
   stroke-dasharray: 5 4;
 }
@@ -114,7 +114,7 @@
   stroke: oklch(0.62 0.14 300);
 }
 
-/* Ромбовидные порты ресурсов. */
+/* Diamond-shaped resource ports. */
 .react-flow__handle.fl-diamond {
   width: 10px;
   height: 10px;
@@ -131,21 +131,21 @@
 .react-flow__handle.fl-diamond.fl-memory {
   background: oklch(0.62 0.14 300);
 }
-/* Подсветка допустимых целей при перетаскивании линии. */
+/* Highlight valid targets while dragging a connection line. */
 .react-flow__handle.fl-diamond.connectingfrom {
   box-shadow: 0 0 0 3px oklch(0.7 0.15 250 / 0.4);
 }
 .react-flow__handle.fl-diamond.valid {
   box-shadow: 0 0 0 4px oklch(0.72 0.17 150 / 0.55);
 }
-/* Группа: тело не ловит мышь (клики идут к блокам внутри и к холсту), но рамка изменения размера и заголовок — ловят. */
+/* Group: the body does not catch the mouse (clicks go to the blocks inside and to the canvas), but the resize border and the title do. */
 .react-flow__node-layout-group .react-flow__resize-control,
 .react-flow__node-layout-group .react-flow__resize-control.line,
 .react-flow__node-layout-group .react-flow__resize-control.handle {
   pointer-events: auto !important;
 }
 
-/* Числовые поля: без нативных «хромовых» стрелок (шаг — клавишами вверх/вниз) и без смены значения колесом мыши. */
+/* Number fields: no native Chrome spinners (step with the up/down keys) and no value change with the mouse wheel. */
 input[type="number"] {
   appearance: textfield;
   -moz-appearance: textfield;

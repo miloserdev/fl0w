@@ -49,7 +49,7 @@ beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
 
 describe("Scheduler", () => {
-  it("запускает флоу от триггера по периоду, а не сразу", async () => {
+  it("starts the flow from a trigger on the period, not immediately", async () => {
     const { scheduler, calls } = setup();
     scheduler.sync(published("f1", { interval: 5, unit: "seconds" }));
     await vi.advanceTimersByTimeAsync(4_999);
@@ -61,7 +61,7 @@ describe("Scheduler", () => {
     scheduler.stop();
   });
 
-  it("минуты и часы пересчитываются в мс", async () => {
+  it("minutes and hours are converted to ms", async () => {
     const { scheduler, calls } = setup();
     scheduler.sync(published("m", { interval: 2, unit: "minutes" }));
     scheduler.sync(published("h", { interval: 1, unit: "hours" }));
@@ -72,7 +72,7 @@ describe("Scheduler", () => {
     scheduler.stop();
   });
 
-  it("draft и снятие с публикации останавливают расписание", async () => {
+  it("draft and unpublishing stop the schedule", async () => {
     const { scheduler, calls } = setup();
     scheduler.sync(published("f"));
     expect(scheduler.isScheduled("f")).toBe(true);
@@ -88,22 +88,22 @@ describe("Scheduler", () => {
     expect(scheduler.isScheduled("g")).toBe(false);
   });
 
-  it("повторная публикация заменяет расписание, а не дублирует", async () => {
+  it("republishing replaces the schedule rather than duplicating it", async () => {
     const { scheduler, calls } = setup();
     scheduler.sync(published("f", { interval: 1, unit: "seconds" }));
     scheduler.sync(published("f", { interval: 1, unit: "seconds" }));
     scheduler.sync(published("f", { interval: 10, unit: "seconds" }));
     await vi.advanceTimersByTimeAsync(9_000);
-    expect(calls).toEqual([]); // старый период 1с больше не работает
+    expect(calls).toEqual([]); // the old 1 s period no longer works
     await vi.advanceTimersByTimeAsync(1_000);
     expect(calls).toHaveLength(1);
     scheduler.stop();
   });
 
-  it("невалидный опубликованный флоу не ставится на расписание", async () => {
+  it("an invalid published flow is not scheduled", async () => {
     const { scheduler, calls, logs } = setup();
     scheduler.sync(published("bad", { interval: 0, unit: "seconds" })); // interval < min
-    scheduler.sync(published("bad2", { interval: 1, unit: "weeks" })); // неизвестная единица
+    scheduler.sync(published("bad2", { interval: 1, unit: "weeks" })); // unknown unit
     expect(scheduler.isScheduled("bad")).toBe(false);
     expect(scheduler.isScheduled("bad2")).toBe(false);
     await vi.advanceTimersByTimeAsync(5000);
@@ -111,13 +111,13 @@ describe("Scheduler", () => {
     expect(logs.join("\n")).toMatch(/invalid, not scheduled/);
   });
 
-  it("опубликованный флоу без триггеров не планируется", () => {
+  it("a published flow without triggers is not scheduled", () => {
     const { scheduler } = setup();
     scheduler.sync({ ...flow([node("s", "source", { json: 1 })], []), id: "nt", status: "published" });
     expect(scheduler.isScheduled("nt")).toBe(false);
   });
 
-  it("пока предыдущий запуск идёт, тик пропускается и об этом сообщается", async () => {
+  it("while the previous run is going, the tick is skipped and this is reported", async () => {
     let release!: () => void;
     const hold = new Promise<void>((r) => (release = r));
     const { scheduler, hub, calls } = setup(async (_f, onEvent) => {
@@ -128,17 +128,17 @@ describe("Scheduler", () => {
     hub.subscribe("f", (m) => msgs.push(m));
     scheduler.sync(published("f"));
 
-    await vi.advanceTimersByTimeAsync(3_000); // три тика, первый запуск всё ещё висит
+    await vi.advanceTimersByTimeAsync(3_000); // three ticks, the first run still hangs
     expect(calls).toHaveLength(1);
     expect(msgs.filter((m) => m.type === "run:skip")).toHaveLength(2);
 
     release();
     await vi.advanceTimersByTimeAsync(1_000);
-    expect(calls).toHaveLength(2); // после завершения расписание продолжилось
+    expect(calls).toHaveLength(2); // after it finished the schedule resumed
     scheduler.stop();
   });
 
-  it("события запуска попадают в хаб: старт, ноды, итог", async () => {
+  it("run events reach the hub: start, nodes, result", async () => {
     const { scheduler, hub } = setup();
     const msgs: WatchMessage[] = [];
     hub.subscribe("f", (m) => msgs.push(m));
@@ -154,7 +154,7 @@ describe("Scheduler", () => {
     scheduler.stop();
   });
 
-  it("исключение исполнителя закрывает запуск ошибкой, а расписание живёт", async () => {
+  it("an executor exception closes the run with an error, and the schedule lives on", async () => {
     let n = 0;
     const { scheduler, hub } = setup(async () => {
       n++;
@@ -168,9 +168,9 @@ describe("Scheduler", () => {
     scheduler.stop();
   });
 
-  it("периоды длиннее лимита setTimeout (24.8 суток) не срабатывают сразу", async () => {
+  it("periods longer than the setTimeout limit (24.8 days) do not fire immediately", async () => {
     const { scheduler, calls } = setup();
-    scheduler.sync(published("long", { interval: 1000, unit: "hours" })); // ~41.7 суток
+    scheduler.sync(published("long", { interval: 1000, unit: "hours" })); // ~41.7 days
     await vi.advanceTimersByTimeAsync(60_000);
     expect(calls).toEqual([]);
     await vi.advanceTimersByTimeAsync(1000 * 3_600_000 - 60_000);
@@ -178,7 +178,7 @@ describe("Scheduler", () => {
     scheduler.stop();
   });
 
-  it("stop снимает все таймеры", async () => {
+  it("stop removes all timers", async () => {
     const { scheduler, calls } = setup();
     scheduler.sync(published("a"));
     scheduler.sync(published("b"));
@@ -189,14 +189,14 @@ describe("Scheduler", () => {
   });
 });
 
-describe("Scheduler.start — подъём после рестарта", () => {
+describe("Scheduler.start: bring-up after a restart", () => {
   let dir: string;
   beforeEach(() => {
     dir = mkdtempSync(path.join(tmpdir(), "fl0w-sched-"));
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-  it("берёт из хранилища только опубликованные флоу", async () => {
+  it("takes only published flows from the store", async () => {
     vi.useRealTimers();
     const store = new FlowStore(dir);
     await store.put(published("on"));
@@ -229,20 +229,20 @@ const hookFlow = (
   status,
 });
 
-describe("Scheduler: вебхуки", () => {
-  it("опубликованный вебхук регистрируется; путь нормализуется; метод точный, ANY — любой", () => {
+describe("Scheduler: webhooks", () => {
+  it("a published webhook is registered; the path is normalised; the method is exact, ANY matches any", () => {
     const { scheduler } = setup();
     scheduler.sync(hookFlow("a", "/orders/new/", "POST"));
     scheduler.sync(hookFlow("b", "any-path", "ANY"));
     expect(scheduler.findWebhook("POST", "orders/new")).toMatchObject({ nodeId: "w", flow: { id: "a" } });
-    expect(scheduler.findWebhook("post", "orders/new")?.flow.id).toBe("a"); // регистр метода не важен
+    expect(scheduler.findWebhook("post", "orders/new")?.flow.id).toBe("a"); // method case does not matter
     expect(scheduler.findWebhook("GET", "orders/new")).toBeUndefined();
     expect(scheduler.findWebhook("DELETE", "any-path")?.flow.id).toBe("b");
     expect(scheduler.findWebhook("POST", "nope")).toBeUndefined();
-    expect(scheduler.isScheduled("a")).toBe(true); // активен и без таймеров
+    expect(scheduler.isScheduled("a")).toBe(true); // active even without timers
   });
 
-  it("draft и снятие с публикации убирают вебхук; повторная публикация переносит его", () => {
+  it("draft and unpublishing remove the webhook; republishing moves it", () => {
     const { scheduler } = setup();
     scheduler.sync(hookFlow("a", "one"));
     scheduler.sync(hookFlow("a", "two"));
@@ -255,20 +255,20 @@ describe("Scheduler: вебхуки", () => {
     expect(scheduler.findWebhook("POST", "three")).toBeUndefined();
   });
 
-  it("конфликт пути: второй флоу не перехватывает чужой вебхук; problems() сообщает заранее", () => {
+  it("path conflict: the second flow does not hijack someone else's webhook; problems() reports it in advance", () => {
     const { scheduler, logs } = setup();
     scheduler.sync(hookFlow("first", "shared"));
     expect(scheduler.problems(hookFlow("second", "shared"))).toEqual(["Webhook POST shared is already used by flow first"]);
-    expect(scheduler.problems(hookFlow("first", "shared"))).toEqual([]); // свой же путь при обновлении — не конфликт
+    expect(scheduler.problems(hookFlow("first", "shared"))).toEqual([]); // its own path on update is not a conflict
     scheduler.sync(hookFlow("second", "shared"));
     expect(scheduler.findWebhook("POST", "shared")?.flow.id).toBe("first");
     expect(logs.join("\n")).toMatch(/already used by flow first/);
-    scheduler.sync(hookFlow("first", "shared", "POST", "draft")); // освободил — путь снова доступен
+    scheduler.sync(hookFlow("first", "shared", "POST", "draft")); // released it: the path is available again
     scheduler.sync(hookFlow("second", "shared"));
     expect(scheduler.findWebhook("POST", "shared")?.flow.id).toBe("second");
   });
 
-  it("problems(): кривой путь, дубль внутри флоу, кривое расписание", () => {
+  it("problems(): a bad path, a duplicate within a flow, a bad schedule", () => {
     const { scheduler } = setup();
     expect(scheduler.problems(hookFlow("a", "a b"))[0]).toMatch(/Invalid webhook path/);
     const twice = hookFlow("a", "x", "POST", "published", [node("w2", "webhook", { path: "x", method: "POST" })]);
@@ -277,7 +277,7 @@ describe("Scheduler: вебхуки", () => {
     expect(scheduler.problems(published("ok"))).toEqual([]);
   });
 
-  it("trigger запускает флоу от нужной ноды с данными запроса; события идут в хаб и вызывающему", async () => {
+  it("trigger starts the flow from the right node with the request data; events go to the hub and to the caller", async () => {
     const { scheduler, hub, calls } = setup();
     scheduler.sync(hookFlow("a"));
     const msgs: WatchMessage[] = [];
@@ -289,13 +289,13 @@ describe("Scheduler: вебхуки", () => {
     expect(seen.map((e) => e.event)).toEqual(["node:start", "flow:done"]);
     expect(msgs.map((m) => (m.type === "run:event" ? m.event.event : m.type))).toEqual(["run:start", "node:start", "flow:done"]);
     expect(hub.lastRun("a")?.status).toBe("done");
-    // ветка запуска (триггер и достижимые ноды) уходит в run:start — по ней Watch сбрасывает состояние только этих нод
+    // the run's branch (the trigger and reachable nodes) goes into run:start; Watch uses it to reset the state of only those nodes
     expect(msgs[0]).toMatchObject({ type: "run:start", trigger: "w" });
     const start = msgs[0];
     expect(start?.type === "run:start" ? start.nodes : undefined).toContain("w");
   });
 
-  it("лимит параллельных запусков проверяется синхронно и освобождается после завершения", async () => {
+  it("the concurrent-run limit is checked synchronously and freed after completion", async () => {
     const releases: (() => void)[] = [];
     const { scheduler } = setup(async (_f, onEvent) => {
       await new Promise<void>((r) => releases.push(r));
@@ -304,10 +304,10 @@ describe("Scheduler: вебхуки", () => {
     scheduler.sync(hookFlow("a"));
     const p1 = scheduler.trigger("a", "w", {});
     const p2 = scheduler.trigger("a", "w", {});
-    expect(() => scheduler.trigger("a", "w", {})).toThrow(SchedulerBusyError); // лимит = 2
+    expect(() => scheduler.trigger("a", "w", {})).toThrow(SchedulerBusyError); // limit = 2
     releases[0]!();
     await p1;
-    const p3 = scheduler.trigger("a", "w", {}); // слот освободился
+    const p3 = scheduler.trigger("a", "w", {}); // the slot freed up
     releases.slice(1).forEach((r) => r());
     await vi.advanceTimersByTimeAsync(0);
     releases.forEach((r) => r());
@@ -315,7 +315,7 @@ describe("Scheduler: вебхуки", () => {
     expect(() => scheduler.trigger("a", "w", {})).not.toThrow();
   });
 
-  it("запуск по вебхуку не блокируется плановым запуском того же флоу", async () => {
+  it("a webhook run is not blocked by a scheduled run of the same flow", async () => {
     let release!: () => void;
     const hold = new Promise<void>((r) => (release = r));
     const { scheduler, calls } = setup(async (_f, onEvent) => {
@@ -331,7 +331,7 @@ describe("Scheduler: вебхуки", () => {
       status: "published",
     };
     scheduler.sync(mixed);
-    await vi.advanceTimersByTimeAsync(1000); // плановый запуск повис
+    await vi.advanceTimersByTimeAsync(1000); // the scheduled run hung
     expect(calls).toHaveLength(1);
     void scheduler.trigger("mix", "w", {});
     await vi.advanceTimersByTimeAsync(0);
@@ -340,7 +340,7 @@ describe("Scheduler: вебхуки", () => {
     scheduler.stop();
   });
 
-  it("trigger неопубликованного флоу — ошибка", () => {
+  it("trigger of an unpublished flow is an error", () => {
     const { scheduler } = setup();
     expect(() => scheduler.trigger("ghost", "w", {})).toThrow(/not published/);
     scheduler.sync(hookFlow("a"));
@@ -348,7 +348,7 @@ describe("Scheduler: вебхуки", () => {
     expect(() => scheduler.trigger("a", "w", {})).toThrow(/not published/);
   });
 
-  it("stop снимает вебхуки", () => {
+  it("stop removes webhooks", () => {
     const { scheduler } = setup();
     scheduler.sync(hookFlow("a"));
     scheduler.stop();
@@ -362,11 +362,11 @@ const withNodes = (id: string, nodes: Flow["nodes"], status: "published" | "draf
   status,
 });
 
-describe("Scheduler: жизненный цикл флоу", () => {
+describe("Scheduler: flow lifecycle", () => {
   const activation = (id: string, params: Record<string, Json> = {}, status: "published" | "draft" = "published") =>
     withNodes(id, [node("t", "activation_trigger", params)], status);
 
-  it("publish / update / startup срабатывают только при своём поводе", async () => {
+  it("publish / update / startup fire only on their own reason", async () => {
     const { scheduler, calls } = setup();
     scheduler.sync(activation("a"), "publish");
     await vi.advanceTimersByTimeAsync(0);
@@ -378,7 +378,7 @@ describe("Scheduler: жизненный цикл флоу", () => {
     scheduler.stop();
   });
 
-  it("без повода sync ничего не запускает; draft тоже", async () => {
+  it("without a reason sync starts nothing; draft too", async () => {
     const { scheduler, calls } = setup();
     scheduler.sync(activation("a"));
     scheduler.sync(activation("b", {}, "draft"), "publish");
@@ -386,7 +386,7 @@ describe("Scheduler: жизненный цикл флоу", () => {
     expect(calls).toEqual([]);
   });
 
-  it("флаги onPublish/onUpdate/onStartup отключают события", async () => {
+  it("the onPublish/onUpdate/onStartup flags disable events", async () => {
     const { scheduler, calls } = setup();
     scheduler.sync(activation("a", { onPublish: false, onUpdate: false }), "publish");
     scheduler.sync(activation("a", { onPublish: false, onUpdate: false }), "update");
@@ -397,7 +397,7 @@ describe("Scheduler: жизненный цикл флоу", () => {
     expect(calls).toHaveLength(1);
   });
 
-  it("Workflow Trigger не реагирует на старт сервера", async () => {
+  it("Workflow Trigger does not react to server start", async () => {
     const { scheduler, calls } = setup();
     const f = withNodes("w", [node("t", "workflow_trigger")]);
     scheduler.sync(f, "startup");
@@ -409,14 +409,14 @@ describe("Scheduler: жизненный цикл флоу", () => {
     expect(calls).toHaveLength(2);
   });
 
-  it("данные события: повод, время и флоу", async () => {
+  it("event data: reason, time and flow", async () => {
     const { scheduler, calls } = setup();
     scheduler.sync({ ...activation("a"), name: "My flow" }, "publish");
     await vi.advanceTimersByTimeAsync(0);
     expect(calls[0]).toMatchObject({ flowId: "a", trigger: "t", triggerData: { event: "publish", flow: { id: "a", name: "My flow" }, at: expect.any(String) } });
   });
 
-  it("start() поднимает флоу из хранилища с поводом startup", async () => {
+  it("start() brings up flows from the store with reason startup", async () => {
     vi.useRealTimers();
     const dir = mkdtempSync(path.join(tmpdir(), "fl0w-life-"));
     try {
@@ -447,7 +447,7 @@ describe("Scheduler: Error Trigger", () => {
   const failing = (id: string) => withNodes(id, [node("t", "every", { interval: 1, unit: "seconds" })]);
   const handler = (id: string, flows: string[] = []) => withNodes(id, [node("h", "error_trigger", { flows })]);
 
-  /** Запуск «упавшего» флоу даёт flow:done с ошибкой и node:error; обработчики завершаются успешно. */
+  /** A run of a "failing" flow gives flow:done with an error and node:error; handlers finish successfully. */
   const runner = (failIds: string[]) =>
     setup(async (f, onEvent) => {
       if (failIds.includes(f.id)) {
@@ -456,7 +456,7 @@ describe("Scheduler: Error Trigger", () => {
       } else onEvent({ event: "flow:done" });
     });
 
-  it("упавший автоматический запуск вызывает обработчик с деталями ошибки", async () => {
+  it("a failed automatic run calls the handler with the error details", async () => {
     const { scheduler, calls } = runner(["bad"]);
     scheduler.sync(handler("h1"));
     scheduler.sync(failing("bad"));
@@ -467,14 +467,14 @@ describe("Scheduler: Error Trigger", () => {
       triggerData: {
         flow: { id: "bad", name: "test" },
         run: { id: expect.stringMatching(/^run_/), trigger: "t" },
-        error: { message: "kaboom", node: "boomNode" }, // сообщение самой ноды, без обёртки итога
+        error: { message: "kaboom", node: "boomNode" }, // the node's own message, without the result wrapper
         at: expect.any(String),
       },
     });
     scheduler.stop();
   });
 
-  it("если упала не нода (процесс, невалидный флоу) — сообщение итога запуска и node: null", async () => {
+  it("if it was not a node that failed (process, invalid flow), the run summary message and node: null", async () => {
     const { scheduler, calls } = setup(async (f, onEvent) => {
       onEvent({ event: "flow:done", error: f.id === "bad" ? "Runner exited unexpectedly (code 3)" : undefined });
     });
@@ -485,7 +485,7 @@ describe("Scheduler: Error Trigger", () => {
     scheduler.stop();
   });
 
-  it("успешные запуски обработчик не вызывают", async () => {
+  it("successful runs do not call the handler", async () => {
     const { scheduler, calls } = runner([]);
     scheduler.sync(handler("h1"));
     scheduler.sync(failing("good"));
@@ -494,7 +494,7 @@ describe("Scheduler: Error Trigger", () => {
     scheduler.stop();
   });
 
-  it("список flows ограничивает область; пустой список — любые флоу", async () => {
+  it("the flows list limits the scope; an empty list means any flows", async () => {
     const { scheduler, calls } = runner(["bad1", "bad2"]);
     scheduler.sync(handler("only1", ["bad1"]));
     scheduler.sync(handler("all"));
@@ -507,7 +507,7 @@ describe("Scheduler: Error Trigger", () => {
     scheduler.stop();
   });
 
-  it("обработчик не вызывается для неопубликованных и снятых флоу; снятие обработчика отключает его", async () => {
+  it("the handler is not called for unpublished and unpublished-later flows; removing the handler disables it", async () => {
     const { scheduler, calls } = runner(["bad"]);
     scheduler.sync(handler("h1"));
     scheduler.sync({ ...handler("h2"), status: "draft" });
@@ -521,12 +521,12 @@ describe("Scheduler: Error Trigger", () => {
     scheduler.stop();
   });
 
-  it("падение самого обработчика не порождает цепочку; флоу может обрабатывать собственные ошибки", async () => {
+  it("a failure of the handler itself does not create a chain; a flow can handle its own errors", async () => {
     const { scheduler, calls } = runner(["selfy", "h1"]);
-    scheduler.sync(handler("h1")); // обработчик, который сам падает
+    scheduler.sync(handler("h1")); // a handler that fails itself
     scheduler.sync(failing("selfy"));
     await vi.advanceTimersByTimeAsync(1000);
-    expect(calls.map((c) => c.flowId)).toEqual(["selfy", "h1"]); // h1 упал, но новых вызовов нет
+    expect(calls.map((c) => c.flowId)).toEqual(["selfy", "h1"]); // h1 failed, but there are no new calls
     await vi.advanceTimersByTimeAsync(0);
     expect(calls).toHaveLength(2);
 
@@ -534,19 +534,19 @@ describe("Scheduler: Error Trigger", () => {
     const second = runner(["both"]);
     second.scheduler.sync(both);
     await vi.advanceTimersByTimeAsync(1000);
-    expect(second.calls.map((c) => c.trigger)).toEqual(["t", "h"]); // сам себе обработчик (как в n8n)
+    expect(second.calls.map((c) => c.trigger)).toEqual(["t", "h"]); // its own handler (as in n8n)
     scheduler.stop();
     second.scheduler.stop();
   });
 
-  it("при исчерпании лимита параллельных запусков обработчик пропускается без исключения", async () => {
+  it("when the concurrent-run limit is exhausted the handler is skipped without an exception", async () => {
     const releases: (() => void)[] = [];
     const { scheduler, hub } = setup(async (f, onEvent) => {
       if (f.id === "bad") {
         onEvent({ event: "flow:done", error: "boom" });
         return;
       }
-      await new Promise<void>((r) => releases.push(r)); // обработчики зависают и занимают слоты
+      await new Promise<void>((r) => releases.push(r)); // handlers hang and occupy slots
       onEvent({ event: "flow:done" });
     });
     const msgs: WatchMessage[] = [];
@@ -555,14 +555,14 @@ describe("Scheduler: Error Trigger", () => {
     scheduler.sync(handler("h3"));
     hub.subscribe("h3", (m) => void msgs.push(m));
     scheduler.sync(failing("bad"));
-    await vi.advanceTimersByTimeAsync(1000); // лимит 2: третий обработчик отказан
+    await vi.advanceTimersByTimeAsync(1000); // limit 2: the third handler is refused
     expect(releases).toHaveLength(2);
     expect(msgs.some((m) => m.type === "run:skip")).toBe(true);
     releases.forEach((r) => r());
     scheduler.stop();
   });
 
-  it("problems() сообщает о кривых параметрах обработчика", () => {
+  it("problems() reports bad handler parameters", () => {
     const { scheduler } = setup();
     expect(scheduler.problems(handler("h", ["a"]))).toEqual([]);
     expect(scheduler.problems(withNodes("h", [node("h", "error_trigger", { flows: [1] })]))[0]).toMatch(/list of strings/);
@@ -595,7 +595,7 @@ describe("Scheduler: Local File Trigger", () => {
     return { ...base, scheduler, watchers };
   }
 
-  it("публикация ставит наблюдателя с нормализованными параметрами; событие запускает флоу с данными файла", async () => {
+  it("publishing sets a watcher with normalised parameters; an event starts the flow with the file data", async () => {
     const { scheduler, watchers, calls } = watcherSetup();
     scheduler.sync(fileFlow("a", { path: "./inbox/", event: "add", pattern: "*.csv", recursive: true }));
     expect(watchers).toHaveLength(1);
@@ -607,10 +607,10 @@ describe("Scheduler: Local File Trigger", () => {
     expect(scheduler.isScheduled("a")).toBe(true);
   });
 
-  it("снятие с публикации, повторная публикация и stop отписывают наблюдателя", () => {
+  it("unpublishing, republishing and stop unsubscribe the watcher", () => {
     const { scheduler, watchers } = watcherSetup();
     scheduler.sync(fileFlow("a"));
-    scheduler.sync(fileFlow("a", { path: "other" })); // повторная публикация заменяет наблюдателя
+    scheduler.sync(fileFlow("a", { path: "other" })); // republishing replaces the watcher
     expect(watchers.map((w) => w.stopped)).toEqual([true, false]);
     scheduler.sync(fileFlow("a", {}, "draft"));
     expect(watchers.map((w) => w.stopped)).toEqual([true, true]);
@@ -620,7 +620,7 @@ describe("Scheduler: Local File Trigger", () => {
     expect(scheduler.isScheduled("b")).toBe(false);
   });
 
-  it("кривой путь не активируется и виден в problems(); без наблюдателя — запись в лог", () => {
+  it("a bad path is not activated and is visible in problems(); without a watcher, a log entry", () => {
     const { scheduler, logs, watchers } = watcherSetup();
     expect(scheduler.problems(fileFlow("a", { path: "../x" }))[0]).toMatch(/\.\./);
     scheduler.sync(fileFlow("a", { path: "../x" }));
@@ -632,7 +632,7 @@ describe("Scheduler: Local File Trigger", () => {
     expect(plain.logs.join("\n")).toMatch(/needs a file watcher/);
   });
 
-  it("поток событий упирается в лимит: лишние пропускаются, остальные выполняются", async () => {
+  it("the event stream hits the limit: extras are skipped, the rest are executed", async () => {
     const releases: (() => void)[] = [];
     const base = setup();
     const watchers: ((p: Json) => void)[] = [];
@@ -688,7 +688,7 @@ describe("Scheduler: Telegram Trigger", () => {
   }
   const upd = (n: number): Json => ({ update_id: n, message: { message_id: n, chat: { id: 1 }, text: `m${n}` } });
 
-  it("публикация подписывает бота; обновление запускает флоу с данными обновления", async () => {
+  it("publishing subscribes the bot; an update starts the flow with the update data", async () => {
     const { scheduler, subs, calls } = tgSetup();
     scheduler.sync(tgFlow("a", { updates: ["message", "callback_query"], chatIds: "12, -100", userIds: "5", dropPending: true }));
     expect(subs).toHaveLength(1);
@@ -699,7 +699,7 @@ describe("Scheduler: Telegram Trigger", () => {
     expect(scheduler.isScheduled("a")).toBe(true);
   });
 
-  it("токен не попадает в лог (только id бота)", () => {
+  it("the token does not get into the log (only the bot id)", () => {
     const { scheduler, logs } = tgSetup();
     scheduler.sync(tgFlow("a"));
     const text = logs.join("\n");
@@ -708,7 +708,7 @@ describe("Scheduler: Telegram Trigger", () => {
     expect(text).not.toContain("ABC-DEF");
   });
 
-  it("снятие с публикации, повторная публикация и stop отписывают бота", () => {
+  it("unpublishing, republishing and stop unsubscribe the bot", () => {
     const { scheduler, subs } = tgSetup();
     scheduler.sync(tgFlow("a"));
     scheduler.sync(tgFlow("a", { updates: ["callback_query"] }));
@@ -720,13 +720,13 @@ describe("Scheduler: Telegram Trigger", () => {
     expect(subs.every((s) => s.stopped)).toBe(true);
   });
 
-  it("при исчерпании слотов обновления НЕ теряются: ждут в очереди и идут по порядку", async () => {
+  it("when slots run out, updates are NOT lost: they wait in the queue and go in order", async () => {
     const { scheduler, subs, calls, releases, hold } = tgSetup(2);
     hold(true);
     scheduler.sync(tgFlow("a"));
     for (let i = 1; i <= 5; i++) subs[0]!.emit(upd(i));
     await vi.advanceTimersByTimeAsync(0);
-    expect(calls).toHaveLength(2); // два слота заняты, три ждут
+    expect(calls).toHaveLength(2); // two slots are occupied, three wait
     releases.splice(0).forEach((r) => r());
     await vi.advanceTimersByTimeAsync(0);
     expect(calls).toHaveLength(4);
@@ -736,7 +736,7 @@ describe("Scheduler: Telegram Trigger", () => {
     releases.splice(0).forEach((r) => r());
   });
 
-  it("снятие флоу с публикации выбрасывает его ожидающие обновления", async () => {
+  it("unpublishing a flow drops its pending updates", async () => {
     const { scheduler, subs, calls, releases, hold } = tgSetup(1);
     hold(true);
     scheduler.sync(tgFlow("a"));
@@ -746,22 +746,22 @@ describe("Scheduler: Telegram Trigger", () => {
     scheduler.sync(tgFlow("a", {}, "draft"));
     releases.splice(0).forEach((r) => r());
     await vi.advanceTimersByTimeAsync(0);
-    expect(calls).toHaveLength(1); // 2 и 3 не запустились
+    expect(calls).toHaveLength(1); // 2 and 3 did not start
   });
 
-  it("переполнение очереди (500) отбрасывает лишнее и пишет в лог", async () => {
+  it("queue overflow (500) drops the extra and writes to the log", async () => {
     const { scheduler, subs, calls, releases, hold, logs } = tgSetup(1);
     hold(true);
     scheduler.sync(tgFlow("a"));
     for (let i = 1; i <= 505; i++) subs[0]!.emit(upd(i));
     await vi.advanceTimersByTimeAsync(0);
     expect(calls).toHaveLength(1);
-    expect(logs.filter((l) => /event queue is full/.test(l))).toHaveLength(4); // 1 в работе + 500 в очереди, остальные 4 отброшены
+    expect(logs.filter((l) => /event queue is full/.test(l))).toHaveLength(4); // 1 running + 500 in the queue, the other 4 dropped
     scheduler.sync(tgFlow("a", {}, "draft"));
     releases.splice(0).forEach((r) => r());
   });
 
-  it("problems(): секрет не задан, кривой токен, неизвестный тип, кривые id", () => {
+  it("problems(): secret not set, bad token, unknown type, bad ids", () => {
     const { scheduler } = tgSetup();
     delete process.env["FL0W_SECRET_TELEGRAM_BOT_TOKEN"];
     expect(scheduler.problems(tgFlow("a", { token: "" }))[0]).toMatch(/FL0W_SECRET_TELEGRAM_BOT_TOKEN is not set on the server/);
@@ -775,7 +775,7 @@ describe("Scheduler: Telegram Trigger", () => {
     expect(scheduler.problems(tgFlow("a"))).toEqual([]);
   });
 
-  it("токен из переменной окружения разрешается при подписке; без поллера — запись в лог", () => {
+  it("a token from an environment variable is resolved on subscribe; without a poller, a log entry", () => {
     process.env["FL0W_SECRET_TG_TEST"] = "999999:ZZZ-DEF1234ghIkl-zyx57W2v1u123ew11";
     try {
       const { scheduler, subs } = tgSetup();
@@ -815,7 +815,7 @@ describe("Scheduler: Mail Trigger", () => {
     return { ...base, scheduler, subs };
   }
 
-  it("публикация запускает опрос ящика; письмо запускает флоу с данными письма", async () => {
+  it("publishing starts mailbox polling; a message starts the flow with the message data", async () => {
     const { scheduler, subs, calls } = mailSetup();
     scheduler.sync(mailFlow("a", { folder: "Work", intervalSec: 30, action: "none", fromFilter: "boss@x.io" }));
     expect(subs).toHaveLength(1);
@@ -825,26 +825,26 @@ describe("Scheduler: Mail Trigger", () => {
     expect(calls).toEqual([{ flowId: "a", trigger: "mt", triggerData: { id: "7", subject: "Привет" } }]);
   });
 
-  it("пароль не попадает в лог", () => {
+  it("the password does not get into the log", () => {
     const { scheduler, logs } = mailSetup();
     scheduler.sync(mailFlow("a"));
     expect(logs.join("\n")).toContain("polls mailbox imap:me@x.io");
     expect(logs.join("\n")).not.toContain("mail-pw-123");
   });
 
-  it("снятие с публикации, отключение триггера и stop прекращают опрос", () => {
+  it("unpublishing, disabling the trigger and stop end polling", () => {
     const { scheduler, subs } = mailSetup();
     scheduler.sync(mailFlow("a"));
     scheduler.sync(mailFlow("a", {}, "draft"));
     expect(subs[0]!.stopped).toBe(true);
     scheduler.sync(withNodes("b", [{ ...node("mt", "mail_trigger", { provider: "imap", host: "h", username: "u@x.io", password: "pw-12345" }), disabled: true }], "published"));
-    expect(subs).toHaveLength(1); // отключённый триггер не опрашивает
+    expect(subs).toHaveLength(1); // the disabled trigger does not poll
     scheduler.sync(mailFlow("c"));
     scheduler.stop();
     expect(subs.every((s) => s.stopped)).toBe(true);
   });
 
-  it("неверные параметры (частота ниже 15 с, нет хоста) видны при публикации", () => {
+  it("invalid parameters (frequency below 15 s, no host) are visible on publish", () => {
     const { scheduler } = mailSetup();
     expect(scheduler.problems(mailFlow("a", { intervalSec: 5 })).join(" ")).toMatch(/intervalSec/);
     expect(scheduler.problems(mailFlow("a", { host: "" })).join(" ")).toMatch(/host/);

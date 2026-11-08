@@ -14,7 +14,7 @@ import {
 import { setLocale } from "@/i18n/actions";
 import { locales } from "@/i18n/config";
 
-/** Подменю «Язык» для меню настроек. */
+/** "Language" submenu for the settings menu. */
 export function LocaleSubmenu() {
   const t = useTranslations("language");
   const locale = useLocale();

@@ -33,20 +33,20 @@ const aborted = () => {
 const ctx = (signal: AbortSignal) => ({ signal, log() {} });
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-describe("отмена запуска доходит до блоков, которые раньше её не слушали", () => {
-  it("Files: уже отменённый запуск не пишет и не читает", async () => {
+describe("cancelling a run reaches blocks that did not listen to it before", () => {
+  it("Files: an already cancelled run neither writes nor reads", async () => {
     const files = new Files();
     await expect(files.run({ in0: {} }, { operation: "write", path: "a.txt", content: "x", format: "text" }, ctx(aborted()))).rejects.toThrow("Aborted");
     expect(existsSync(path.join(dir, "files", "a.txt"))).toBe(false);
     writeFileSync(path.join(dir, "files", "b.txt"), "ok");
     await expect(files.run({ in0: {} }, { operation: "read", path: "b.txt", format: "text" }, ctx(aborted()))).rejects.toThrow("Aborted");
-    // без отмены работает как раньше
+    // without cancellation it works as before
     expect(await files.run({ in0: {} }, { operation: "read", path: "b.txt", format: "text" }, ctx(new AbortController().signal))).toMatchObject({ out0: { content: "ok" } });
   });
 
-  it("Memory Bank и Counter: ожидание занятого замка прекращается по отмене (раньше — до 10 с)", async () => {
+  it("Memory Bank and Counter: waiting for a busy lock stops on cancel (it used to be up to 10 s)", async () => {
     const memDir = process.env[MEMORY_DIR_ENV]!;
-    // «чужой» свежий замок: ждать пришлось бы до LOCK_WAIT_MS
+    // a "foreign" fresh lock: we would have had to wait up to LOCK_WAIT_MS
     mkdirSync(memDir, { recursive: true });
     for (const bank of ["held", "counters"]) {
       writeFileSync(path.join(memDir, `${bank}.json.lock`), "");
@@ -63,7 +63,7 @@ describe("отмена запуска доходит до блоков, кото
     }
   });
 
-  it("Memory Bank: уже отменённый запуск не читает и не пишет; без отмены работает", async () => {
+  it("Memory Bank: an already cancelled run neither reads nor writes; without cancellation it works", async () => {
     const bank = new MemoryBank();
     await expect(bank.createMemory({ driver: "json", name: "fresh" }, aborted()).get("k")).rejects.toThrow("Aborted");
     await expect(bank.createMemory({ driver: "json", name: "fresh" }, aborted()).set("k", 1)).rejects.toThrow("Aborted");
@@ -72,7 +72,7 @@ describe("отмена запуска доходит до блоков, кото
     expect(await live.get("k")).toBe(2);
   });
 
-  it("Code Tool: отмена хозяина останавливает код инструмента сразу, а не по его таймауту", async () => {
+  it("Code Tool: the owner's cancellation stops the tool code at once, not at its timeout", async () => {
     const tool = new CodeTool().createTool({ name: "hang", code: "await new Promise(() => {}); return { out0: 1 }", timeoutMs: 20_000 });
     const ac = new AbortController();
     setTimeout(() => ac.abort(), 100);
@@ -82,13 +82,13 @@ describe("отмена запуска доходит до блоков, кото
     await expect(tool.call(null, aborted())).rejects.toThrow("Aborted");
   });
 
-  it("Crypto: вывод ключа не блокирует цикл событий и учитывает отмену; шифрование по-прежнему обратимо", async () => {
+  it("Crypto: key derivation does not block the event loop and honours cancellation; encryption is still reversible", async () => {
     const crypto = new Crypto();
     await expect(crypto.run({ in0: "x" }, { action: "encrypt", value: "secret text", secret: "pw" }, ctx(aborted()))).rejects.toThrow("Aborted");
     const enc = (await crypto.run({ in0: {} }, { action: "encrypt", value: "secret text", secret: "pw", field: "r" }, ctx(new AbortController().signal))) as { out0: { r: string } };
     const dec = (await crypto.run({ in0: {} }, { action: "decrypt", value: enc.out0.r, secret: "pw", field: "r" }, ctx(new AbortController().signal))) as { out0: { r: string } };
     expect(dec.out0.r).toBe("secret text");
-    // пока считается scrypt, таймеры идут (раньше scryptSync замораживал цикл на время вывода ключа)
+    // while scrypt is computing, timers run (scryptSync used to freeze the loop for the duration of key derivation)
     let ticks = 0;
     const timer = setInterval(() => ticks++, 1);
     await Promise.all(Array.from({ length: 4 }, () => crypto.run({ in0: {} }, { action: "encrypt", value: "x", secret: "pw" }, ctx(new AbortController().signal))));

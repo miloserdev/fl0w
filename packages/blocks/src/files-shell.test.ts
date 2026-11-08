@@ -47,7 +47,7 @@ afterEach(() => {
 
 describe("glob", () => {
   const m = (glob: string, p: string) => globToRegExp(glob).test(p);
-  it("* и ? не пересекают слэш; точка — буквальная", () => {
+  it("* and ? do not cross a slash; the dot is literal", () => {
     expect(m("*.txt", "a.txt")).toBe(true);
     expect(m("*.txt", "d/a.txt")).toBe(false);
     expect(m("*.txt", "aXtxt")).toBe(false);
@@ -55,20 +55,20 @@ describe("glob", () => {
     expect(m("?.js", "ab.js")).toBe(false);
     expect(m("a.b", "aXb")).toBe(false);
   });
-  it("наборы [abc] и [!abc]", () => {
+  it("sets [abc] and [!abc]", () => {
     expect(m("[abc].txt", "b.txt")).toBe(true);
     expect(m("[abc].txt", "d.txt")).toBe(false);
     expect(m("[!a].txt", "b.txt")).toBe(true);
     expect(m("[!a].txt", "a.txt")).toBe(false);
   });
-  it("** пересекает каталоги, ноль каталогов допустим", () => {
+  it("** crosses directories, zero directories is allowed", () => {
     expect(m("**/*.md", "a.md")).toBe(true);
     expect(m("**/*.md", "x/y/a.md")).toBe(true);
     expect(m("docs/**", "docs/a/b.txt")).toBe(true);
     expect(m("docs/**/*.md", "docs/a.md")).toBe(true);
     expect(m("docs/**/*.md", "other/a.md")).toBe(false);
   });
-  it("спецсимволы regexp экранируются", () => {
+  it("regexp special characters are escaped", () => {
     expect(m("a+b(1).txt", "a+b(1).txt")).toBe(true);
     expect(m("a+b.txt", "aab.txt")).toBe(false);
   });
@@ -82,7 +82,7 @@ describe("glob", () => {
   });
 });
 
-describe("песочница путей", () => {
+describe("path sandbox", () => {
   it("assertRelativePath", () => {
     for (const bad of ["/etc/passwd", "\\win", "C:\\x", "C:/x", "..", "a/../b", "../a", "a\\..\\b", "a\0b"]) {
       expect(() => assertRelativePath(bad), JSON.stringify(bad)).toThrow();
@@ -90,7 +90,7 @@ describe("песочница путей", () => {
     for (const ok of ["a/b", "a..b", ".hidden", "dir/.hidden", "", "..name", "a/..name"]) expect(() => assertRelativePath(ok), ok).not.toThrow();
   });
 
-  it("filesBaseDir создаёт каталог; без переменной — понятная ошибка", async () => {
+  it("filesBaseDir creates the directory; without the variable a clear error", async () => {
     rmSync(dir, { recursive: true });
     expect(await filesBaseDir()).toBe(base);
     expect(existsSync(dir)).toBe(true);
@@ -98,24 +98,24 @@ describe("песочница путей", () => {
     await expect(filesBaseDir()).rejects.toThrow(/FL0W_FILES_DIR/);
   });
 
-  it("resolveInside: пути внутри (в том числе несуществующие) разрешены", async () => {
+  it("resolveInside: paths inside (including non-existent ones) are allowed", async () => {
     expect(await resolveInside(base, "a/b/c.txt")).toBe(path.join(base, "a/b/c.txt"));
     expect(await resolveInside(base, "")).toBe(base);
   });
 
-  it("симлинк наружу отвергается, симлинк внутрь — нет", async () => {
+  it("a symlink outward is rejected, a symlink inward is not", async () => {
     writeFileSync(path.join(outside, "secret.txt"), "top secret");
     symlinkSync(outside, path.join(dir, "escape"));
     mkdirSync(path.join(dir, "real"));
     symlinkSync(path.join(dir, "real"), path.join(dir, "alias"));
     await expect(resolveInside(base, "escape/secret.txt")).rejects.toThrow(/outside/);
-    await expect(resolveInside(base, "escape/new/file.txt")).rejects.toThrow(/outside/); // и для несуществующих
+    await expect(resolveInside(base, "escape/new/file.txt")).rejects.toThrow(/outside/); // and for non-existent ones too
     await expect(resolveInside(base, "alias/x.txt")).resolves.toBe(path.join(base, "alias/x.txt"));
   });
 });
 
 describe("Files", () => {
-  it("write → read (text), метаданные", async () => {
+  it("write -> read (text), metadata", async () => {
     const w = (await out0(Files, "hello", { operation: "write", path: "notes/a.txt" })) as { path: string; size: number; bytesWritten: number };
     expect(w).toMatchObject({ path: "notes/a.txt", size: 5, bytesWritten: 5 });
     expect(readFileSync(path.join(dir, "notes/a.txt"), "utf8")).toBe("hello");
@@ -124,7 +124,7 @@ describe("Files", () => {
     expect(new Date(r["modifiedAt"] as string).getTime()).toBeGreaterThan(0);
   });
 
-  it("json: запись объекта и чтение обратно как объекта", async () => {
+  it("json: writing an object and reading it back as an object", async () => {
     await run(Files, { a: [1, { b: 2 }] }, { operation: "write", path: "d.json", format: "json" });
     expect(readFileSync(path.join(dir, "d.json"), "utf8")).toBe('{\n  "a": [\n    1,\n    {\n      "b": 2\n    }\n  ]\n}\n');
     expect(((await out0(Files, undefined, { path: "d.json", format: "json" })) as { content: Json }).content).toEqual({ a: [1, { b: 2 }] });
@@ -132,7 +132,7 @@ describe("Files", () => {
     await expect(run(Files, undefined, { path: "bad.json", format: "json" })).rejects.toThrow(/not valid JSON/);
   });
 
-  it("base64: бинарные данные проходят без искажений", async () => {
+  it("base64: binary data passes without distortion", async () => {
     const bytes = Buffer.from([0, 255, 1, 254, 128, 10]);
     await run(Files, bytes.toString("base64"), { operation: "write", path: "bin.dat", format: "base64" });
     expect(readFileSync(path.join(dir, "bin.dat"))).toEqual(bytes);
@@ -140,7 +140,7 @@ describe("Files", () => {
     await expect(run(Files, { x: 1 }, { operation: "write", path: "x", format: "base64" })).rejects.toThrow(/must be a string/);
   });
 
-  it("append дописывает; content и path поддерживают шаблоны; без content берётся вход", async () => {
+  it("append appends; content and path support templates; without content the input is taken", async () => {
     await run(Files, { who: "ann", n: 1 }, { operation: "write", path: "log-{{ who }}.txt", content: "first {{ n }}\n" });
     await run(Files, { who: "ann", n: 2 }, { operation: "append", path: "log-{{ who }}.txt", content: "second {{ n }}\n" });
     expect(readFileSync(path.join(dir, "log-ann.txt"), "utf8")).toBe("first 1\nsecond 2\n");
@@ -148,21 +148,21 @@ describe("Files", () => {
     expect(readFileSync(path.join(dir, "in.txt"), "utf8")).toBe("из входа");
   });
 
-  it("overwrite=false и createDirs=false", async () => {
+  it("overwrite=false and createDirs=false", async () => {
     await run(Files, "a", { operation: "write", path: "x.txt" });
     await expect(run(Files, "b", { operation: "write", path: "x.txt", overwrite: false })).rejects.toThrow(/already exists/);
-    await run(Files, "c", { operation: "write", path: "x.txt" }); // по умолчанию перезаписывает
+    await run(Files, "c", { operation: "write", path: "x.txt" }); // overwrites by default
     expect(readFileSync(path.join(dir, "x.txt"), "utf8")).toBe("c");
     await expect(run(Files, "d", { operation: "write", path: "no/dir/y.txt", createDirs: false })).rejects.toThrow();
     expect(existsSync(path.join(dir, "no"))).toBe(false);
   });
 
-  it("запись не оставляет временных файлов", async () => {
+  it("a write leaves no temp files", async () => {
     await run(Files, "x", { operation: "write", path: "t.txt" });
     expect(await out0(Files, undefined, { operation: "list", path: "" })).toEqual([expect.objectContaining({ name: "t.txt" })]);
   });
 
-  it("чтение несуществующего файла, каталога и слишком большого файла", async () => {
+  it("reading a non-existent file, a directory and a too large file", async () => {
     await expect(run(Files, undefined, { path: "nope.txt" })).rejects.toThrow('"nope.txt" does not exist');
     mkdirSync(path.join(dir, "folder"));
     await expect(run(Files, undefined, { path: "folder" })).rejects.toThrow(/is not a file/);
@@ -171,7 +171,7 @@ describe("Files", () => {
     await expect(run(Files, "x".repeat(10 * 1024 * 1024 + 1), { operation: "write", path: "huge.txt" })).rejects.toThrow(/larger than/);
   });
 
-  it("list: каталог и маска", async () => {
+  it("list: a directory and a mask", async () => {
     for (const f of ["b.txt", "a.txt", "c.md", "sub/d.txt"]) {
       mkdirSync(path.dirname(path.join(dir, f)), { recursive: true });
       writeFileSync(path.join(dir, f), f);
@@ -183,7 +183,7 @@ describe("Files", () => {
     expect(((await out0(Files, undefined, { operation: "list", path: "" })) as { type: string }[]).map((e) => e.type)).toEqual(["file", "file", "file", "dir"]);
   });
 
-  it("чтение по маске возвращает список файлов с содержимым; симлинки не обходятся", async () => {
+  it("mask read returns a list of files with content; symlinks are not followed", async () => {
     mkdirSync(path.join(dir, "docs"));
     writeFileSync(path.join(dir, "docs/1.txt"), "one");
     writeFileSync(path.join(dir, "docs/2.txt"), "two");
@@ -193,7 +193,7 @@ describe("Files", () => {
     expect(r.map((f) => [f.path, f.content])).toEqual([["docs/1.txt", "one"], ["docs/2.txt", "two"]]);
   });
 
-  it("выход за каталог и абсолютные пути отвергаются на всех операциях", async () => {
+  it("escaping the directory and absolute paths are rejected on all operations", async () => {
     writeFileSync(path.join(outside, "secret.txt"), "s");
     for (const op of ["read", "write", "append", "list"]) {
       for (const p of ["../secret.txt", "/etc/passwd", "a/../../x", path.join(outside, "secret.txt")]) {
@@ -207,7 +207,7 @@ describe("Files", () => {
     expect(existsSync(path.join(outside, "new.txt"))).toBe(false);
   });
 
-  it("запись по маске и пустой путь — ошибки", async () => {
+  it("write by mask and an empty path are errors", async () => {
     await expect(run(Files, "x", { operation: "write", path: "*.txt" })).rejects.toThrow(/pattern cannot be used/);
     await expect(run(Files, "x", { operation: "write", path: "" })).rejects.toThrow(/required/);
     await expect(run(Files, "x", { operation: "explode", path: "a" })).rejects.toThrow(/Unknown operation/);
@@ -218,7 +218,7 @@ describe("Files", () => {
 describe("Shell", () => {
   const sh = (params: Record<string, Json>, input: Json | undefined = null, ctx: Partial<RunContext> = {}) => out0(Shell, input, params, ctx) as Promise<Record<string, Json>>;
 
-  it("по умолчанию отключён и говорит, как включить", async () => {
+  it("disabled by default and says how to enable it", async () => {
     delete process.env[SHELL_ALLOW_ENV];
     await expect(sh({ script: "echo hi" })).rejects.toThrow(/FL0W_ALLOW_SHELL=1/);
     process.env[SHELL_ALLOW_ENV] = "0";
@@ -227,32 +227,32 @@ describe("Shell", () => {
     expect(await sh({ script: "echo hi" })).toMatchObject({ stdout: "hi\n", exitCode: 0 });
   });
 
-  it("stdout, stderr, код выхода; sh тоже работает", async () => {
+  it("stdout, stderr, exit code; sh works too", async () => {
     expect(await sh({ script: "echo out; echo err >&2" })).toMatchObject({ stdout: "out\n", stderr: "err\n", exitCode: 0, signal: null });
     expect(await sh({ script: "echo $0", shell: "sh" })).toMatchObject({ stdout: "sh\n" });
   });
 
-  it("args — позиционные параметры, а не часть скрипта: внедрить команду нельзя", async () => {
+  it("args are positional parameters, not part of the script: a command cannot be injected", async () => {
     const evil = ['$(touch pwned)', "; touch pwned2", "`touch pwned3`", "'; touch pwned4; '", '" && touch pwned5 && "'];
     const r = await sh({ script: 'printf "%s|" "$@"', args: evil });
-    expect(r["stdout"]).toBe(`${evil.join("|")}|`); // дошли буквально
+    expect(r["stdout"]).toBe(`${evil.join("|")}|`); // arrived literally
     for (const f of ["pwned", "pwned2", "pwned3", "pwned4", "pwned5"]) expect(existsSync(path.join(dir, f)), f).toBe(false);
   });
 
-  it("args и env берут данные из входа через шаблоны; скрипт — нет", async () => {
+  it("args and env take data from the input via templates; the script does not", async () => {
     const r = await sh({ script: 'echo "$1/$2/$GREETING/{{ name }}"', args: ["{{ name }}", 42], env: { GREETING: "hi {{ name }}" } }, { name: "ann" });
-    expect(r["stdout"]).toBe("ann/42/hi ann/{{ name }}\n"); // {{ name }} в самом скрипте остался как есть
+    expect(r["stdout"]).toBe("ann/42/hi ann/{{ name }}\n"); // {{ name }} in the script itself stayed as is
   });
 
   it("stdin", async () => {
     expect((await sh({ script: "cat", stdin: "data {{ x }}" }, { x: 1 }))["stdout"]).toBe("data 1");
   });
 
-  it("окружение изолировано: секреты процесса сервера не видны, имена env проверяются", async () => {
+  it("environment is isolated: the server process's secrets are not visible, env names are validated", async () => {
     process.env["TOP_SECRET_TOKEN"] = "s3cret";
     try {
       expect((await sh({ script: 'echo "${TOP_SECRET_TOKEN-unset}"' }))["stdout"]).toBe("unset\n");
-      expect((await sh({ script: "echo $PATH" }))["stdout"]).not.toBe("\n"); // PATH проброшен
+      expect((await sh({ script: "echo $PATH" }))["stdout"]).not.toBe("\n"); // PATH is passed through
     } finally {
       delete process.env["TOP_SECRET_TOKEN"];
     }
@@ -262,13 +262,13 @@ describe("Shell", () => {
     await expect(sh({ script: "true", args: "x" })).rejects.toThrow(/"args" must be a list/);
   });
 
-  it("ненулевой код: ошибка с хвостом stderr; failOnError=false отдаёт результат", async () => {
+  it("non-zero code: an error with the stderr tail; failOnError=false returns the result", async () => {
     await expect(sh({ script: "echo boom >&2; exit 3" })).rejects.toThrow("Command failed with exit code 3: boom");
     expect(await sh({ script: "echo boom >&2; exit 3", failOnError: false })).toMatchObject({ exitCode: 3, stderr: "boom\n" });
     await expect(sh({ script: "kill -9 $$" })).rejects.toThrow(/signal SIGKILL/);
   });
 
-  it("выполняется в каталоге файлов; cwd — только подпапка внутри него", async () => {
+  it("runs in the files directory; cwd is only a subfolder inside it", async () => {
     expect((await sh({ script: "pwd" }))["stdout"]).toBe(`${base}\n`);
     mkdirSync(path.join(dir, "sub"));
     expect((await sh({ script: "pwd", cwd: "sub" }))["stdout"]).toBe(`${base}/sub\n`);
@@ -280,7 +280,7 @@ describe("Shell", () => {
     await expect(sh({ script: "pwd", cwd: "esc" })).rejects.toThrow(/outside/);
   });
 
-  /** Жив ли процесс с таким PID (сигнал 0 ничего не посылает, только проверяет существование). */
+  /** Whether a process with this PID is alive (signal 0 sends nothing, it only checks existence). */
   const alive = (pid: number) => {
     try {
       process.kill(pid, 0);
@@ -289,7 +289,7 @@ describe("Shell", () => {
       return false;
     }
   };
-  /** Ждём, пока потомок реально исчезнет (убитый процесс уходит не мгновенно). */
+  /** Wait until the descendant really disappears (a killed process does not go away instantly). */
   const dies = async (pid: number) => {
     for (let i = 0; i < 40; i++) {
       if (!alive(pid)) return true;
@@ -299,42 +299,42 @@ describe("Shell", () => {
   };
   const childPid = () => Number(readFileSync(path.join(dir, "child.pid"), "utf8").trim());
 
-  it("таймаут убивает всю группу процессов, включая потомков", async () => {
+  it("a timeout kills the whole process group, including descendants", async () => {
     const t = Date.now();
-    // sleep — фоновый потомок оболочки; его PID пишем в файл, чтобы проверить именно его
+    // sleep is a background descendant of the shell; we write its PID to a file to check exactly it
     await expect(sh({ script: "sleep 30 & echo $! > child.pid; wait", timeoutMs: 400 })).rejects.toThrow("Shell timed out after 400 ms");
     expect(Date.now() - t).toBeLessThan(5000);
     const pid = childPid();
     expect(pid).toBeGreaterThan(1);
-    expect(await dies(pid), "потомок пережил таймаут").toBe(true);
+    expect(await dies(pid), "the descendant survived the timeout").toBe(true);
   });
 
-  it("отмена запуска убивает процесс и потомков; уже отменённый signal не стартует", async () => {
+  it("cancelling the run kills the process and descendants; an already cancelled signal does not start", async () => {
     const ac = new AbortController();
     const p = sh({ script: "sleep 30 & echo $! > child.pid; wait", timeoutMs: 60_000 }, null, { signal: ac.signal });
     setTimeout(() => ac.abort(), 400);
     await expect(p).rejects.toThrow("Aborted");
-    expect(await dies(childPid()), "потомок пережил отмену").toBe(true);
+    expect(await dies(childPid()), "the descendant survived the cancellation").toBe(true);
     const done = new AbortController();
     done.abort();
     await expect(sh({ script: "touch should-not-exist" }, null, { signal: done.signal })).rejects.toThrow("Aborted");
     expect(existsSync(path.join(dir, "should-not-exist"))).toBe(false);
   });
 
-  it("вывод ограничен 1 МБ с пометкой truncated", async () => {
+  it("output is limited to 1 MB with a truncated mark", async () => {
     const r = await sh({ script: "head -c 3000000 /dev/zero | tr '\\0' 'x'", timeoutMs: 20_000 });
     expect((r["stdout"] as string).length).toBe(1024 * 1024);
     expect(r["truncated"]).toBe(true);
   });
 
-  it("пустой скрипт и неизвестная оболочка", async () => {
+  it("an empty script and an unknown shell", async () => {
     await expect(sh({ script: "   " })).rejects.toThrow(/empty/);
     await expect(sh({ script: "true", shell: "zsh" })).rejects.toThrow(/Unknown shell/);
   });
 });
 
-describe("триггеры: файлы, ошибки, жизненный цикл", () => {
-  it("Local File Trigger: нормализация параметров и валидация пути", () => {
+describe("triggers: files, errors, lifecycle", () => {
+  it("Local File Trigger: parameter normalisation and path validation", () => {
     expect(LocalFileTrigger.fileWatch({})).toEqual({ path: "", event: "any", pattern: "*", recursive: false });
     expect(LocalFileTrigger.fileWatch({ path: "./inbox/", event: "add", pattern: "*.csv", recursive: true })).toEqual({
       path: "inbox", event: "add", pattern: "*.csv", recursive: true,
@@ -344,13 +344,13 @@ describe("триггеры: файлы, ошибки, жизненный цик�
     expect(() => LocalFileTrigger.fileWatch({ event: "rename" })).toThrow(/Unknown event/);
   });
 
-  it("Local File Trigger: run отдаёт данные события; без события — ошибка", async () => {
+  it("Local File Trigger: run returns the event data; without an event an error", async () => {
     const data = { event: "change", path: "inbox/a.csv", name: "a.csv", size: 3, modifiedAt: "2024-01-01T00:00:00.000Z" };
     expect(await out0(LocalFileTrigger, undefined, {}, { triggerData: data })).toEqual(data);
     await expect(out0(LocalFileTrigger, undefined, { path: "inbox" })).rejects.toThrow(/Local File Trigger has no event data/);
   });
 
-  it("Error Trigger: область и данные", async () => {
+  it("Error Trigger: scope and data", async () => {
     expect(ErrorTrigger.errorScope({})).toEqual({ flows: [] });
     expect(ErrorTrigger.errorScope({ flows: ["a", "b"] })).toEqual({ flows: ["a", "b"] });
     expect(ErrorTrigger.errorScope({ flows: "a, b" })).toEqual({ flows: ["a", "b"] });
@@ -360,14 +360,14 @@ describe("триггеры: файлы, ошибки, жизненный цик�
     await expect(out0(ErrorTrigger, undefined, {})).rejects.toThrow(/Error Trigger has no event data/);
   });
 
-  it("Activation / Workflow Trigger: события по флагам", () => {
+  it("Activation / Workflow Trigger: events by flags", () => {
     expect(ActivationTrigger.lifecycle({})).toEqual({ publish: true, update: true, startup: true });
     expect(ActivationTrigger.lifecycle({ onPublish: false, onStartup: false })).toEqual({ publish: false, update: true, startup: false });
     expect(WorkflowTrigger.lifecycle({})).toEqual({ publish: true, update: true, startup: false });
     expect(WorkflowTrigger.lifecycle({ onUpdate: false })).toEqual({ publish: true, update: false, startup: false });
   });
 
-  it("свойства триггеров и «чужие» хуки у остальных блоков равны null", () => {
+  it("trigger properties and foreign hooks are null for other blocks", () => {
     for (const t of [LocalFileTrigger, ErrorTrigger, ActivationTrigger, WorkflowTrigger]) {
       expect([t.isTrigger, t.autoTrigger, t.ports.inputs.length]).toEqual([true, true, 0]);
     }
@@ -379,8 +379,8 @@ describe("триггеры: файлы, ошибки, жизненный цик�
   });
 });
 
-describe("триггеры: придуманных событий нет", () => {
-  it("без triggerData каждый триггер события отвечает ошибкой, с данными — отдаёт их как есть (включая null у Incoming Call)", async () => {
+describe("triggers: there are no invented events", () => {
+  it("without triggerData every event trigger answers with an error, with data it returns it as is (including null for Incoming Call)", async () => {
     const cases: [typeof Webhook | typeof LocalFileTrigger | typeof ErrorTrigger | typeof ActivationTrigger | typeof WorkflowTrigger, Record<string, Json>, string][] = [
       [Webhook, { path: "x" }, "Webhook"],
       [LocalFileTrigger, { path: "in" }, "Local File Trigger"],

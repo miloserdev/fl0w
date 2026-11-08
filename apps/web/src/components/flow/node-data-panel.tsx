@@ -13,9 +13,9 @@ import { useBlockLabel } from "./use-block-label";
 import type { NodeDetail } from "./use-run";
 
 /**
- * Окно данных выбранной ноды: что в ней было в последнем запуске (вход, параметры, выход, лог, ошибка), закрепление выхода
- * (pin data) и перезапуск с этой ноды. Плавает справа под окном общего результата запуска — параметры и код при этом
- * остаются в окне слева и правятся по-прежнему.
+ * Data window of the selected node: what it had in the last run (input, params, output, log, error), pinning the output
+ * (pin data) and restarting from this node. Floats on the right under the overall run result window — params and code
+ * stay in the window on the left and are edited as before.
  */
 export function NodeDataPanel({
   node,
@@ -26,9 +26,9 @@ export function NodeDataPanel({
   onClose,
 }: {
   node: BlockNodeType;
-  /** Данные ноды из последнего запуска (если она в нём участвовала). */
+  /** Node data from the last run (if it took part in it). */
   detail?: NodeDetail;
-  /** Можно ли перезапустить флоу с этой ноды (нет Watch и идущего запуска). */
+  /** Whether the flow can be restarted from this node (no Watch and no run in progress). */
   canRunFrom: boolean;
   onRunFrom: () => void;
   onChange: (id: string, patch: Partial<BlockNodeData>) => void;
@@ -88,15 +88,15 @@ export function NodeDataPanel({
 }
 
 /**
- * Закреплённые данные ноды (pin data) — JSON `{ порт: значение }`. Редактируются вручную: так задают «запрос вебхука» или
- * «сообщение Telegram» для отладки без настоящего события. Применяются только в ручных запусках.
+ * Pinned node data (pin data) — JSON `{ port: value }`. Edited by hand: this is how a "webhook request" or a
+ * "Telegram message" is set up for debugging without a real event. Applied only in manual runs.
  */
 function PinEditor({ pin, onSave }: { pin: Record<string, Json> | null; onSave: (pin: Record<string, Json>) => void }) {
   const t = useTranslations("inspector");
   const [text, setText] = useState(pin ? JSON.stringify(pin, null, 2) : "");
   const [error, setError] = useState<string | null>(null);
   if (!pin && text === "") {
-    // свёрнуто: ввод данных вручную открывается по кнопке
+    // collapsed: manual data entry opens with a button
     return (
       <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => setText('{\n  "out0": {}\n}')}>
         {t("pinManual")}

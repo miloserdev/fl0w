@@ -1,6 +1,6 @@
 /**
- * Рабочее пространство редактора: несколько флоу во вкладках. Чистая логика состояния вкладок и их хранения в браузере
- * (без React и DOM — тестируется отдельно). Содержимое каждого флоу автосохраняется под своим ключом `fl0w:flow:<id>`.
+ * Editor workspace: several flows in tabs. Pure logic of tab state and of storing them in the browser
+ * (no React or DOM — tested separately). The content of each flow is autosaved under its own key `fl0w:flow:<id>`.
  */
 import { flowSchema, type Flow } from "@fl0w/schema";
 
@@ -8,31 +8,31 @@ export type Tab = { id: string; name: string };
 export type TabsState = { tabs: Tab[]; active: string };
 
 export const TABS_KEY = "fl0w:tabs:v2";
-/** Ключ единственного флоу старой версии (до вкладок). */
+/** Key of the single flow of the old version (before tabs). */
 export const LEGACY_FLOW_KEY = "fl0w:flow:v1";
 export const flowKey = (id: string) => `fl0w:flow:${id}`;
 
-/** Сколько вкладок можно держать открытыми (каждая — отдельный холст в памяти). */
+/** How many tabs can be kept open (each is a separate canvas in memory). */
 export const MAX_TABS = 12;
 
 type Store = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
-/** Имя нового флоу: «flow», «flow 2», … — первое, которого нет среди вкладок. */
+/** Name of a new flow: "flow", "flow 2", … — the first one not among the tabs. */
 export function nextName(tabs: Tab[]): string {
   const used = new Set(tabs.map((t) => t.name));
   if (!used.has("flow")) return "flow";
   for (let n = 2; ; n++) if (!used.has(`flow ${n}`)) return `flow ${n}`;
 }
 
-/** Добавляет вкладку и делает её активной; уже открытый флоу только активируется. */
+/** Adds a tab and makes it active; an already open flow is only activated. */
 export function openTab(state: TabsState, tab: Tab): TabsState {
   if (state.tabs.some((t) => t.id === tab.id)) return { ...state, active: tab.id };
   return { tabs: [...state.tabs, tab], active: tab.id };
 }
 
 /**
- * Закрывает вкладку. Закрытая активная — активна соседняя (правая, иначе левая). Последняя вкладка заменяется новой пустой
- * (`fresh`): редактор без открытого флоу бессмыслен.
+ * Closes a tab. When the active one is closed, the neighbouring one becomes active (the right one, otherwise the left). The last tab is replaced by a new empty one
+ * (`fresh`): an editor with no open flow makes no sense.
  */
 export function closeTab(state: TabsState, id: string, fresh: Tab): TabsState {
   const i = state.tabs.findIndex((t) => t.id === id);
@@ -64,8 +64,8 @@ function parseFlow(raw: string | null): Flow | null {
 }
 
 /**
- * Восстанавливает вкладки из хранилища. Нет сохранённых — переносит флоу старой версии (`fl0w:flow:v1`) в первую вкладку;
- * иначе одна новая пустая. Вкладки, чьё содержимое пропало, остаются (откроются пустыми).
+ * Restores tabs from storage. If none are saved, moves the old version's flow (`fl0w:flow:v1`) into the first tab;
+ * otherwise one new empty tab. Tabs whose content is gone remain (they open empty).
  */
 export function loadTabs(store: Store, fresh: () => Tab): TabsState {
   try {
@@ -78,7 +78,7 @@ export function loadTabs(store: Store, fresh: () => Tab): TabsState {
       if (tabs.length > 0) return { tabs, active: tabs.some((t) => t.id === p.active) ? (p.active as string) : tabs[0]!.id };
     }
   } catch {
-    // битые данные — начинаем заново
+    // broken data — start over
   }
   const legacy = parseFlow(store.getItem(LEGACY_FLOW_KEY));
   if (legacy) {
@@ -86,7 +86,7 @@ export function loadTabs(store: Store, fresh: () => Tab): TabsState {
       store.setItem(flowKey(legacy.id), JSON.stringify(legacy));
       store.removeItem(LEGACY_FLOW_KEY);
     } catch {
-      // квота: вкладка всё равно откроется, содержимое подтянется из старого ключа не будет
+      // quota: the tab will open anyway, the content will not be pulled in from the old key
     }
     return { tabs: [{ id: legacy.id, name: legacy.name }], active: legacy.id };
   }
@@ -98,11 +98,11 @@ export function saveTabs(store: Store, state: TabsState): void {
   try {
     store.setItem(TABS_KEY, JSON.stringify(state));
   } catch {
-    // нет хранилища — вкладки не переживут перезагрузку
+    // no storage — tabs will not survive a reload
   }
 }
 
-/** Читает автосохранённый флоу вкладки (null — нет или битый). */
+/** Reads a tab's autosaved flow (null — missing or broken). */
 export function readFlow(store: Store, id: string): Flow | null {
   try {
     return parseFlow(store.getItem(flowKey(id)));
@@ -115,7 +115,7 @@ export function writeFlow(store: Store, flow: Flow): void {
   try {
     store.setItem(flowKey(flow.id), JSON.stringify(flow));
   } catch {
-    // квота или приватный режим
+    // quota or private mode
   }
 }
 
@@ -123,13 +123,13 @@ export function removeFlow(store: Store, id: string): void {
   try {
     store.removeItem(flowKey(id));
   } catch {
-    // не критично
+    // not critical
   }
 }
 
 /**
- * Флоу остальных вкладок — кандидаты для вызова из пробного запуска (Emitter находит Collector и в несохранённых вкладках).
- * Берём автосохранённые копии; битые и пустые пропускаем.
+ * Flows of the other tabs — candidates for calls from a trial run (Emitter finds a Collector in unsaved tabs too).
+ * Autosaved copies are taken; broken and empty ones are skipped.
  */
 export function otherFlows(store: Store, tabs: Tab[], exceptId: string): Flow[] {
   const out: Flow[] = [];

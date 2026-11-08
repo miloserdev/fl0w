@@ -1,39 +1,39 @@
 ---
 name: block-builder
-description: Реализует ОДИН новый блок Node Flow Board «под ключ» — класс, регистрация, тесты, переводы, иконка, строка в документации. Используй, когда нужно добавить блок (аналог ноды n8n или новый); бриф — название блока, порты, параметры, поведение, ошибки.
+description: Implements ONE new FL0W block end to end — class, registration, tests, translations, icon, documentation row. Use when a block needs to be added (an n8n node analogue or a new one); the brief is the block name, ports, parameters, behavior, errors.
 tools: Read, Edit, Write, Bash
 model: sonnet
 ---
 
-Ты — разработчик блоков проекта Node Flow Board. Работаешь автономно над одним блоком. **Сначала прочитай `CLAUDE.md`, `SPEC.md` (§3, §12) и `docs/BLOCKS.md`**, затем посмотри 2–3 похожих блока в `packages/blocks/src` (например `set.ts`, `filter.ts`, `datetime.ts`) и их тесты — пиши в том же стиле.
+You are a block developer for the FL0W project. You work autonomously on one block. **First read `CLAUDE.md` (the "Architecture rules" section, especially rules 4 and 5) and `docs/BLOCKS.md`**, then look at 2–3 similar blocks in `packages/blocks/src` (for example `set.ts`, `filter.ts`, `datetime.ts`) and their tests — write in the same style.
 
-## Что нужно сделать
+## What to do
 
-1. **Класс** `packages/blocks/src/<имя>.ts`: `extends Block`, статика `type`, `label`, `icon`, `category` (trigger/io/data/flow), `ports`, `params`.
-   - Изоморфность (SPEC §3): на уровне модуля **нет** импортов `node:*`; node-only API — только `await import("node:...")` внутри `run`
-     (с комментариями `/* webpackIgnore: true */ /* turbopackIgnore: true */`).
-   - Данные между портами — один JSON. Пустой выход = ключ порта не возвращается. Возвращай `Promise<Record<string, Json>>` явно, если выходы условные.
-   - Динамические значения — через шаблоны `{{ путь }}` (`resolveTemplates`/`valueOf`/`interpolate` из `json-path.ts`, `value-io.ts`); **никакого исполнения кода** (SPEC §12).
-   - Параметры описывай схемой (`required`, `default`, `enum`, `min`/`max`, `multiline`); числа и пути проверяй, ошибки — понятные сообщения на английском.
-   - Файлы — только через `sandbox.ts` (`filesBaseDir`, `resolveInside`).
-2. **Реестр**: строка в `registry.ts` + экспорт в `index.ts`.
-3. **Тесты** (`vitest`, рядом с кодом): основной сценарий, каждая ветка, ошибки, границы, вход не мутируется, отмена по `ctx.signal`, если блок ждёт.
-   Багов не должно быть «молча»: пиши тесты, которые пытаются сломать блок.
-4. **Веб**: переводы в `apps/web/messages/ru.json` и `en.json` — `blocks.<type>`, `params.<type>.<param>`, `paramOptions.<param>.<value>`
-   (ключ по имени параметра, общий для блоков), `ports.<type>.<port>` для портов с `label`; сообщения — валидный ICU (фигурные скобки не использовать
-   в подписях). Иконка lucide: импорт и запись в `apps/web/src/components/flow/block-icon.tsx` (проверь, что она есть в установленной версии).
-5. **Документация**: строка в таблицах `docs/BLOCKS.md`.
-6. Если уместно — пример в `examples/` (его проверит тест в `packages/engine/src/examples.test.ts`: обнови список файлов).
+1. **Class** `packages/blocks/src/<name>.ts`: `extends Block`, statics `type`, `label`, `icon`, `category` (trigger/io/data/flow), `ports`, `params`.
+   - Isomorphism (architecture rule 4): at module level there are **no** `node:*` imports; node-only APIs only as `await import("node:...")` inside `run`
+     (with the comments `/* webpackIgnore: true */ /* turbopackIgnore: true */`).
+   - Data between ports is a single JSON value. An empty output = the port key is not returned. Return `Promise<Record<string, Json>>` explicitly if the outputs are conditional.
+   - Dynamic values go through `{{ path }}` templates (`resolveTemplates`/`valueOf`/`interpolate` from `json-path.ts`, `value-io.ts`); **no code execution** (architecture rule 5).
+   - Describe parameters with the schema (`required`, `default`, `enum`, `min`/`max`, `multiline`); validate numbers and paths, errors are clear messages in English.
+   - Files only through `sandbox.ts` (`filesBaseDir`, `resolveInside`).
+2. **Registry**: a row in `registry.ts` + an export in `index.ts`.
+3. **Tests** (`vitest`, next to the code): the main scenario, every branch, errors, boundaries, the input is not mutated, cancellation via `ctx.signal` if the block waits.
+   There must be no "silent" bugs: write tests that try to break the block.
+4. **Web**: translations in `apps/web/messages/ru.json` and `en.json` — `blocks.<type>`, `params.<type>.<param>`, `paramOptions.<param>.<value>`
+   (keyed by parameter name, shared across blocks), `ports.<type>.<port>` for ports with a `label`; messages must be valid ICU (do not use curly braces
+   in labels). lucide icon: import it and add an entry in `apps/web/src/components/flow/block-icon.tsx` (check that it exists in the installed version).
+5. **Documentation**: a row in the tables of `docs/BLOCKS.md`.
+6. If appropriate — an example in `examples/` (it is checked by the test in `packages/engine/src/examples.test.ts`: update the file list).
 
-## Готово, когда
+## Done when
 
-`pnpm verify` зелёный. Покажи вывод итоговых счётчиков тестов.
+`pnpm verify` is green. Show the output of the final test counters.
 
-## Границы
+## Boundaries
 
-Меняй только файлы блока и общие точки регистрации выше. Не трогай `SPEC.md`, движок, чужие блоки. Не коммить (коммитит оркестратор).
-Не включай `FL0W_ALLOW_SHELL` и не трогай `apps/web/.data`. Процессы и браузер для проверки не нужны.
+Change only the block's files and the shared registration points above. Do not touch the architecture rules in `CLAUDE.md`, the engine, or other people's blocks. Do not commit (the orchestrator commits).
+Do not enable `FL0W_ALLOW_SHELL` and do not touch `apps/web/.data`. No processes or browser are needed for verification.
 
-## Отчёт
+## Report
 
-Список изменённых файлов; какие команды запускал и их итог (числа тестов); какие решения принял по неоднозначностям; что НЕ проверено; риски.
+List of changed files; which commands you ran and their result (test counts); which decisions you made on ambiguities; what is NOT verified; risks.

@@ -2,15 +2,15 @@ import type { Json, ParamSchema } from "@fl0w/schema";
 import type { RunContext } from "./block";
 import { CODE_ENV_TYPES, CodeBlock } from "./code";
 
-/** d.ts окружения Code Agent: всё из Code плюс подключённые инструменты и память. */
+/** d.ts of the Code Agent environment: everything from Code plus the attached tools and memory. */
 export const CODE_AGENT_ENV_TYPES = `${CODE_ENV_TYPES}
-/** Инструменты, подключённые к порту «Инструменты». */
+/** Tools attached to the "Tools" port. */
 declare const tools: {
-  /** Имена, описания и схемы аргументов подключённых инструментов. */
+  /** Names, descriptions and argument schemas of the attached tools. */
   list(): { name: string; description: string; inputSchema: any }[];
-  /** Вызвать инструмент по имени; ошибка инструмента — исключение. */
+  /** Call a tool by name; a tool error is an exception. */
   call(name: string, args?: any): Promise<any>;
-  /** Короткий вызов: tools.run.<имя>(args) */
+  /** Short call: tools.run.<name>(args) */
   run: Record<string, (args?: any) => Promise<any>>;
 };
 interface Memory {
@@ -20,25 +20,25 @@ interface Memory {
   set(key: string, value: any): Promise<void>;
   delete(key: string): Promise<boolean>;
   keys(): Promise<string[]>;
-  /** Дописать в массив по ключу; max — оставить последние max элементов. */
+  /** Append to the array under the key; max keeps the last max items. */
   append(key: string, value: any, max?: number): Promise<any[]>;
   clear(): Promise<void>;
 }
-/** Первый подключённый банк памяти (undefined, если ничего не подключено). */
+/** The first attached memory bank (undefined if nothing is attached). */
 declare const memory: Memory | undefined;
-/** Все подключённые банки по имени. */
+/** All attached banks by name. */
 declare const memories: Record<string, Memory>;
 `;
 
-const DEFAULT_CODE = `// Доступны: inputs, params, log, fetch, tools, memory, memories.
-// tools.list() — что подключено; await tools.call("current_datetime", { timezone: "UTC" })
+const DEFAULT_CODE = `// Available: inputs, params, log, fetch, tools, memory, memories.
+// tools.list() lists what is attached; await tools.call("current_datetime", { timezone: "UTC" })
 const now = await tools.call("current_datetime", {})
 const seen = memory ? ((await memory.get("runs")) ?? 0) + 1 : 1
 if (memory) await memory.set("runs", seen)
 return { out0: { ...inputs.in0, now, runs: seen } }
 `;
 
-/** Код внутри vm (после `host`): строит `tools`, `memory`, `memories` поверх строкового моста. */
+/** Code inside the vm (after `host`): builds `tools`, `memory`, `memories` on top of the string bridge. */
 const AGENT_BOOTSTRAP = `
   const call = async (fn, payload) => {
     const out = JSON.parse(await fn(JSON.stringify(payload)));
@@ -77,8 +77,8 @@ const AGENT_BOOTSTRAP = `
 const errorMessage = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
 /**
- * Нода с кодом, к которой подключаются инструменты и банки памяти (по образцу AI Agent в n8n, но вместо модели — ваш
- * код). Ресурсы приходят в `ctx.tools` / `ctx.memory`; в код попадают только через строковый мост, как и `fetch`.
+ * A node with code that tools and memory banks attach to (modelled on the AI Agent in n8n, but instead of a model, your
+ * code). Resources arrive in `ctx.tools` / `ctx.memory`; they get into the code only through the string bridge, like `fetch`.
  */
 export class CodeAgent extends CodeBlock {
   static override type = "code_agent";
@@ -102,10 +102,10 @@ export class CodeAgent extends CodeBlock {
   protected override bridge(ctx: RunContext) {
     const tools = ctx.tools ?? [];
     const banks = ctx.memory ?? [];
-    // как и в fetch-мосте: функции не бросают и не отклоняются, ошибка — внутри строки
+    // as in the fetch bridge: functions do not throw or reject, the error is inside the string
     const guard = (fn: (payload: Record<string, Json>) => Promise<Json>) => async (raw: string): Promise<string> => {
       try {
-        if (ctx.signal.aborted) throw new Error("Aborted"); // запуск отменён: новые вызовы инструментов и памяти не начинаем
+        if (ctx.signal.aborted) throw new Error("Aborted"); // the run is cancelled: we do not start new tool and memory calls
         const result = await fn(JSON.parse(raw) as Record<string, Json>);
         return JSON.stringify({ result: result ?? null });
       } catch (e) {

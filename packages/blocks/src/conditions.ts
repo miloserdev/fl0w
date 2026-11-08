@@ -14,7 +14,7 @@ export const CONDITION_OPERATORS = [
 ] as const;
 export type ConditionOperator = (typeof CONDITION_OPERATORS)[number];
 
-/** Общие параметры условия для Branch и режима filter у Transform. */
+/** Common condition parameters for Branch and the filter mode of Transform. */
 export function conditionParams(): ParamSchema[] {
   return [
     { name: "field", type: "string", default: "" },
@@ -31,10 +31,10 @@ export function conditionParams(): ParamSchema[] {
 function compare(a: Json | undefined, b: Json | undefined): number | null {
   if (typeof a === "number" && typeof b === "number") return a - b;
   if (typeof a === "string" && typeof b === "string") return a < b ? -1 : a > b ? 1 : 0;
-  return null; // разные типы — не сравниваем
+  return null; // different types: not compared
 }
 
-/** Декларативная проверка условия: пользовательский код тут не исполняется (SPEC §12). */
+/** Declarative condition check: user code is not executed here. */
 export function evalCondition(
   actual: Json | undefined,
   operator: string,

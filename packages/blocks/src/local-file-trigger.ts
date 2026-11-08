@@ -3,9 +3,9 @@ import { Block, triggerPayload, type FileWatchSpec, type RunContext } from "./bl
 import { assertRelativePath } from "./sandbox";
 
 /**
- * Local File Trigger: срабатывает при добавлении, изменении или удалении файла в каталоге файлов
- * (`FL0W_FILES_DIR`) — за указанным файлом или в указанной папке. Работает у опубликованного флоу.
- * Выход: { event, path, name, size, modifiedAt } (для удалённого файла — без size и modifiedAt).
+ * Local File Trigger: fires when a file is added, changed or deleted in the files directory
+ * (`FL0W_FILES_DIR`), for the given file or in the given folder. Works for a published flow.
+ * Output: { event, path, name, size, modifiedAt } (for a deleted file, without size and modifiedAt).
  */
 export class LocalFileTrigger extends Block {
   static type = "local_file_trigger";
@@ -17,7 +17,7 @@ export class LocalFileTrigger extends Block {
   static eventDriven = true;
   static ports = { inputs: [], outputs: [{ id: "out0" }] };
   static params: ParamSchema[] = [
-    // файл или папка относительно каталога файлов; пусто — сам каталог
+    // file or folder relative to the files directory; empty means the directory itself
     { name: "path", type: "string", default: "" },
     {
       name: "event",
@@ -25,7 +25,7 @@ export class LocalFileTrigger extends Block {
       default: "any",
       options: [{ value: "any" }, { value: "add" }, { value: "change" }, { value: "unlink" }],
     },
-    // маска имени файла: * и ?
+    // file name mask: * and ?
     { name: "pattern", type: "string", default: "*" },
     { name: "recursive", type: "boolean", default: false },
   ];

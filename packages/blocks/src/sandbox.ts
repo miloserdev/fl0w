@@ -1,11 +1,11 @@
 /**
- * Доступ к файлам только внутри одного каталога (`FL0W_FILES_DIR`). Node-only: модули подключаются
- * динамически внутри функций (SPEC §3). Защита от выхода: абсолютные пути, `..`, NUL-байты и
- * символические ссылки, ведущие наружу.
+ * File access only inside one directory (`FL0W_FILES_DIR`). Node-only: modules are loaded
+ * dynamically inside functions. Protection against escaping: absolute paths, `..`, NUL bytes and
+ * symbolic links leading outside.
  */
 export const FILES_DIR_ENV = "FL0W_FILES_DIR";
 
-/** Каталог файлов (создаётся при необходимости), с раскрытыми симлинками. */
+/** The files directory (created if needed), with symlinks resolved. */
 export async function filesBaseDir(): Promise<string> {
   const fs = await import(/* webpackIgnore: true */ /* turbopackIgnore: true */ "node:fs/promises");
   const dir = process.env[FILES_DIR_ENV];
@@ -14,7 +14,7 @@ export async function filesBaseDir(): Promise<string> {
   return fs.realpath(dir);
 }
 
-/** Проверка относительного пути без обращения к диску (годится и для проверки параметров). */
+/** Check of a relative path without touching the disk (also suitable for validating parameters). */
 export function assertRelativePath(rel: string): void {
   if (rel.includes("\0")) throw new Error("Path contains a NUL byte");
   if (rel.startsWith("/") || /^[A-Za-z]:[\\/]/.test(rel) || rel.startsWith("\\")) {
@@ -24,9 +24,9 @@ export function assertRelativePath(rel: string): void {
 }
 
 /**
- * Абсолютный путь к `rel` строго внутри `base` (`base` — результат `filesBaseDir`).
- * Для несуществующих файлов проверяется ближайший существующий предок: символическая ссылка,
- * ведущая за пределы каталога, отвергается.
+ * Absolute path to `rel` strictly inside `base` (`base` is the result of `filesBaseDir`).
+ * For files that do not exist, the nearest existing ancestor is checked: a symbolic link
+ * leading outside the directory is rejected.
  */
 export async function resolveInside(base: string, rel: string): Promise<string> {
   const fs = await import(/* webpackIgnore: true */ /* turbopackIgnore: true */ "node:fs/promises");

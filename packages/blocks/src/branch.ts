@@ -3,7 +3,7 @@ import { Block } from "./block";
 import { conditionParams, evalCondition } from "./conditions";
 import { getPath } from "./json-path";
 
-/** Один вход → два выхода: `true` получает данные, если условие выполнено, иначе `false`. */
+/** One input -> two outputs: `true` receives the data if the condition holds, otherwise `false`. */
 export class Branch extends Block {
   static type = "branch";
   static label = "Branch";
@@ -25,7 +25,7 @@ export class Branch extends Block {
       String(params["operator"] ?? "truthy"),
       params["value"],
     );
-    // непройденная ветка остаётся без ключа — по ней данные не идут (SPEC §5.5)
+    // the branch not taken stays without a key: no data goes along it
     return passed ? { out0: data } : { out1: data };
   }
 }

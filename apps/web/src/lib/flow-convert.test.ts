@@ -3,7 +3,7 @@ import { collectSeeds, edgeClassFor, flowFingerprint, fromReactFlow, nodePortKin
 import type { Flow } from "@fl0w/schema";
 
 describe("splitPorts", () => {
-  it("делит порты на данные и ресурсные", () => {
+  it("splits ports into data and resource ones", () => {
     const r = splitPorts({
       inputs: [{ id: "in0" }, { id: "tools", kind: "tool", multiple: true }, { id: "memory", kind: "memory" }],
       outputs: [{ id: "out0", kind: "data" }, { id: "tool", kind: "tool" }],
@@ -16,13 +16,13 @@ describe("splitPorts", () => {
 });
 
 describe("nodePortKind / edgeClassFor", () => {
-  it("определяет вид порта у реального блока", () => {
+  it("determines the port kind of a real block", () => {
     expect(nodePortKind("code_agent", null, "inputs", "tools")).toBe("tool");
     expect(nodePortKind("code_agent", null, "inputs", "in0")).toBe("data");
     expect(nodePortKind("code_agent", null, "inputs", "nope")).toBeNull();
     expect(nodePortKind("no_such_block", null, "inputs", "in0")).toBeNull();
   });
-  it("пунктир только у ресурсных", () => {
+  it("dashed only for resource ones", () => {
     expect(edgeClassFor("data")).toBeUndefined();
     expect(edgeClassFor(null)).toBeUndefined();
     expect(edgeClassFor("memory")).toContain("fl-edge-resource");
@@ -30,7 +30,7 @@ describe("nodePortKind / edgeClassFor", () => {
 });
 
 describe("toReactFlow", () => {
-  it("проставляет className ресурсным рёбрам", () => {
+  it("sets className on resource edges", () => {
     const node = (id: string, type: string) => ({ id, type, position: { x: 0, y: 0 }, params: {}, portsOverride: null, cssOverride: null });
     const flow = {
       version: 1,
@@ -50,8 +50,8 @@ describe("toReactFlow", () => {
   });
 });
 
-describe("pin data и перезапуск", () => {
-  it("pinData проходит через Flow ↔ React Flow без потерь; без закрепления поле не пишется", () => {
+describe("pin data and restart", () => {
+  it("pinData passes through Flow ↔ React Flow without loss; without pinning the field is not written", () => {
     const flow = {
       version: 1 as const,
       id: "f",
@@ -69,7 +69,7 @@ describe("pin data и перезапуск", () => {
     expect(back.nodes[1]).not.toHaveProperty("pinData");
   });
 
-  it("disabled проходит через Flow ↔ React Flow; без отключения поле не пишется; меняет отпечаток", () => {
+  it("disabled passes through Flow ↔ React Flow; without disabling the field is not written; changes the fingerprint", () => {
     const mk = (disabled?: boolean) => ({
       version: 1 as const,
       id: "f",
@@ -88,20 +88,20 @@ describe("pin data и перезапуск", () => {
     expect(flowFingerprint(mk(true))).not.toBe(flowFingerprint(mk()));
   });
 
-  it("закрепление не делает опубликованный флоу «изменённым»", () => {
+  it("pinning does not make a published flow \"changed\"", () => {
     const base = { version: 1 as const, id: "f", name: "n", edges: [] };
     const node = { id: "a", type: "source", position: { x: 0, y: 0 }, params: {}, portsOverride: null, cssOverride: null };
     expect(flowFingerprint({ ...base, nodes: [node] })).toBe(flowFingerprint({ ...base, nodes: [{ ...node, pinData: { out0: 1 } }] }));
   });
 
-  it("collectSeeds берёт только выходы; parsePin требует объект", () => {
+  it("collectSeeds takes only outputs; parsePin requires an object", () => {
     expect(collectSeeds({ a: { output: { out0: 1 } }, b: {}, c: { output: {} } })).toEqual({ a: { out0: 1 }, c: {} });
     expect(parsePin('{"out0": {"a": 1}}')).toEqual({ ok: true, value: { out0: { a: 1 } } });
     for (const bad of ["[1]", "5", "null", "{oops", ""]) expect(parsePin(bad).ok, bad).toBe(false);
   });
 });
 
-describe("блоки оформления", () => {
+describe("decoration blocks", () => {
   const mk = (type: string, params: Record<string, number | string | boolean>) => ({
     version: 1 as const,
     id: "f",
@@ -110,16 +110,16 @@ describe("блоки оформления", () => {
     edges: [],
   });
 
-  it("размер из params попадает в ноду и возвращается обратно после растяжения", () => {
+  it("size from params goes into the node and returns back after stretching", () => {
     const rf = toReactFlow(mk("note", { text: "hi", color: "pink", width: 300, height: 100 }));
     const node = rf.nodes[0]!;
     expect(node.type).toBe("layout-note");
     expect([node.width, node.height]).toEqual([300, 100]);
-    // пользователь растянул ноду
+    // the user stretched the node
     const back = fromReactFlow([{ ...node, width: 410.4, height: 222 }], [], { id: "f", name: "f" });
     expect(back.nodes[0]!.params).toEqual({ text: "hi", color: "pink", width: 410, height: 222 });
   });
-  it("группа и заметка получают отрицательный zIndex (под блоками) и свой тип; у блока размера в params не появляется", () => {
+  it("group and note get a negative zIndex (under the blocks) and their own type; a block gets no size in params", () => {
     expect(toReactFlow(mk("group", { title: "A" })).nodes[0]).toMatchObject({ type: "layout-group", zIndex: -2, width: 420, height: 260 });
     expect(toReactFlow(mk("group", { locked: true })).nodes[0]!.draggable).toBe(false);
     expect(toReactFlow(mk("group", {})).nodes[0]!.draggable).toBeUndefined();
@@ -130,8 +130,8 @@ describe("блоки оформления", () => {
   });
 });
 
-describe("отпечаток флоу и оформление", () => {
-  it("правка заметки или группы не меняет отпечаток, правка блока — меняет", () => {
+describe("flow fingerprint and decoration", () => {
+  it("editing a note or group does not change the fingerprint, editing a block does", () => {
     const base = { version: 1 as const, id: "f", name: "n", edges: [] };
     const block = { id: "a", type: "source", position: { x: 0, y: 0 }, params: {}, portsOverride: null, cssOverride: null };
     const note = { id: "n1", type: "note", position: { x: 0, y: 0 }, params: { text: "a", width: 220, height: 140 }, portsOverride: null, cssOverride: null };
@@ -142,11 +142,11 @@ describe("отпечаток флоу и оформление", () => {
   });
 });
 
-describe("порты, зависящие от параметров (outgoing call)", () => {
-  it("порт err есть только в режиме await; вид порта и класс ребра учитывают параметры", async () => {
+describe("ports depending on parameters (outgoing call)", () => {
+  it("the err port exists only in await mode; port kind and edge class take parameters into account", async () => {
     const { getPorts, nodePortKind } = await import("./flow-convert");
     const ids = (params: Record<string, unknown>) => getPorts("run_flow", null, params as never).outputs.map((p) => p.id);
-    expect(ids({})).toEqual(["out0", "err"]); // по умолчанию await
+    expect(ids({})).toEqual(["out0", "err"]); // await by default
     expect(ids({ mode: "await" })).toEqual(["out0", "err"]);
     expect(ids({ mode: "shoot" })).toEqual(["out0"]);
     expect(nodePortKind("run_flow", null, "outputs", "err", { mode: "await" })).toBe("data");
@@ -154,7 +154,7 @@ describe("порты, зависящие от параметров (outgoing cal
   });
 });
 
-describe("sameStructure (перетаскивание не должно запускать валидацию заново)", () => {
+describe("sameStructure (dragging must not trigger validation again)", () => {
   const flow: Flow = {
     version: 1,
     id: "f",
@@ -167,13 +167,13 @@ describe("sameStructure (перетаскивание не должно запу
   };
   const rf = () => toReactFlow(flow);
 
-  it("смена положения, выделения и размера — та же структура", () => {
+  it("change of position, selection and size — the same structure", () => {
     const a = rf();
     const moved = { nodes: a.nodes.map((n) => ({ ...n, position: { x: 99, y: 99 }, selected: true, width: 5 })), edges: a.edges.map((e) => ({ ...e })) };
     expect(sameStructure(a, moved)).toBe(true);
   });
 
-  it("правка параметров, добавление ноды и смена подключения — другая структура", () => {
+  it("editing params, adding a node and changing a connection — a different structure", () => {
     const a = rf();
     expect(sameStructure(a, { nodes: a.nodes.map((n, i) => (i === 0 ? { ...n, data: { ...n.data, params: { json: { x: 1 } } } } : n)), edges: a.edges })).toBe(false);
     expect(sameStructure(a, { nodes: a.nodes.slice(0, 1), edges: a.edges })).toBe(false);

@@ -3,24 +3,24 @@ import { Block, type RunContext } from "./block";
 import { conditionParams, evalCondition } from "./conditions";
 import { getPath } from "./json-path";
 
-/** Сколько итераций допускается за один запуск цикла (защита от бесконечного `while`). */
+/** How many iterations are allowed per loop run (protection against an infinite `while`). */
 export const DEFAULT_LOOP_ITERATIONS = 1000;
 export const MAX_LOOP_ITERATIONS = 10_000;
 
 const BODY = "body";
 
 /**
- * Loop: настоящий цикл. Нода от порта `body` — тело цикла: движок исполняет его по разу на каждую итерацию (данные итерации
- * выходят из `body`), а по окончании цикла из `out0` («готово») выходит массив результатов — по значению Result тела на итерацию
- * (`null`, если Result в теле нет). Результаты Result внутри тела принадлежат итерации и в результат всего запуска не попадают.
+ * Loop: a real loop. The node from the `body` port is the loop body: the engine runs it once per iteration (the iteration data
+ * comes out of `body`), and when the loop ends, an array of results comes out of `out0` ("done"): the body's Result value per iteration
+ * (`null` if the body has no Result). Result nodes inside the body belong to the iteration and do not go into the result of the whole run.
  *
- * Режимы:
- *  - `items` — по элементам массива (`path` во входе, пусто — весь вход): `{ item, index, total }`;
- *  - `count` — `for`: `i` от `from` пока `i < to` (при отрицательном `step` — пока `i > to`) с шагом `step`: `{ item: i, index, total }`;
- *  - `while` — пока условие над результатом ПРЕДЫДУЩЕЙ итерации (для первой — над входом) истинно: `{ item: last, index }`;
- *  - `forever` — `while true`: до блока Break в теле (или до лимита итераций — это ошибка).
- * `maxIterations` ограничивает любой режим (по умолчанию 1000, не больше 10 000). `onError`: `stop` — ошибка итерации роняет цикл,
- * `continue` — итерация пропускается (результата нет), ошибки уходят в порт `err` (виден только в этом режиме; выходит, только если ошибки были).
+ * Modes:
+ *  - `items`: over array elements (`path` in the input, empty means the whole input): `{ item, index, total }`;
+ *  - `count`: `for`: `i` from `from` while `i < to` (with a negative `step`, while `i > to`) with step `step`: `{ item: i, index, total }`;
+ *  - `while`: while the condition over the PREVIOUS iteration's result (for the first, over the input) is true: `{ item: last, index }`;
+ *  - `forever`: `while true`: until the Break block in the body (or the iteration limit, which is an error).
+ * `maxIterations` bounds any mode (1000 by default, at most 10,000). `onError`: `stop`: an iteration error fails the loop,
+ * `continue`: the iteration is skipped (no result), errors go to the `err` port (visible only in this mode; it emits only if there were errors).
  */
 export class Loop extends Block {
   static type = "loop";
@@ -32,7 +32,7 @@ export class Loop extends Block {
     inputs: [{ id: "in0" }],
     outputs: [{ id: "out0", label: "done" }, { id: BODY, label: "each" }],
   };
-  /** При `onError: continue` появляется порт `err` — ошибки упавших итераций (`[{ index, item, error }]`), чтобы они не терялись. */
+  /** With `onError: continue` an `err` port appears: errors of failed iterations (`[{ index, item, error }]`) so they are not lost. */
   static override portsFor(params: Record<string, Json>): PortsDef | null {
     return params["onError"] === "continue"
       ? { inputs: [{ id: "in0" }], outputs: [{ id: "out0", label: "done" }, { id: BODY, label: "each" }, { id: "err", label: "errors" }] }
@@ -56,7 +56,7 @@ export class Loop extends Block {
     const max = Math.min(Math.max(Math.trunc(Number(params["maxIterations"] ?? DEFAULT_LOOP_ITERATIONS)) || DEFAULT_LOOP_ITERATIONS, 1), MAX_LOOP_ITERATIONS);
     const keep = params["onError"] === "continue";
 
-    // источник итераций: функция «следующее значение или конец» и общее число (если известно)
+    // source of iterations: a "next value or end" function and the total count (if known)
     let total: number | null = null;
     let nextItem: (index: number, last: Json) => { item: Json } | null;
     if (mode === "items") {
@@ -106,7 +106,7 @@ export class Loop extends Block {
   }
 }
 
-/** Break: внутри тела цикла останавливает ближайший цикл после текущей итерации; данные проходят дальше. */
+/** Break: inside a loop body stops the nearest loop after the current iteration; data passes on. */
 export class LoopBreak extends Block {
   static type = "loop_break";
   static label = "Break";

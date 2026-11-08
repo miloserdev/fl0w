@@ -1,27 +1,27 @@
 import type { Flow } from "@fl0w/schema";
 
-/** Типы блоков вызова: исходящий — Emitter (`run_flow`), входящий — Collector (`call_trigger`). */
+/** Call block types: outgoing is Emitter (`run_flow`), incoming is Collector (`call_trigger`). */
 export const CALL_OUT = "run_flow";
 export const CALL_IN = "call_trigger";
 
 export type CallEnd = { nodeId: string; channelId: string };
 
-/** Каналы флоу: что на нём висит входящими и исходящими телефонами (канал — параметр `channelId`, пробелы по краям не значимы). */
+/** Flow channels: what hangs on each as incoming and outgoing phones (the channel is the `channelId` parameter, surrounding whitespace is not significant). */
 export function channelsOf(flow: Pick<Flow, "nodes">): { incoming: CallEnd[]; outgoing: CallEnd[] } {
   const incoming: CallEnd[] = [];
   const outgoing: CallEnd[] = [];
   for (const n of flow.nodes) {
-    if (n.disabled || (n.type !== CALL_IN && n.type !== CALL_OUT)) continue; // отключённые вызовы к каналам не относятся
+    if (n.disabled || (n.type !== CALL_IN && n.type !== CALL_OUT)) continue; // disabled calls do not belong to channels
     const channelId = typeof n.params["channelId"] === "string" ? n.params["channelId"].trim() : "";
-    if (channelId === "") continue; // пустой канал — ошибка параметра, её даёт обычная проверка
+    if (channelId === "") continue; // an empty channel is a parameter error, reported by the regular validation
     (n.type === CALL_IN ? incoming : outgoing).push({ nodeId: n.id, channelId });
   }
   return { incoming, outgoing };
 }
 
 /**
- * Флоу и триггер, на которые ведёт канал: ровно один incoming call среди `flows`. Нет ни одного или больше одного — бросает
- * с понятной причиной (связь строго 1:1).
+ * The flow and trigger a channel leads to: exactly one incoming call among `flows`. If there is none or more than one, throws
+ * with a clear reason (strictly 1:1).
  */
 export function findIncoming(flows: Flow[], channelId: string): { flow: Flow; triggerId: string } {
   const found: { flow: Flow; triggerId: string }[] = [];
@@ -38,8 +38,8 @@ export function findIncoming(flows: Flow[], channelId: string): { flow: Flow; tr
 export type CallIssue = { code: "call_channel"; message: string; nodeId?: string; channelId: string };
 
 /**
- * Связь 1:1: на канале не более одного входящего и не более одного исходящего телефона — внутри флоу и среди остальных флоу
- * (`others`). Отсутствие пары не ошибка: вызывающий может быть создан раньше вызываемого.
+ * 1:1 link: a channel has at most one incoming and at most one outgoing phone, both inside the flow and among the other flows
+ * (`others`). A missing pair is not an error: the caller may be created before the callee.
  */
 export function validateCallChannels(flow: Pick<Flow, "id" | "nodes">, others: Pick<Flow, "id" | "nodes">[] = []): CallIssue[] {
   const issues: CallIssue[] = [];
@@ -64,8 +64,8 @@ export function validateCallChannels(flow: Pick<Flow, "id" | "nodes">, others: P
 }
 
 /**
- * Графы флоу — компоненты связности (по всем рёбрам, включая ресурсные): блоки на одном холсте, соединённые между собой.
- * Возвращает номер компоненты для каждой ноды.
+ * Flow graphs are connected components (over all edges, including resource ones): blocks on one canvas that are linked together.
+ * Returns the component number for each node.
  */
 export function graphsOf(flow: Pick<Flow, "nodes" | "edges">): Map<string, number> {
   const parent = new Map(flow.nodes.map((n) => [n.id, n.id]));
@@ -93,9 +93,9 @@ export function graphsOf(flow: Pick<Flow, "nodes" | "edges">): Map<string, numbe
 export type CallGraphIssue = { code: "call_same_graph"; message: string; nodeId?: string };
 
 /**
- * Вызовы не должны порождать рекурсию: в одном графе (связанных блоках) не может быть и исходящего вызова (Emitter), и
- * входящего (Collector). Поэтому вызванный граф сам никого не вызывает — цепочек и циклов вызовов не бывает. Для повторения —
- * блок Loop (цикл с телом в том же графе, к вызовам отношения не имеет).
+ * Calls must not cause recursion: one graph (linked blocks) cannot contain both an outgoing call (Emitter) and an
+ * incoming one (Collector). So a called graph never calls anyone itself, and there are no call chains or cycles. For repetition use the
+ * Loop block (a loop with its body in the same graph, unrelated to calls).
  */
 export function validateCallGraph(flow: Pick<Flow, "id" | "nodes" | "edges">): CallGraphIssue[] {
   const issues: CallGraphIssue[] = [];

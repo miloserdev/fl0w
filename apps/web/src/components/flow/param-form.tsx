@@ -45,7 +45,7 @@ function JsonField({
   id: string;
   value: Json | undefined;
   onValid: (v: Json) => void;
-  /** отдаёт форме функцию вставки шаблона в позицию курсора (кнопка `{ }` в шапке поля) */
+  /** hands the form a function that inserts a template at the cursor position (the `{ }` button in the field header) */
   register: (insert: () => void) => void;
   plain?: boolean;
 }) {
@@ -56,7 +56,7 @@ function JsonField({
   const change = (next: string) => {
     setText(next);
     try {
-      // строки с `{{ … }}` внутри JSON — обычные строки, разбор их не затрагивает
+      // strings with `{{ … }}` inside JSON are ordinary strings, parsing does not affect them
       onValid(JSON.parse(next) as Json);
       setInvalid(false);
     } catch {
@@ -86,20 +86,20 @@ function focusCaret(id: string, caret: number) {
   }, 0);
 }
 
-/** Авто-UI настроек блока из `class.params`. */
-/** Типы, у которых виджет не принимает текст: для выражения нужен переключатель в текстовый режим. */
+/** Auto-UI of block settings from `class.params`. */
+/** Types whose widget does not accept text: an expression needs a switch to text mode. */
 const TOGGLEABLE = ["number", "boolean", "enum", "multienum"];
 
 export function ParamForm({ blockType, schema, values, onChange }: Props) {
   const t = useTranslations();
-  // режим «выражение» держится, пока поле редактируют: иначе виджет сменился бы обратно, как только в тексте
-  // не осталось `{{ }}` (например, при стирании)
+  // "expression" mode holds while the field is being edited: otherwise the widget would switch back as soon as the text
+  // has no `{{ }}` left (for example, when erasing)
   const [exprMode, setExprMode] = useState<Record<string, boolean>>({});
-  // вставка шаблона для JSON-полей (у них текст хранится внутри JsonField)
+  // template insertion for JSON fields (their text is stored inside JsonField)
   const jsonInsert = useRef<Record<string, () => void>>({});
 
-  // параметры с editor: "code" правятся во вкладке кода, а не в форме
-  // блоки оформления (заметки, группы) не вычисляют выражений
+  // params with editor: "code" are edited in the code tab, not in the form
+  // decoration blocks (notes, groups) do not evaluate expressions
   const plainOnly = registry[blockType]?.layout === true;
   const resolved = resolveParams(schema, values);
   const fields = schema.filter((p) => p.editor !== "code" && isParamVisible(p, resolved));
@@ -160,7 +160,7 @@ export function ParamForm({ blockType, schema, values, onChange }: Props) {
                   className="size-6"
                   title={t("inspector.insertExpression")}
                   aria-label={t("inspector.insertExpression")}
-                  // вставка шаблона из входа в позицию курсора: можно смешивать с обычным текстом
+                  // inserting a template from the input at the cursor position: can be mixed with plain text
                   onClick={() => {
                     if (p.type === "json") return jsonInsert.current[p.name]?.();
                     const text = typeof value === "string" ? value : "";
@@ -184,7 +184,7 @@ export function ParamForm({ blockType, schema, values, onChange }: Props) {
                   aria-label={expr ? t("inspector.fixedToggle") : t("inspector.expressionToggle")}
                   onClick={() => {
                     setExprMode((m) => ({ ...m, [p.name]: !expr }));
-                    // в выражение — заготовка; обратно — значение по умолчанию (а не текст выражения в числовое поле)
+                    // into an expression — a stub; back — the default value (not the expression text in a number field)
                     set(p.name, expr ? p.default : "{{ inputs.in0. }}");
                   }}
                 >

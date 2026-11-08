@@ -1,15 +1,15 @@
 import type { Json, ParamSchema } from "@fl0w/schema";
 import { Block, type RunContext } from "./block";
 
-/** d.ts окружения Code-блока: Monaco подсказывает по нему `inputs`/`params`/`log`/`fetch`. */
+/** d.ts of the Code block environment: Monaco offers hints from it for `inputs`/`params`/`log`/`fetch`. */
 export const CODE_ENV_TYPES = `
-/** Данные на входных портах: { in0: ..., in1: ... } */
+/** Data on the input ports: { in0: ..., in1: ... } */
 declare const inputs: Record<string, any>;
-/** Параметры ноды (кроме самого кода). */
+/** Node parameters (except the code itself). */
 declare const params: Record<string, any>;
-/** Запись в лог запуска. */
+/** An entry in the run log. */
 declare function log(...args: any[]): void;
-/** Сеть. Поддерживается подмножество fetch: text() / json() / ok / status / headers.get(). */
+/** Network. A subset of fetch is supported: text() / json() / ok / status / headers.get(). */
 declare function fetch(
   url: string,
   init?: { method?: string; headers?: Record<string, string>; body?: string },
@@ -24,20 +24,20 @@ declare function fetch(
 }>;
 `;
 
-const DEFAULT_CODE = `// Тело функции. Доступны: inputs, params, log, fetch.
-// Верните объект { out0: <json> } — ключи это id выходных портов.
+const DEFAULT_CODE = `// Function body. Available: inputs, params, log, fetch.
+// Return an object { out0: <json> }: the keys are output port ids.
 return { out0: inputs.in0 ?? null }
 `;
 
 /**
- * Bootstrap выполняется ВНУТРИ vm-контекста. Через границу контекста ходят только строки:
- * иначе объекты хост-реалма (`fetch.constructor.constructor("return process")()`) дали бы выход наружу.
- * Поэтому данные парсятся здесь, а fetch — обёртка над строковым мостом `host.fetch`.
+ * Bootstrap runs INSIDE the vm context. Only strings cross the context boundary:
+ * otherwise host-realm objects (`fetch.constructor.constructor("return process")()`) would give a way out.
+ * So data is parsed here, and fetch is a wrapper over the string bridge `host.fetch`.
  */
 const makeBootstrap = (extra: string) => `(() => {
   const host = __host;
   delete globalThis.__host;
-  // встроенный console контекста — не часть env; пользователю дан log
+  // the context's built-in console is not part of env; the user is given log
   delete globalThis.console;
 
   globalThis.inputs = JSON.parse(host.inputs);
@@ -84,15 +84,15 @@ const makeBootstrap = (extra: string) => `(() => {
 })()`;
 
 const errorMessage = (e: unknown): string =>
-  // ошибки из vm-контекста — другой реалм, instanceof Error для них false
+  // errors from the vm context belong to another realm, instanceof Error is false for them
   e !== null && typeof e === "object" && "message" in e ? String((e as { message: unknown }).message) : String(e);
 
 /**
- * Единственный блок, исполняющий код из флоу (SPEC §5a, §12): `node:vm`, окружение — только
- * явно положенное в контекст, таймаут и отмена по `ctx.signal`.
+ * The only block that executes code from a flow (architecture rule 5): `node:vm`, the environment is only
+ * what is explicitly put into the context, with a timeout and cancellation via `ctx.signal`.
  *
- * Ограничения `vm`: синхронный цикл обрывается по таймауту; цикл ПОСЛЕ `await` — нет
- * (продолжение идёт вне `timeout`), его останавливает отмена/kill процесса-раннера.
+ * `vm` limitations: a synchronous loop is interrupted by the timeout; a loop AFTER `await` is not
+ * (the continuation runs outside `timeout`), it is stopped by cancellation/kill of the runner process.
  */
 export class CodeBlock extends Block {
   static type = "code";
@@ -107,25 +107,25 @@ export class CodeBlock extends Block {
   static codeTypes = CODE_ENV_TYPES;
 
   /**
-   * Расширение окружения кода для наследников (Code Agent): строковые функции моста `host` и код инициализации внутри
-   * vm-контекста (имеет доступ к `host`, объявленному выше). Через границу контекста ходят только строки.
+   * Extension of the code environment for subclasses (Code Agent): string functions of the `host` bridge and init code inside
+   * the vm context (it has access to `host` declared above). Only strings cross the context boundary.
    */
   protected bridge(_ctx: RunContext): { host: Record<string, unknown>; bootstrap: string } {
     return { host: {}, bootstrap: "" };
   }
 
   async run(inputs: Record<string, Json>, params: Record<string, Json>, ctx: RunContext) {
-    // node-only API — только внутри тела run (SPEC §3, изоморфность модуля)
+    // node-only API: only inside the body of run
     const vm = await import(/* webpackIgnore: true */ /* turbopackIgnore: true */ "node:vm");
 
     const code = String(params["code"] ?? "");
     const timeoutMs = Number(params["timeoutMs"] ?? 10000);
     const { code: _code, ...userParams } = params;
 
-    // сетевые запросы кода гасятся вместе с таймаутом/отменой блока
+    // the code's network requests are aborted together with the block's timeout/cancellation
     const net = new AbortController();
     const hostFetch = async (reqJson: string): Promise<string> => {
-      // не бросает и не отклоняется: хост-ошибка внутри контекста тоже дала бы выход через constructor
+      // does not throw or reject: a host error inside the context would also give a way out via constructor
       try {
         const req = JSON.parse(reqJson) as {
           url: string;
@@ -155,7 +155,7 @@ export class CodeBlock extends Block {
       }
     };
 
-    // env: единственное, что видит код. require / fs / process сюда НЕ попадают.
+    // env: the only thing the code sees. require / fs / process do NOT get here.
     const extra = this.bridge(ctx);
     const host = {
       inputs: JSON.stringify(inputs),
@@ -165,12 +165,12 @@ export class CodeBlock extends Block {
       ...extra.host,
     };
 
-    // Прототип sandbox обязан быть null: иначе `globalThis.constructor` — это Object ХОСТА,
-    // и `globalThis.constructor.constructor("return process")()` выдаёт process (классический escape).
+    // The sandbox prototype must be null: otherwise `globalThis.constructor` is the HOST's Object,
+    // and `globalThis.constructor.constructor("return process")()` yields process (the classic escape).
     const sandbox = Object.assign(Object.create(null) as Record<string, unknown>, { __host: host });
     const context = vm.createContext(sandbox);
     const serialize = vm.runInContext(makeBootstrap(extra.bootstrap), context, { filename: "code-bootstrap.js" }) as (r: unknown) => string;
-    // тело пользователя начинается на первой строке — номера строк в ошибках совпадают с редактором
+    // the user's body starts on the first line, so line numbers in errors match the editor
     const script = new vm.Script(`(async function () {${code}\n})()`, { filename: "code-block.js" });
 
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -184,13 +184,13 @@ export class CodeBlock extends Block {
 
         let running: Promise<unknown>;
         try {
-          // timeout здесь ограничивает синхронную часть кода (бесконечный while и т.п.)
+          // timeout here bounds the synchronous part of the code (an infinite while and the like)
           running = script.runInContext(context, { timeout: timeoutMs }) as Promise<unknown>;
         } catch (e) {
           reject(new Error(errorMessage(e)));
           return;
         }
-        // serialize тоже может бросить (результат — не объект, цикл) — это отказ блока, а не unhandled rejection
+        // serialize can throw too (the result is not an object, a cycle): that is a block failure, not an unhandled rejection
         running
           .then((r) => serialize(r))
           .then(resolve, (e) => reject(new Error(errorMessage(e), { cause: e })));

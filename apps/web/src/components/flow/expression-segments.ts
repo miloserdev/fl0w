@@ -1,17 +1,17 @@
-// Чистая логика выражений `{{ … }}` для форм параметров: режим выражения, разбор на сегменты для подсветки,
-// вставка шаблона в позицию курсора. Без зависимостей от React — покрыто тестами.
+// Pure logic of `{{ … }}` expressions for parameter forms: expression mode, splitting into segments for highlighting,
+// inserting a template at the cursor position. No React dependencies — covered by tests.
 
 export type Segment = {
   text: string;
-  /** text — обычный текст; inputs — `{{ inputs.… }}` (данные входа); relative — `{{ путь }}` (блок разрешает сам);
-   *  open — набираемое, ещё не закрытое `{{ …` */
+  /** text — plain text; inputs — `{{ inputs.… }}` (input data); relative — `{{ path }}` (the block resolves it itself);
+   *  open — being typed, not closed yet `{{ …` */
   kind: "text" | "inputs" | "relative" | "open";
 };
 
 const TEMPLATE = /\{\{[^{}]*\}\}/;
 const SPLIT = /(\{\{[^{}]*\}\}|\{\{[^{}]*$)/;
 
-/** Есть ли в значении полное выражение `{{ … }}` (то же правило, что `hasExpression` из @fl0w/blocks). */
+/** Whether the value contains a full `{{ … }}` expression (the same rule as `hasExpression` from @fl0w/blocks). */
 export function hasTemplate(v: unknown): boolean {
   return typeof v === "string" && TEMPLATE.test(v);
 }
@@ -27,7 +27,7 @@ export function splitSegments(text: string): Segment[] {
   return out;
 }
 
-/** Находится ли позиция внутри строкового литерала JSON (нечётное число неэкранированных кавычек левее). */
+/** Whether the position is inside a JSON string literal (an odd number of unescaped quotes to the left). */
 export function insideJsonString(text: string, pos: number): boolean {
   let inside = false;
   for (let i = 0; i < pos && i < text.length; i++) {
@@ -40,7 +40,7 @@ export function insideJsonString(text: string, pos: number): boolean {
 
 export const INPUT_TEMPLATE = "{{ inputs.in0. }}";
 
-/** Вставляет шаблон в позицию выделения; каретка — перед ` }}` (сразу после `in0.`). */
+/** Inserts a template at the selection position; the caret goes before ` }}` (right after `in0.`). */
 export function insertTemplate(
   text: string,
   start: number,

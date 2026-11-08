@@ -12,7 +12,7 @@ import { createTelegramPoller } from "./telegram-poll";
 import { edge, flow, node } from "./test-helpers";
 import { FakeTelegram, msg, TOKEN } from "./test-telegram-server";
 
-/** Весь путь: Bot API → опрос → планировщик → процесс-раннер → блок Telegram → ответ в Bot API. */
+/** The whole path: Bot API → polling → scheduler → process runner → Telegram block → reply to the Bot API. */
 let fake: FakeTelegram;
 let scheduler: Scheduler;
 let hub: RunHub;
@@ -26,7 +26,7 @@ beforeEach(async () => {
   await fake.start();
   dir = mkdtempSync(path.join(tmpdir(), "fl0w-tg-e2e-"));
   for (const k of KEYS) saved[k] = process.env[k];
-  process.env[TELEGRAM_API_ENV] = fake.url; // дочерние процессы-раннеры наследуют окружение
+  process.env[TELEGRAM_API_ENV] = fake.url; // child runner processes inherit the environment
   process.env["FL0W_FILES_DIR"] = dir;
   logs = [];
   hub = new RunHub();
@@ -82,26 +82,26 @@ const callbackFlow = (): Flow => ({
   status: "published",
 });
 
-describe("Telegram: сквозной сценарий в настоящем процессе", () => {
-  it("сообщение пользователя → флоу → ответ бота с данными из сообщения", async () => {
+describe("Telegram: end-to-end scenario in a real process", () => {
+  it("user message → flow → bot reply with data from the message", async () => {
     scheduler.sync(echoFlow(), "publish");
     fake.push(TOKEN, { message: { message_id: 7, chat: { id: 5501, type: "private" }, from: { id: 5501, first_name: "Ann" }, text: "привет" } });
     await until(() => fake.calls_("sendMessage").length === 1);
     expect(fake.calls_("sendMessage")[0]!.params).toEqual({ chat_id: 5501, text: "Echo: привет", reply_parameters: { message_id: 7 } });
   });
 
-  it("серия сообщений: ответы приходят на все и в том же порядке", async () => {
+  it("a series of messages: replies arrive for all and in the same order", async () => {
     scheduler.sync(echoFlow(), "publish");
     for (let i = 1; i <= 6; i++) fake.push(TOKEN, msg(100 + i, `msg ${i}`));
     await until(() => fake.calls_("sendMessage").length === 6);
     const texts = fake.calls_("sendMessage").map((c) => c.params["text"]);
-    // ответы на все сообщения, ни одно не потеряно; порядок ЗАВЕРШЕНИЯ параллельных запусков не гарантируется,
-    // порядок их запуска проверен отдельно в тестах очереди планировщика
+    // replies to all messages, none lost; the order in which parallel runs FINISH is not guaranteed,
+    // the order they START is checked separately in the scheduler queue tests
     expect([...texts].sort()).toEqual([1, 2, 3, 4, 5, 6].map((i) => `Echo: msg ${i}`).sort());
     expect(new Set(fake.calls_("sendMessage").map((c) => c.params["chat_id"])).size).toBe(6);
   }, 60_000);
 
-  it("два флоу на одном боте: каждый получает своё, опрос один", async () => {
+  it("two flows on one bot: each gets its own, there is one poll", async () => {
     scheduler.sync(echoFlow(), "publish");
     scheduler.sync(callbackFlow(), "publish");
     fake.push(TOKEN, msg(9, "text"));
@@ -109,12 +109,12 @@ describe("Telegram: сквозной сценарий в настоящем пр
     await until(() => fake.calls_("sendMessage").length === 1 && fake.calls_("answerCallbackQuery").length === 1);
     expect(fake.calls_("answerCallbackQuery")[0]!.params).toEqual({ callback_query_id: "cbq-1", text: "Принято: yes" });
     expect(fake.calls_("sendMessage")).toHaveLength(1);
-    expect(fake.maxInflight.get(TOKEN)).toBeLessThanOrEqual(2); // не более короткого перекрытия при перезапуске запроса
+    expect(fake.maxInflight.get(TOKEN)).toBeLessThanOrEqual(2); // no more than a brief overlap when a request restarts
     await sleep(300);
     expect(fake.inflight.get(TOKEN)).toBe(1);
   }, 60_000);
 
-  it("Watch видит запуски; токен не просачивается ни в ленту, ни в лог", async () => {
+  it("Watch sees the runs; the token leaks neither into the feed nor into the log", async () => {
     const msgs: WatchMessage[] = [];
     hub.subscribe("flow_echo", (m) => void msgs.push(m));
     scheduler.sync(echoFlow(), "publish");
@@ -128,7 +128,7 @@ describe("Telegram: сквозной сценарий в настоящем пр
     expect(triggerOut).toMatchObject({ event: { output: { out0: { message: { text: "watch me" } } } } });
   });
 
-  it("ошибка Bot API при ответе — node:error без токена, опрос продолжает работать", async () => {
+  it("a Bot API error on reply is node:error without the token, polling keeps working", async () => {
     scheduler.sync(echoFlow(), "publish");
     fake.override = (c) => (c.method === "sendMessage" ? { status: 400, body: { ok: false, error_code: 400, description: "Bad Request: chat not found" } } : undefined);
     const msgs: WatchMessage[] = [];
@@ -143,7 +143,7 @@ describe("Telegram: сквозной сценарий в настоящем пр
     expect(fake.calls_("sendMessage").some((c) => c.params["text"] === "Echo: second")).toBe(true);
   }, 60_000);
 
-  it("снятие с публикации останавливает опрос", async () => {
+  it("unpublishing stops polling", async () => {
     scheduler.sync(echoFlow(), "publish");
     await until(() => fake.calls_("getUpdates").length >= 1);
     scheduler.sync({ ...echoFlow(), status: "draft" });

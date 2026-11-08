@@ -1,10 +1,10 @@
-/** Есть ли в пути символы маски. */
+/** Whether the path contains mask characters. */
 export const hasGlob = (p: string): boolean => /[*?[]/.test(p);
 
 /**
- * Маска → RegExp по относительным путям с `/`. Поддерживается:
- * `*` — любые символы кроме `/`, `?` — один символ кроме `/`, `[abc]` / `[!abc]` — набор,
- * `**` — любые символы включая слэш (`**` и слэш подряд — ноль и более каталогов).
+ * Mask -> RegExp over relative paths with `/`. Supported:
+ * `*` any characters except `/`, `?` one character except `/`, `[abc]` / `[!abc]` a set,
+ * `**` any characters including the slash (`**` followed by a slash means zero or more directories).
  */
 export function globToRegExp(glob: string): RegExp {
   let re = "";
@@ -33,7 +33,7 @@ export function globToRegExp(glob: string): RegExp {
   return new RegExp(`^${re}$`);
 }
 
-/** Каталог до первого символа маски: с него начинается обход. */
+/** Directory up to the first mask character: the traversal starts from it. */
 export function globBase(glob: string): string {
   const parts = glob.split("/");
   const fixed: string[] = [];

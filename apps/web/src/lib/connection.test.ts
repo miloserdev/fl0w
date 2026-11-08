@@ -9,30 +9,30 @@ const edge = (source: string, sourceHandle: string, target: string, targetHandle
 });
 
 describe("canConnect", () => {
-  it("инструмент -> порт tools, много рёбер", () => {
+  it("tool -> tools port, many edges", () => {
     const es = [edge("t1", "tool", "a", "tools")];
     expect(canConnect(nodes, es, { source: "t2", sourceHandle: "tool", target: "a", targetHandle: "tools" })).toBe(true);
   });
-  it("повтор того же ребра запрещён", () => {
+  it("repeating the same edge is forbidden", () => {
     const es = [edge("t1", "tool", "a", "tools")];
     expect(canConnect(nodes, es, { source: "t1", sourceHandle: "tool", target: "a", targetHandle: "tools" })).toBe(false);
   });
-  it("разные виды не соединяются", () => {
+  it("different kinds do not connect", () => {
     expect(canConnect(nodes, [], { source: "t1", sourceHandle: "tool", target: "a", targetHandle: "memory" })).toBe(false);
     expect(canConnect(nodes, [], { source: "m", sourceHandle: "memory", target: "a", targetHandle: "tools" })).toBe(false);
     expect(canConnect(nodes, [], { source: "t1", sourceHandle: "tool", target: "a", targetHandle: "in0" })).toBe(false);
     expect(canConnect(nodes, [], { source: "s", sourceHandle: "out0", target: "a", targetHandle: "tools" })).toBe(false);
   });
-  it("порт данных без multiple принимает одно ребро", () => {
+  it("a data port without multiple accepts one edge", () => {
     const es = [edge("s", "out0", "a", "in0")];
     expect(canConnect(nodes, es, { source: "s", sourceHandle: "out0", target: "r", targetHandle: "in0" })).toBe(true);
     expect(canConnect(nodes, [edge("s", "out0", "r", "in0")], { source: "a", sourceHandle: "out0", target: "r", targetHandle: "in0" })).toBe(false);
   });
-  it("циклы данных запрещены", () => {
+  it("data cycles are forbidden", () => {
     const es = [edge("s", "out0", "a", "in0"), edge("a", "out0", "r", "in0")];
     expect(canConnect(nodes, es, { source: "a", sourceHandle: "out0", target: "s", targetHandle: "in0" })).toBe(false);
   });
-  it("неизвестные порты и ноды", () => {
+  it("unknown ports and nodes", () => {
     expect(canConnect(nodes, [], { source: "t1", sourceHandle: "x", target: "a", targetHandle: "tools" })).toBe(false);
     expect(canConnect(nodes, [], { source: "zz", sourceHandle: "tool", target: "a", targetHandle: "tools" })).toBe(false);
     expect(canConnect(nodes, [], { source: "a", sourceHandle: "out0", target: "a", targetHandle: "in0" })).toBe(false);

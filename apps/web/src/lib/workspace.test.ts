@@ -15,20 +15,20 @@ const flow = (id: string, name = id, nodes = 1): Flow => ({
 });
 const tab = (id: string, name = id) => ({ id, name });
 
-describe("вкладки", () => {
-  it("nextName: первое свободное имя", () => {
+describe("tabs", () => {
+  it("nextName: the first free name", () => {
     expect(nextName([])).toBe("flow");
     expect(nextName([tab("a", "flow")])).toBe("flow 2");
     expect(nextName([tab("a", "flow"), tab("b", "flow 2"), tab("c", "other")])).toBe("flow 3");
   });
 
-  it("openTab: новая вкладка активируется, открытая — только активируется без дубля", () => {
+  it("openTab: a new tab is activated, an open one is only activated without a duplicate", () => {
     const s = { tabs: [tab("a")], active: "a" };
     expect(openTab(s, tab("b"))).toEqual({ tabs: [tab("a"), tab("b")], active: "b" });
     expect(openTab({ tabs: [tab("a"), tab("b")], active: "b" }, tab("a"))).toEqual({ tabs: [tab("a"), tab("b")], active: "a" });
   });
 
-  it("closeTab: активной становится соседняя; последняя заменяется новой; чужая вкладка не трогает активную", () => {
+  it("closeTab: the neighbouring one becomes active; the last one is replaced by a new one; closing another tab does not touch the active one", () => {
     const s = { tabs: [tab("a"), tab("b"), tab("c")], active: "b" };
     expect(closeTab(s, "b", tab("x")).active).toBe("c");
     expect(closeTab({ ...s, active: "c" }, "c", tab("x")).active).toBe("b");
@@ -37,7 +37,7 @@ describe("вкладки", () => {
     expect(closeTab(s, "nope", tab("x"))).toBe(s);
   });
 
-  it("renameTab / moveActive: пустое имя и ничего не меняющие вызовы возвращают то же состояние", () => {
+  it("renameTab / moveActive: an empty name and calls that change nothing return the same state", () => {
     const s = { tabs: [tab("a", "one")], active: "a" };
     expect(renameTab(s, "a", "  two ").tabs[0]!.name).toBe("two");
     expect(renameTab(s, "a", "   ")).toBe(s);
@@ -47,12 +47,12 @@ describe("вкладки", () => {
   });
 });
 
-describe("хранение", () => {
-  it("loadTabs: пусто — одна новая вкладка", () => {
+describe("storage", () => {
+  it("loadTabs: empty — one new tab", () => {
     expect(loadTabs(mem(), () => tab("n1", "flow"))).toEqual({ tabs: [tab("n1", "flow")], active: "n1" });
   });
 
-  it("loadTabs: сохранённые вкладки восстанавливаются; неверный active и мусор отбрасываются", () => {
+  it("loadTabs: saved tabs are restored; a wrong active and garbage are dropped", () => {
     const s = mem();
     saveTabs(s, { tabs: [tab("a"), tab("b")], active: "zzz" });
     expect(loadTabs(s, () => tab("n"))).toEqual({ tabs: [tab("a"), tab("b")], active: "a" });
@@ -62,7 +62,7 @@ describe("хранение", () => {
     expect(loadTabs(s, () => tab("n")).tabs).toEqual([tab("n")]);
   });
 
-  it("loadTabs: флоу старой версии переезжает в первую вкладку", () => {
+  it("loadTabs: the old version's flow moves into the first tab", () => {
     const s = mem();
     s.setItem(LEGACY_FLOW_KEY, JSON.stringify(flow("old", "Мой флоу", 2)));
     const st = loadTabs(s, () => tab("n"));
@@ -71,7 +71,7 @@ describe("хранение", () => {
     expect(s.getItem(LEGACY_FLOW_KEY)).toBeNull();
   });
 
-  it("readFlow/writeFlow: битое и чужой формат — null", () => {
+  it("readFlow/writeFlow: broken and foreign format — null", () => {
     const s = mem();
     writeFlow(s, flow("a"));
     expect(readFlow(s, "a")?.id).toBe("a");
@@ -81,7 +81,7 @@ describe("хранение", () => {
     expect(readFlow(s, "c")).toBeNull();
   });
 
-  it("otherFlows: флоу остальных вкладок, без текущей, пустых и битых", () => {
+  it("otherFlows: flows of the other tabs, without the current one, empty and broken ones", () => {
     const s = mem();
     writeFlow(s, flow("a"));
     writeFlow(s, flow("b"));

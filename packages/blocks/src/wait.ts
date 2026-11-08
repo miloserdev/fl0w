@@ -2,10 +2,10 @@ import type { Json, ParamSchema } from "@fl0w/schema";
 import { Block, type RunContext } from "./block";
 
 const UNIT_MS = { seconds: 1000, minutes: 60_000, hours: 3_600_000 } as const;
-/** Запуск живёт в процессе-раннере с общим лимитом 5 минут — дольше ждать бессмысленно. */
+/** A run lives in the runner process with a shared limit of 5 minutes: waiting longer is pointless. */
 export const MAX_WAIT_MS = 5 * 60 * 1000;
 
-/** Wait: приостанавливает ветку на заданное время и пропускает данные дальше. Прерывается отменой запуска. */
+/** Wait: pauses a branch for the given time and passes the data on. Interrupted by cancelling the run. */
 export class Wait extends Block {
   static type = "wait";
   static label = "Wait";

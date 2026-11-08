@@ -2,11 +2,11 @@ import type { Json, ParamSchema, PortsDef } from "@fl0w/schema";
 import { Block, triggerPayload, type RunContext } from "./block";
 
 /**
- * Пара вызовов — вызов одного флоу из другого по каналу `channelId` (связь строго 1:1). Сам вызов исполняется внутри запуска
- * вызывающего (как вложенный запуск вызванного флоу), поэтому в один процесс-раннер попадают оба флоу.
+ * A pair of calls: calling one flow from another over the channel `channelId` (strictly 1:1). The call itself runs inside the caller's
+ * run (as a nested run of the called flow), so both flows end up in one runner process.
  */
 
-/** Collector (входящий вызов): вход вызванного флоу. Поднимается только парным outgoing call с тем же `channelId`. */
+/** Collector (incoming call): the entry of the called flow. Raised only by a paired outgoing call with the same `channelId`. */
 export class CallTrigger extends Block {
   static type = "call_trigger";
   static label = "Collector";
@@ -15,12 +15,12 @@ export class CallTrigger extends Block {
   static ports = { inputs: [], outputs: [{ id: "out0" }] };
   static params: ParamSchema[] = [{ name: "channelId", type: "string", required: true, expressions: false, picker: "channel-in" }];
   static isTrigger = true;
-  static autoTrigger = true; // публикация флоу с одним лишь входящим телефоном допустима: он живёт ради вызовов
+  static autoTrigger = true; // publishing a flow with just an incoming phone is allowed: it lives for the sake of calls
   static eventDriven = true;
   static callOnly = true;
 
   async run(_inputs: Record<string, Json>, _params: Record<string, Json>, ctx: RunContext) {
-    // данные вызова как есть (в том числе null); без вызова Collector не стартует
+    // call data as is (including null); without a call, Collector does not start
     return { out0: triggerPayload(ctx, "Incoming Call") };
   }
 }
@@ -29,11 +29,11 @@ const OUT_PORTS: PortsDef = { inputs: [{ id: "in0" }], outputs: [{ id: "out0" }]
 const OUT_PORTS_AWAIT: PortsDef = { inputs: [{ id: "in0" }], outputs: [{ id: "out0" }, { id: "err", label: "error" }] };
 
 /**
- * Outgoing call: вызывает incoming call с тем же `channelId`.
- *  - `await` (с подтверждением): ждёт вызванный флоу; `out0` — его результат (значение Result), `err` — ошибка, если он упал
- *    (порт виден только в этом режиме; если к `err` ничего не подключено, ошибка роняет ноду, чтобы не потеряться).
- *  - `shoot` (выстрелил и забыл): не ждёт; `out0` = `{ ok: true }` — факт отправки. Вызванный флоу идёт в фоне и обрывается, если
- *    запуск вызывающего закончится раньше; обрыв и падение пишутся в ленту событий, вызывающего они не касаются.
+ * Outgoing call: calls the incoming call with the same `channelId`.
+ *  - `await` (with confirmation): waits for the called flow; `out0` is its result (the Result value), `err` is the error if it failed
+ *    (the port is visible only in this mode; if nothing is connected to `err`, the error fails the node so it is not lost).
+ *  - `shoot` (fire and forget): does not wait; `out0` = `{ ok: true }`, the fact of sending. The called flow runs in the background and is aborted if
+ *    the caller's run ends earlier; the abort and failure are written to the event feed and do not affect the caller.
  */
 export class RunFlow extends Block {
   static type = "run_flow";
@@ -44,7 +44,7 @@ export class RunFlow extends Block {
   static params: ParamSchema[] = [
     { name: "channelId", type: "string", required: true, expressions: false, picker: "channel-out" },
     { name: "mode", type: "enum", default: "await", options: [{ value: "await" }, { value: "shoot" }] },
-    // null — отдать весь вход; иначе JSON (в строках работают {{ inputs.in0.путь }})
+    // null means pass the whole input; otherwise JSON ({{ inputs.in0.path }} works in strings)
     { name: "data", type: "json" },
   ];
 
@@ -62,7 +62,7 @@ export class RunFlow extends Block {
 
     if (mode === "shoot") return { out0: { ok: true } };
     if (outcome.ok) return { out0: outcome.result };
-    // ошибка вызванного флоу: по порту err; если он ни к чему не подключён — падение ноды (тихой потери нет)
+    // error of the called flow: via the err port; if it is connected to nothing, the node fails (no silent loss)
     if (ctx.connected?.includes("err")) return { err: { message: outcome.error, channelId } };
     throw new Error(outcome.error);
   }

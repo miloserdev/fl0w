@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
-# Node Flow Board: Next.js-приложение + раннеры флоу (TypeScript через tsx — исходники пакетов нужны и в рантайме).
+# FL0W: Next.js app + flow runners (TypeScript via tsx — the package sources are needed at runtime too).
 ARG NODE_VERSION=26
-# версия pnpm = packageManager из package.json (в образах Node 25+ corepack больше нет)
+# pnpm version = packageManager from package.json (Node 25+ images no longer ship corepack)
 ARG PNPM_VERSION=11.3.0
 
 FROM node:${NODE_VERSION}-bookworm-slim AS base
@@ -11,7 +11,7 @@ ARG PNPM_VERSION
 RUN npm install -g pnpm@${PNPM_VERSION}
 WORKDIR /app
 
-# манифесты отдельно: слой с зависимостями не пересобирается при правке кода
+# manifests separately: the dependency layer is not rebuilt when code changes
 FROM base AS manifests
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web/package.json apps/web/
@@ -33,7 +33,7 @@ ENV NODE_ENV=production \
     FL0W_DATA_DIR=/data/flows \
     FL0W_MEMORY_DIR=/data/memory \
     FL0W_FILES_DIR=/data/files
-# tini: корректные сигналы и уборка процессов-раннеров; bash — для блока Shell (по умолчанию выключен)
+# tini: correct signals and reaping of runner processes; bash — for the Shell block (off by default)
 RUN apt-get update \
  && apt-get install -y --no-install-recommends tini ca-certificates bash \
  && rm -rf /var/lib/apt/lists/* \
@@ -52,7 +52,7 @@ COPY --from=build --chown=node:node /app/apps/web/.next ./apps/web/.next
 
 USER node
 WORKDIR /app/apps/web
-# флоу, банки памяти и файлы живут вне контейнера: смонтируйте /data (и при желании /data/files отдельно)
+# flows, memory banks and files live outside the container: mount /data (and optionally /data/files separately)
 VOLUME ["/data"]
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \

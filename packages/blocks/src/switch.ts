@@ -6,8 +6,8 @@ import { getPath, isPlainObject } from "./json-path";
 const MAX_RULES = 4;
 
 /**
- * Switch: направляет данные на один из выходов по правилам. Правило i → выход `out{i}`; если ни одно
- * не сработало — `fallback`. По умолчанию побеждает первое совпавшее правило, в режиме `all` — все.
+ * Switch: routes data to one of the outputs by rules. Rule i -> output `out{i}`; if no rule
+ * fires, `fallback`. By default the first matching rule wins; in `all` mode all of them do.
  */
 export class Switch extends Block {
   static type = "switch";
@@ -25,7 +25,7 @@ export class Switch extends Block {
     ],
   };
   static params: ParamSchema[] = [
-    // общее поле для правил; в правиле можно задать своё: { "field": "a", "operator": "eq", "value": 1 }
+    // a common field for the rules; a rule can set its own: { "field": "a", "operator": "eq", "value": 1 }
     { name: "field", type: "string", default: "" },
     {
       name: "rules",

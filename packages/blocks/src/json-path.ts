@@ -1,6 +1,6 @@
 import type { Json } from "@fl0w/schema";
 
-/** Достаёт значение по точечному пути (`a.b.0.c`). Пустой путь или `.` — само значение. */
+/** Gets a value by a dotted path (`a.b.0.c`). An empty path or `.` is the value itself. */
 export function getPath(value: Json | undefined, path: string): Json | undefined {
   const trimmed = path.trim();
   if (trimmed === "" || trimmed === ".") return value;
@@ -32,7 +32,7 @@ export function deepEqual(a: Json | undefined, b: Json | undefined): boolean {
 export const isPlainObject = (v: Json | undefined): v is { [key: string]: Json } =>
   v !== null && typeof v === "object" && !Array.isArray(v);
 
-/** Массив — как есть, отсутствие значения — пустой список, любое другое значение — список из одного элемента. */
+/** An array as is, a missing value is an empty list, any other value is a one-element list. */
 export function toList(v: Json | undefined): Json[] {
   if (Array.isArray(v)) return v;
   return v === undefined ? [] : [v];
@@ -46,7 +46,7 @@ function segments(path: string): string[] {
   return keys;
 }
 
-/** Записывает значение по точечному пути, создавая промежуточные объекты. Мутирует `target`. */
+/** Writes a value by a dotted path, creating intermediate objects. Mutates `target`. */
 export function setPath(target: { [key: string]: Json }, path: string, value: Json): void {
   const keys = segments(path);
   let cur = target;
@@ -63,7 +63,7 @@ export function setPath(target: { [key: string]: Json }, path: string, value: Js
   cur[keys[keys.length - 1]!] = value;
 }
 
-/** Удаляет значение по точечному пути; отсутствующий путь — не ошибка. Мутирует `target`. */
+/** Removes a value by a dotted path; a missing path is not an error. Mutates `target`. */
 export function deletePath(target: { [key: string]: Json }, path: string): void {
   const keys = segments(path);
   let cur: Json | undefined = target;
@@ -74,19 +74,19 @@ export function deletePath(target: { [key: string]: Json }, path: string): void 
   if (isPlainObject(cur) && Object.hasOwn(cur, last)) delete cur[last];
 }
 
-/** Глубокая копия JSON-значения. */
+/** Deep copy of a JSON value. */
 export function cloneJson<T extends Json>(v: T): T {
   return JSON.parse(JSON.stringify(v)) as T;
 }
 
 const TEMPLATE = /\{\{\s*([^{}]*?)\s*\}\}/g;
-// «целый» шаблон — вся строка без внешних пробелов: иначе завершающий перевод строки молча терялся бы
+// a "whole" template is the entire string without outer whitespace: otherwise a trailing newline would be silently lost
 const WHOLE_TEMPLATE = /^\{\{\s*([^{}]*?)\s*\}\}$/;
 
 /**
- * Подстановка `{{ путь.к.полю }}` из `data` — замена выражениям n8n, без исполнения кода.
- * Строка из одного шаблона сохраняет тип значения; в составе текста значение приводится к строке
- * (объекты — JSON, отсутствующее — пустая строка). `{{ . }}` — само значение.
+ * Substitution of `{{ path.to.field }}` from `data`: a replacement for n8n expressions, without executing code.
+ * A string consisting of one template keeps the value's type; inside text the value is converted to a string
+ * (objects as JSON, a missing value as an empty string). `{{ . }}` is the value itself.
  */
 export function interpolate(template: string, data: Json | undefined): Json {
   const whole = WHOLE_TEMPLATE.exec(template);
@@ -98,20 +98,20 @@ export function interpolate(template: string, data: Json | undefined): Json {
   });
 }
 
-// Выражения уровня ноды: `{{ inputs.in0.поле }}` — данные со входных портов (как $json в n8n). Подставляет движок
-// перед запуском блока в ЛЮБОЙ параметр; относительные шаблоны `{{ поле }}` остаются блокам (они работают по элементам списка).
+// Node-level expressions: `{{ inputs.in0.field }}` is data from the input ports (like $json in n8n). The engine substitutes it
+// before running the block in ANY parameter; relative templates `{{ field }}` are left to the blocks (they work per list item).
 const INPUTS_TEMPLATE = /\{\{\s*(inputs(?:\.[^{}\s]+)?)\s*\}\}/g;
 export const WHOLE_INPUTS_TEMPLATE = /^\{\{\s*(inputs(?:\.[^{}\s]+)?)\s*\}\}$/;
 
-/** Есть ли в значении выражение `{{ … }}` (проверка параметров откладывает типизацию до запуска). */
+/** Whether the value contains a `{{ ... }}` expression (parameter validation defers typing until the run). */
 export function hasExpression(v: Json | undefined): boolean {
   return typeof v === "string" && /\{\{[^{}]*\}\}/.test(v);
 }
 
 /**
- * Подставляет `{{ inputs.портх.путь }}` во все строки значения. Строка из одного выражения сохраняет тип
- * (число, объект…), внутри текста значение приводится к строке; нет значения — `null` / пустая строка.
- * Остальные `{{ … }}` не трогаются.
+ * Substitutes `{{ inputs.portx.path }}` into all strings of the value. A string of one expression keeps the type
+ * (number, object...), inside text the value is converted to a string; no value gives `null` / an empty string.
+ * Other `{{ ... }}` are left untouched.
  */
 export function resolveInputsExpressions(value: Json, inputs: Record<string, Json>): Json {
   const root = { inputs } as unknown as Json;
@@ -132,7 +132,7 @@ export function resolveInputsExpressions(value: Json, inputs: Record<string, Jso
   return walk(value);
 }
 
-/** Рекурсивно подставляет шаблоны во все строки значения. */
+/** Recursively substitutes templates into all strings of the value. */
 export function resolveTemplates(value: Json, data: Json | undefined): Json {
   if (typeof value === "string") return interpolate(value, data);
   if (Array.isArray(value)) return value.map((v) => resolveTemplates(v, data));

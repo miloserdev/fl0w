@@ -1,17 +1,18 @@
 #!/usr/bin/env node
-// Проверка интерфейса в headless Chromium: открывает приложение, при желании подставляет флоу, выполняет шаги
-// (клики, ожидания, скриншоты, JS), собирает ошибки консоли. Нужен запущенный dev-сервер.
+// UI check in headless Chromium: opens the app, optionally loads a flow, performs steps
+// (clicks, waits, screenshots, JS), collects console errors. Requires a running dev server.
 //
 //   node scripts/ui-check.mjs --flow examples/showcase.json --theme dark \
-//     --steps '[{"click":"text:Запустить"},{"wait":3000},{"shot":"after-run"},{"eval":"document.title","print":true}]'
+//     --steps '[{"click":"text:Run"},{"wait":3000},{"shot":"after-run"},{"eval":"document.title","print":true}]'
+// The UI language follows the NEXT_LOCALE cookie (en/ru), so button text depends on it.
 //
-// Опции: --url (http://localhost:3001) --flow <json> --theme light|dark --steps '<json>'|--steps-file <path>
-//        --out <каталог скриншотов> --width 1500 --height 900 --allow-problems
-// Шаги: {"click":"text:<подстрока кнопки>"|"css:<селектор>"} {"wait":ms} {"waitFor":"<css>"} {"shot":"имя"}
-//       {"drag":[x1,y1,x2,y2]} — перетаскивание левой кнопкой
-//       {"eval":"js","print":true} {"press":"Escape"} {"type":"текст с пробелами","delay":0}
-//       type — набор по клавишам (keyDown/keyUp с text), как настоящий ввод; delay — пауза между символами, мс
-// Вывод — JSON; код выхода 1, если в консоли были ошибки (если не задан --allow-problems).
+// Options: --url (http://localhost:3001) --flow <json> --theme light|dark --steps '<json>'|--steps-file <path>
+//        --out <screenshots directory> --width 1500 --height 900 --allow-problems
+// Steps: {"click":"text:<button substring>"|"css:<selector>"} {"wait":ms} {"waitFor":"<css>"} {"shot":"name"}
+//       {"drag":[x1,y1,x2,y2]} — drag with the left button
+//       {"eval":"js","print":true} {"press":"Escape"} {"type":"text with spaces","delay":0}
+//       type — typing key by key (keyDown/keyUp with text), like real input; delay — pause between characters, ms
+// Output is JSON; exit code 1 if there were console errors (unless --allow-problems is set).
 import { spawn } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -92,7 +93,7 @@ try {
       entry.disabled = c?.disabled ?? null;
       if (c && !c.disabled) await click(c.x, c.y);
     } else if (step.drag) {
-      // {"drag":[x1,y1,x2,y2]} — перетаскивание левой кнопкой (рамка выделения, перенос нод)
+      // {"drag":[x1,y1,x2,y2]} — drag with the left button (selection box, moving nodes)
       const [x1, y1, x2, y2] = step.drag;
       const mouse = (type, x, y) => send("Input.dispatchMouseEvent", { type, x, y, button: type === "mouseMoved" ? "none" : "left", buttons: type === "mouseReleased" ? 0 : 1, clickCount: 1 });
       await mouse("mouseMoved", x1, y1);
@@ -114,7 +115,7 @@ try {
         if (step.delay) await sleep(step.delay);
       }
     } else if (step.press) {
-      // коды клавиш: без windowsVirtualKeyCode Chromium вставляет имя клавиши как текст
+      // key codes: without windowsVirtualKeyCode Chromium inserts the key name as text
       const codes = { Backspace: 8, Tab: 9, Enter: 13, Escape: 27, End: 35, Home: 36, ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, Delete: 46 };
       const k = { key: step.press, code: step.press, windowsVirtualKeyCode: codes[step.press] ?? 0 };
       await send("Input.dispatchKeyEvent", { type: "rawKeyDown", ...k });

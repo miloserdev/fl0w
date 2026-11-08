@@ -16,10 +16,10 @@ const GROUP = cn(FLOATING, "pointer-events-auto flex items-center gap-1.5 p-1.5"
 
 export type PublishControls = {
   published: boolean;
-  /** Локальные правки отличаются от опубликованной версии. */
+  /** Local edits differ from the published version. */
   dirty: boolean;
   busy: boolean;
-  /** Почему публиковать нельзя (кнопка отключена, причина — в подсказке). */
+  /** Why publishing is not possible (the button is disabled, the reason is in the tooltip). */
   blockedBy: "issues" | "noTrigger" | null;
   onPublish: () => void;
   onUnpublish: () => void;
@@ -27,13 +27,13 @@ export type PublishControls = {
 
 export type WatchControls = {
   on: boolean;
-  /** Наблюдать можно только за опубликованным флоу. */
+  /** Only a published flow can be watched. */
   available: boolean;
   connected: boolean;
   onToggle: () => void;
 };
 
-/** Плавающая панель инструментов поверх холста; между группами холст остаётся доступен. */
+/** Floating toolbar over the canvas; the canvas stays accessible between the groups. */
 export function Topbar({
   runStatus,
   manualRunning,
@@ -48,9 +48,9 @@ export function Topbar({
   onSave,
   onLoad,
 }: {
-  /** Статус для индикатора рантайма: ручной запуск или (в режиме Watch) плановый. */
+  /** Status for the runtime indicator: a manual run or (in Watch mode) a scheduled one. */
   runStatus: "idle" | "running" | "done" | "error" | "aborted";
-  /** Идёт именно ручной запуск — только он останавливается кнопкой «Остановить». */
+  /** A manual run is in progress — only it is stopped by the "Stop" button. */
   manualRunning: boolean;
   canRun: boolean;
   publish: PublishControls;
@@ -118,7 +118,7 @@ export function Topbar({
           }}
         />
         <Separator orientation="vertical" className="mx-0.5 h-5" />
-        {/* тумблер, как «Наблюдать»: опубликован — нажата, зелёный индикатор и надпись «Опубликован» */}
+        {/* toggle, like "Watch": published — pressed, green indicator and the "Published" label */}
         <Button
           size="sm"
           variant={publish.published ? "secondary" : "outline"}

@@ -18,10 +18,10 @@ import { useBlockLabel } from "./use-block-label";
 
 const MIN_HEIGHT = 64;
 const PORT_GAP = 22;
-/** Ширина хозяина на один ресурсный порт (ромб + подпись). */
+/** Width of the host per resource port (diamond + label). */
 const RESOURCE_SLOT = 110;
 
-// Цвет иконки по категории блока — ориентир на холсте, как в n8n.
+// Icon colour by block category — a landmark on the canvas, as in n8n.
 const ACCENT: Record<string, string> = {
   trigger: "text-amber-500",
   io: "text-sky-500",
@@ -32,35 +32,35 @@ const ACCENT: Record<string, string> = {
   memory: "text-fuchsia-500",
 };
 
-/** Позиция i-го из n портов: равномерно по высоте блока. */
+/** Position of the i-th of n ports: evenly along the block height. */
 const portTop = (i: number, n: number) => `${((i + 1) / (n + 1)) * 100}%`;
 
 /**
- * Нода как в n8n: квадрат с иконкой по центру, подпись под ним (вне блока), порты по бокам.
- * Состояние запуска читается по рамке (и пульсации во время работы), текст статуса не выводится.
- * Контейнер `data-node-id` и есть блок — `&` в CSS ноды относится к нему.
+ * A node as in n8n: a square with the icon in the centre, a caption under it (outside the block), ports on the sides.
+ * The run state is read from the border (and the pulse while running), no status text is shown.
+ * The `data-node-id` container is the block itself — `&` in the node's CSS refers to it.
  */
 export function BlockNode({ id, data, selected }: NodeProps<BlockNodeType>) {
   const t = useTranslations("node");
   const tPorts = useTranslations("ports");
   const blockLabel = useBlockLabel();
-  /** Подпись порта: перевод из словаря, иначе label из класса блока. */
+  /** Port label: translation from the dictionary, otherwise the label from the block class. */
   const portLabel = (portId: string, fallback?: string) =>
     tPorts.has(`${data.blockType}.${portId}`) ? tPorts(`${data.blockType}.${portId}`) : fallback;
   const runStatus = useNodeRunStatus(id);
   const triggerRun = useTriggerRun();
-  // нода может просить показать на себе короткий текст вместо иконки (число у Counter)
+  // a node may ask to show a short text on itself instead of the icon (the number for Counter)
   const display = useNodeDisplay(id);
   const issues = useNodeIssues(id);
   const cls = registry[data.blockType];
   const ports = getPorts(data.blockType, data.portsOverride, data.params);
-  // порты данных — по бокам; ресурсные — ромбы снизу (у хозяина) или сверху (у самого ресурса)
+  // data ports — on the sides; resource ports — diamonds at the bottom (on the host) or at the top (on the resource itself)
   const { dataIn, dataOut, resourceIn, resourceOut } = splitPorts(ports);
   const isResource = Boolean(cls?.resource);
   const rows = Math.max(dataIn.length, dataOut.length, 1);
   const css = scopeCss(data.cssOverride ?? cls?.defaultCss ?? "", id);
-  // как в n8n: у стартовых нод (есть выход, нет входа) скруглена левая сторона, у финальных (вход без выхода) — правая;
-  // считаем только по портам данных
+  // as in n8n: start nodes (have an output, no input) get a rounded left side, final ones (input without output) — the right;
+  // counted by data ports only
   const isStart = dataIn.length === 0 && dataOut.length > 0;
   const isEnd = dataIn.length > 0 && dataOut.length === 0;
   const label = cls ? blockLabel(data.blockType) : t("unknown", { type: data.blockType });
@@ -81,7 +81,7 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNodeType>) {
         runStatus === "done" && "border-green-500",
         runStatus === "error" && "border-destructive",
         runStatus === "skipped" && !isResource && "opacity-50",
-        // отключённая нода: приглушена, рамка пунктиром — в запуске не участвует
+        // disabled node: dimmed, dashed border — does not take part in the run
         data.disabled && "border-dashed opacity-40 grayscale",
         (!cls || issues) && "border-destructive",
       )}
@@ -120,8 +120,8 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNodeType>) {
         </Tip>
       )}
       {cls?.manualStart && (
-        // как у триггеров в n8n: кнопка запуска слева от ноды — стартует именно этот триггер, остальные молчат.
-        // Пока идёт пробный запуск, вместо неё — пауза/продолжение и остановка.
+        // as with triggers in n8n: the run button to the left of the node — starts exactly this trigger, the others stay silent.
+        // While a trial run is in progress, it is replaced by pause/resume and stop.
         <div className="nodrag nopan absolute top-1/2 right-full mr-2 flex -translate-y-1/2 gap-1">
           {triggerRun.running && (triggerRun.startedBy === null || triggerRun.startedBy === id) ? (
             <>
@@ -181,7 +181,7 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNodeType>) {
         <Handle key={p.id} id={p.id} type="source" position={Position.Right} style={{ top: portTop(i, dataOut.length) }} />
       ))}
 
-      {/* ресурсные порты: у ресурса — выход сверху, у хозяина — входы снизу с подписями-чипами */}
+      {/* resource ports: on a resource — the output at the top, on the host — inputs at the bottom with chip labels */}
       {resourceOut.map((p, i) => (
         <Handle
           key={p.id}
@@ -212,7 +212,7 @@ export function BlockNode({ id, data, selected }: NodeProps<BlockNodeType>) {
         </span>
       ))}
 
-      {/* подписи портов (true/false у Branch) — снаружи, рядом с точкой */}
+      {/* port labels (true/false on Branch) — outside, next to the dot */}
       {dataIn.map(
         (p, i) =>
           p.label && (

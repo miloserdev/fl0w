@@ -3,9 +3,9 @@
 import { createContext, useContext, useLayoutEffect, useMemo, useRef, useSyncExternalStore, type ReactNode } from "react";
 
 /**
- * Контекст «id → значение», в котором потребитель перерисовывается только при изменении СВОЕГО значения.
- * Обычный Context с картой заставил бы каждую из сотен нод перерисоваться при любом изменении карты
- * (например, при статусе одной ноды во время запуска) — на больших флоу это и есть лаги.
+ * An "id → value" context where a consumer re-renders only when ITS OWN value changes.
+ * An ordinary Context with a map would make each of hundreds of nodes re-render on any change of the map
+ * (for example, on one node's status during a run) — on large flows that is exactly the lag.
  */
 export function createKeyedStore<T>() {
   type Store = { get: (id: string) => T | undefined; subscribe: (cb: () => void) => () => void };
@@ -33,7 +33,7 @@ export function createKeyedStore<T>() {
     return <Ctx.Provider value={store}>{children}</Ctx.Provider>;
   }
 
-  /** Значение по id, пропущенное через `select`; `select` должен возвращать то же значение (===), пока данные те же. */
+  /** Value by id, passed through `select`; `select` must return the same value (===) while the data is the same. */
   function useSelected<R>(id: string, select: (v: T | undefined) => R): R {
     const store = useContext(Ctx);
     return useSyncExternalStore(

@@ -14,11 +14,11 @@ export type ServerFlow = {
   channels: { incoming: string[]; outgoing: string[] };
 };
 
-/** id флоу, который сейчас открыт в редакторе: его сохранённая копия не считается «чужой» при проверке занятости канала. */
+/** id of the flow currently open in the editor: its saved copy is not considered "foreign" when checking whether a channel is taken. */
 const CurrentFlowContext = createContext<string>("");
 export const CurrentFlowProvider = CurrentFlowContext.Provider;
 
-/** Серверные флоу для подсказок о каналах; null — список ещё грузится или недоступен. */
+/** Server flows for channel hints; null — the list is still loading or unavailable. */
 function useServerFlows(): [ServerFlow[] | null, () => void] {
   const [flows, setFlows] = useState<ServerFlow[] | null>(null);
   const [tick, setTick] = useState(0);
@@ -30,14 +30,14 @@ function useServerFlows(): [ServerFlow[] | null, () => void] {
       .catch(() => {});
     return () => ac.abort();
   }, [tick]);
-  // список перечитывается при фокусе в поле: парный флоу могли сохранить, пока форма была открыта
+  // the list is re-read on focus in the field: the paired flow could have been saved while the form was open
   return [flows, () => setTick((n) => n + 1)];
 }
 
 /**
- * Поле `channelId` у блоков вызова с подсказками из серверных флоу. Для исходящего телефона предлагаются каналы, на которых
- * уже есть входящий; для входящего — каналы, которых ждёт исходящий и на которых входящего ещё нет. Ввод свободный: пару можно
- * создать позже. Занятый канал (второй входящий/исходящий на той же стороне) — предупреждение, а при сохранении — отказ сервера.
+ * The `channelId` field of call blocks with hints from server flows. For an outgoing phone, channels that
+ * already have an incoming one are offered; for an incoming one — channels an outgoing one waits for and that have no incoming yet. Input is free: the pair can be
+ * created later. A taken channel (a second incoming/outgoing on the same side) is a warning, and on save the server refuses.
  */
 export function ChannelPicker({
   id,
@@ -121,7 +121,7 @@ export function ChannelPicker({
           />
         </PopoverAnchor>
         <PopoverContent
-          // фокус остаётся в поле: список — подсказка к вводу, а не отдельная форма
+          // focus stays in the field: the list is a hint for typing, not a separate form
           onOpenAutoFocus={(e) => e.preventDefault()}
           onInteractOutside={(e) => {
             if ((e.target as HTMLElement | null)?.id === id) e.preventDefault();
@@ -132,7 +132,7 @@ export function ChannelPicker({
               <li key={`${o.value}-${o.label}`} role="option" aria-selected={i === active}>
                 <button
                   type="button"
-                  // mousedown, а не click: поле не успевает потерять фокус и закрыть список
+                  // mousedown, not click: the field has no time to lose focus and close the list
                   onMouseDown={(e) => {
                     e.preventDefault();
                     pick(o.value);

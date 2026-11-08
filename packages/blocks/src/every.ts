@@ -5,8 +5,8 @@ export const EVERY_UNIT_MS = { seconds: 1000, minutes: 60_000, hours: 3_600_000 
 type EveryUnit = keyof typeof EVERY_UNIT_MS;
 
 /**
- * Триггер «каждые N секунд/минут/часов». В опубликованном флоу срабатывает по расписанию
- * на сервере (независимо от открытой страницы); при ручном запуске — один раз сразу.
+ * Trigger "every N seconds/minutes/hours". In a published flow it fires on a schedule
+ * on the server (regardless of an open page); in a manual run it fires once immediately.
  */
 export class Every extends Block {
   static type = "every";

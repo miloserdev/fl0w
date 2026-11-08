@@ -22,7 +22,7 @@ afterAll(() => {
   rmSync(memDir, { recursive: true, force: true });
 });
 
-/** Source → Code Agent(code) → Result, плюс подключённые ресурсы. */
+/** Source → Code Agent(code) → Result, plus attached resources. */
 const agentFlow = (code: string, resources: { node: ReturnType<typeof node>; port: string; target?: string }[] = [], source: Json = { x: 1 }) =>
   flow(
     [node("s", "source", { json: source }), node("a", "code_agent", { code }), node("r", "result"), ...resources.map((x) => x.node)],
@@ -32,27 +32,27 @@ const run = (f: ReturnType<typeof flow>) => collect(f, { registry });
 const logs = (events: RunnerEvent[], nodeId = "a") => events.flatMap((e) => (e.event === "node:log" && e.nodeId === nodeId ? [e.message] : []));
 const tool = (id: string, type: string, params: Record<string, Json> = {}) => ({ node: node(id, type, params), port: "tool" });
 
-describe("валидация ресурсных рёбер", () => {
+describe("resource edge validation", () => {
   const ok = (f: unknown) => validateFlow(f, registry);
 
-  it("инструмент и память подключаются к своим портам; несколько инструментов — на один порт", () => {
+  it("a tool and memory attach to their ports; several tools to one port", () => {
     const f = agentFlow("return { out0: 1 }", [tool("t1", "tool_calculator"), tool("t2", "tool_datetime", { name: "now" }), { node: node("m", "memory_bank"), port: "memory" }]);
     expect(ok(f).ok).toBe(true);
   });
 
-  it("порты разного вида не соединяются", () => {
+  it("ports of different kinds do not connect", () => {
     const f = agentFlow("return { out0: 1 }", [{ node: node("t", "tool_calculator"), port: "tool", target: "memory" }]);
     const r = ok(f);
     expect(r.ok).toBe(false);
     expect(!r.ok && r.issues.map((i) => i.code)).toContain("port_kind");
-    // инструмент в порт данных, данные в порт инструмента
+    // a tool into a data port, data into a tool port
     expect(ok(agentFlow("x", [{ node: node("t", "tool_calculator"), port: "tool", target: "in0" }])).ok).toBe(false);
     const dataToTool = flow([node("s", "source", { json: 1 }), node("a", "code_agent")], [edge("s", "a", "out0", "tools")]);
     const r2 = ok(dataToTool);
     expect(!r2.ok && r2.issues.map((i) => i.code)).toContain("port_kind");
   });
 
-  it("порт без multiple по-прежнему принимает одно ребро; с multiple — много", () => {
+  it("a port without multiple still accepts one edge; with multiple, many", () => {
     const two = flow([node("s1", "source", { json: 1 }), node("s2", "source", { json: 2 }), node("r", "result")], [edge("s1", "r"), edge("s2", "r")]);
     const r = ok(two);
     expect(!r.ok && r.issues.map((i) => i.code)).toContain("port_occupied");
@@ -60,22 +60,22 @@ describe("валидация ресурсных рёбер", () => {
     expect(ok(tools).ok).toBe(true);
   });
 
-  it("ресурсные рёбра не образуют циклов данных", () => {
+  it("resource edges do not form data cycles", () => {
     expect(ok(agentFlow("x", [tool("t", "tool_calculator")])).ok).toBe(true);
     const k = agentFlow("x", [tool("t", "tool_calculator")]);
     expect(edgeKind(k, registry, k.edges.find((e) => e.source === "t")!)).toBe("tool");
     expect(dataView(k, registry).edges.map((e) => e.source).sort()).toEqual(["a", "s"]);
   });
 
-  it("параметры ресурса проверяются при валидации флоу", () => {
+  it("resource parameters are validated during flow validation", () => {
     const f = agentFlow("x", [{ node: node("m", "memory_bank", { driver: "mongo" }), port: "memory" }]);
     const r = ok(f);
     expect(!r.ok && r.issues.map((i) => i.code)).toContain("param_enum");
   });
 });
 
-describe("запуск: ресурсы не часть потока данных", () => {
-  it("ресурсные ноды сами не запускаются и не считаются стартовыми", async () => {
+describe("run: resources are not part of the data flow", () => {
+  it("resource nodes do not start by themselves and do not count as start nodes", async () => {
     const f = agentFlow("return { out0: inputs.in0 }", [tool("t", "tool_calculator")]);
     const r = await run(f);
     expect(r.done?.error).toBeUndefined();
@@ -83,7 +83,7 @@ describe("запуск: ресурсы не часть потока данных
     expect([...participatingNodes(f, registry)].sort()).toEqual(["a", "r", "s"]);
   });
 
-  it("при триггерах ресурсы тоже не участвуют; ветка запуска не включает ресурсы", () => {
+  it("with triggers resources do not take part either; the run's branch does not include resources", () => {
     const f = flow(
       [node("m", "manual"), node("a", "code_agent"), node("t", "tool_calculator"), node("r", "result")],
       [edge("m", "a"), edge("a", "r"), edge("t", "a", "tool", "tools")],
@@ -91,14 +91,14 @@ describe("запуск: ресурсы не часть потока данных
     expect([...participatingNodes(f, registry, "m")].sort()).toEqual(["a", "m", "r"]);
   });
 
-  it("хозяин без подключённых ресурсов запускается: tools пуст, memory не определена", async () => {
+  it("a host without attached resources runs: tools is empty, memory is undefined", async () => {
     const r = await run(agentFlow("return { out0: { n: tools.list().length, mem: typeof memory, banks: Object.keys(memories).length } }"));
     expect(r.done?.result).toEqual({ n: 0, mem: "undefined", banks: 0 });
   });
 });
 
-describe("Code Agent: инструменты", () => {
-  it("список, вызов по имени и короткий вызов tools.run.<имя>", async () => {
+describe("Code Agent: tools", () => {
+  it("list, call by name and the short call tools.run.<name>", async () => {
     const code = `
       const list = tools.list().map((t) => t.name).sort()
       const a = await tools.call("calculator", { expression: "6 * 7" })
@@ -109,7 +109,7 @@ describe("Code Agent: инструменты", () => {
     expect(r.done?.result).toEqual({ list: ["calculator", "current_datetime"], a: 42, b: "UTC" });
   });
 
-  it("вызовы инструментов попадают в лог хозяина (в том числе неудачные) и усекаются", async () => {
+  it("tool calls go to the host's log (including failed ones) and are truncated", async () => {
     const code = `
       await tools.call("calculator", { expression: "1+1" })
       try { await tools.call("calculator", { expression: "1/0" }) } catch (e) { log("caught: " + e.message) }
@@ -122,39 +122,39 @@ describe("Code Agent: инструменты", () => {
     ]);
   });
 
-  it("неизвестный инструмент — ошибка с перечнем доступных, нода падает с понятным текстом", async () => {
+  it("an unknown tool is an error listing the available ones, the node fails with a clear text", async () => {
     const r = await run(agentFlow('await tools.call("nope", {}); return { out0: 1 }', [tool("t", "tool_calculator")]));
     expect(r.done?.error).toMatch(/Unknown tool "nope". Available: calculator/);
   });
 
-  it("одинаковые имена инструментов — ошибка хозяина, а не тихая перезапись", async () => {
+  it("identical tool names are a host error, not a silent overwrite", async () => {
     const r = await run(agentFlow("return { out0: 1 }", [tool("t1", "tool_calculator"), tool("t2", "tool_calculator")]));
     expect(r.done?.error).toMatch(/Duplicate tool name "calculator"/);
   });
 
-  it("параметры инструмента с выражениями по входам хозяина и повторная проверка", async () => {
+  it("tool parameters with expressions over the host's inputs, and the repeated check", async () => {
     const f = agentFlow("const t = await tools.call('tz', {}); return { out0: t.timezone }", [tool("t", "tool_datetime", { name: "tz", timezone: "{{ inputs.in0.zone }}" })], { zone: "Asia/Tokyo" });
     expect((await run(f)).done?.result).toBe("Asia/Tokyo");
     const bad = agentFlow("return { out0: 1 }", [tool("t", "tool_code", { name: "x", timeoutMs: "{{ inputs.in0.zone }}" })], { zone: "abc" });
     expect((await run(bad)).done?.error).toMatch(/Node "t".*number/);
   });
 
-  it("неверное имя инструмента отвергается", async () => {
+  it("a wrong tool name is rejected", async () => {
     const r = await run(agentFlow("return { out0: 1 }", [tool("t", "tool_calculator", { name: "bad name" })]));
     expect(r.done?.error).toMatch(/Invalid tool name/);
   });
 
-  it("свой инструмент на коде: аргументы и результат", async () => {
+  it("a custom tool in code: arguments and result", async () => {
     const t = tool("c", "tool_code", { name: "greet", code: "return { out0: 'hi ' + inputs.in0.who }" });
     const r = await run(agentFlow("return { out0: await tools.call('greet', { who: 'Ann' }) }", [t]));
     expect(r.done?.result).toBe("hi Ann");
   });
 });
 
-describe("Code Agent: память", () => {
+describe("Code Agent: memory", () => {
   const mem = (name: string) => ({ node: node(`m_${name}`, "memory_bank", { driver: "json", name }), port: "memory" });
 
-  it("get/set/append/keys/delete/clear и первый банк как memory", async () => {
+  it("get/set/append/keys/delete/clear and the first bank as memory", async () => {
     const code = `
       await memory.set("a", { n: 1 })
       await memory.append("log", "x"); await memory.append("log", "y", 1)
@@ -169,7 +169,7 @@ describe("Code Agent: память", () => {
     expect(r.done?.result).toEqual({ keys: ["a", "log"], got: { n: 1 }, del: true, after: null, left: [], name: "eng_ops", driver: "json" });
   });
 
-  it("несколько банков: memories по имени, память переживает запуск", async () => {
+  it("several banks: memories by name, memory survives a run", async () => {
     const code = `
       const a = await memories.one.get("v"); const b = await memories.two.get("v")
       await memories.one.set("v", (a ?? 0) + 1); await memories.two.set("v", (b ?? 0) + 10)
@@ -180,14 +180,14 @@ describe("Code Agent: память", () => {
     expect((await run(f)).done?.result).toEqual({ a: 1, b: 10, first: "one" });
   });
 
-  it("ошибка банка (например, ключ __proto__) — исключение в коде, которое можно перехватить", async () => {
+  it("a bank error (e.g. the key __proto__) is an exception in the code that can be caught", async () => {
     const code = 'try { await memory.set("__proto__", 1) } catch (e) { return { out0: e.message } }; return { out0: "no error" }';
     expect((await run(agentFlow(code, [mem("eng_err")]))).done?.result).toMatch(/not allowed/);
   });
 });
 
-describe("Code Agent: граница песочницы", () => {
-  it("tools/memory/memories заморожены и не дают выхода к хосту", async () => {
+describe("Code Agent: sandbox boundary", () => {
+  it("tools/memory/memories are frozen and give no way out to the host", async () => {
     const code = `
       const out = {}
       try { tools.call = () => 1 } catch {}
@@ -208,32 +208,32 @@ describe("Code Agent: граница песочницы", () => {
     expect(r.done?.result).toEqual({ frozen: true, proc: "undefined", escaped: [false, false, false, false], still: 2 });
   });
 
-  it("код выражений: шаблоны в code не подставляются, ресурсы без хозяина-кода недоступны обычному Code", async () => {
+  it("expression code: templates in code are not substituted, resources without a code host are unavailable to a regular Code", async () => {
     const f = flow([node("s", "source", { json: { x: 1 } }), node("c", "code", { code: "return { out0: { t: typeof tools, m: typeof memory } }" }), node("r", "result")], [edge("s", "c"), edge("c", "r")]);
     expect((await run(f)).done?.result).toEqual({ t: "undefined", m: "undefined" });
   });
 });
 
-describe("ручной запуск и триггеры событий", () => {
+describe("manual run and event triggers", () => {
   const mixed = () =>
     flow(
       [node("m", "manual"), node("w", "webhook", { path: "x" }), node("f", "local_file_trigger", { path: "in" }), node("t", "telegram_trigger"), node("e", "error_trigger"), node("ad", "activation_trigger"), node("wf", "workflow_trigger"), node("a", "noop"), node("b", "noop"), node("b2", "noop"), node("r", "result")],
       [edge("m", "a"), edge("w", "b"), edge("f", "b2"), edge("a", "r")],
     );
 
-  it("без выбранного триггера стартуют только триггеры без внешнего события; остальные молчат", async () => {
+  it("without a chosen trigger only triggers without an external event start; the others stay silent", async () => {
     const r = await run(mixed());
     expect(r.done?.error).toBeUndefined();
     expect(r.started).toEqual(["m", "a", "r"]);
     expect(r.done?.error).toBeUndefined();
   });
 
-  it("явно выбранный триггер события (так запускает планировщик) работает, остальные молчат", async () => {
+  it("an explicitly chosen event trigger (this is how the scheduler starts) works, the others stay silent", async () => {
     const r = await collect(mixed(), { registry, trigger: "w", triggerData: { hello: 1 } });
     expect(r.started).toEqual(["w", "b"]);
   });
 
-  it("если во флоу только триггеры событий — понятная ошибка вместо выдуманных данных", async () => {
+  it("if the flow has only event triggers, a clear error instead of made-up data", async () => {
     const only = flow([node("w", "webhook", { path: "x" }), node("r", "result")], [edge("w", "r")]);
     const r = await run(only);
     expect(r.started).toEqual([]);
@@ -241,7 +241,7 @@ describe("ручной запуск и триггеры событий", () => {
     expect([...participatingNodes(only, registry)]).toEqual([]);
   });
 
-  it("данные-источники без триггеров по-прежнему стартуют", async () => {
+  it("data sources without triggers still start", async () => {
     expect((await run(agentFlow("return { out0: 1 }"))).started).toEqual(["s", "a", "r"]);
   });
 });

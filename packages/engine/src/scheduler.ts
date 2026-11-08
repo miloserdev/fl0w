@@ -12,36 +12,36 @@ export type SchedulerRun = (
   opts: { trigger: string; triggerData?: Json; onResolveCall?: (channelId: string) => Promise<{ flow: Flow; triggerId: string }> },
 ) => Promise<void>;
 
-/** Подписка на изменения файлов: возвращает функцию отписки. Реализация — `createFileWatcher` (file-watch.ts). */
+/** Subscription to file changes: returns the unsubscribe function. Implemented by `createFileWatcher` (file-watch.ts). */
 export type FileWatchFactory = (spec: FileWatchSpec, onChange: (payload: Json) => void) => () => void;
 
-/** Опрос почтового ящика для Mail Trigger: на каждое новое письмо вызывает `onMail`; возвращает функцию остановки. Реализация — `createMailPoller`. */
+/** Mailbox polling for Mail Trigger: calls `onMail` for every new message; returns the stop function. Implemented by `createMailPoller`. */
 export type MailPollFactory = (spec: MailWatchSpec, onMail: (message: Json) => void) => () => void;
 
-/** Подписка на обновления Telegram-бота; возвращает функцию отписки. Реализация — `createTelegramPoller`. */
+/** Subscription to Telegram bot updates; returns the unsubscribe function. Implemented by `createTelegramPoller`. */
 export type TelegramPollFactory = (spec: TelegramSpec, onUpdate: (update: Json) => void) => () => void;
 
-/** Предел очереди необработанных событий (обновления бота); сверх него новые отбрасываются с записью в лог. */
+/** Limit of the queue of unprocessed events (bot updates); beyond it new ones are dropped with a log entry. */
 const MAX_EVENT_QUEUE = 500;
 
 export type SchedulerDeps = {
   store: FlowStore;
   hub: RunHub;
   registry: Registry;
-  /** Исполнитель запуска (в проде — отдельный процесс-раннер). */
+  /** Run executor (in production, a separate runner process). */
   run: SchedulerRun;
   log?: (msg: string) => void;
-  /** Сколько запусков по вебхукам могут идти одновременно; сверх лимита — отказ (HTTP 429). */
+  /** How many webhook runs may go at once; beyond the limit, refuse (HTTP 429). */
   maxConcurrentHookRuns?: number;
-  /** Слежение за файлами для Local File Trigger; без него такие триггеры не активируются. */
+  /** File watching for Local File Trigger; without it such triggers are not activated. */
   watchFiles?: FileWatchFactory;
-  /** Опрос Telegram для Telegram Trigger; без него такие триггеры не активируются. */
+  /** Telegram polling for Telegram Trigger; without it such triggers are not activated. */
   pollTelegram?: TelegramPollFactory;
-  /** Опрос почты для Mail Trigger; без него такие триггеры не активируются. */
+  /** Mail polling for Mail Trigger; without it such triggers are not activated. */
   pollMail?: MailPollFactory;
 };
 
-/** Слишком много одновременных запусков по вебхукам. */
+/** Too many concurrent webhook runs. */
 export class SchedulerBusyError extends Error {
   constructor() {
     super("Too many concurrent webhook runs");
@@ -53,10 +53,10 @@ const DEFAULT_MAX_HOOK_RUNS = 8;
 
 const hookKey = (method: string, path: string) => `${method.toUpperCase()} ${path}`;
 
-/** setTimeout не умеет задержки > 2^31-1 мс (сработает сразу) — длинные периоды режем на куски. */
+/** setTimeout cannot handle delays > 2^31-1 ms (it fires immediately), so long periods are split into chunks. */
 const MAX_TIMER_MS = 2 ** 31 - 1;
 
-/** Периодический вызов `fn` каждые `ms`; цепочка таймеров без накопления дрейфа от выполнения fn. */
+/** Periodic call of `fn` every `ms`; a chain of timers that accumulates no drift from fn's execution time. */
 function every(ms: number, fn: () => void): () => void {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
@@ -68,7 +68,7 @@ function every(ms: number, fn: () => void): () => void {
       timer = setTimeout(() => {
         if (stopped) return;
         if (remaining > 0) return step();
-        arm(); // сначала следующий тик — не зависит от длительности fn
+        arm(); // schedule the next tick first, independent of how long fn takes
         fn();
       }, d);
       timer.unref?.();
@@ -85,19 +85,19 @@ function every(ms: number, fn: () => void): () => void {
 type Job = { nodeId: string; stop: () => void };
 
 /**
- * Планировщик: для каждого опубликованного флоу ставит таймеры по его триггер-нодам
- * (период даёт сам блок через `intervalMs`) и запускает флоу от сработавшего триггера.
- * Работает на сервере — независимо от того, открыт ли UI.
+ * Scheduler: for every published flow, sets timers for its trigger nodes
+ * (the period comes from the block itself via `intervalMs`) and starts the flow from the trigger that fired.
+ * Runs on the server, regardless of whether the UI is open.
  */
 export class Scheduler {
   private readonly jobs = new Map<string, Job[]>();
   private readonly busy = new Set<string>();
   private readonly flows = new Map<string, Flow>();
-  /** "METHOD path" → нода-вебхук опубликованного флоу. */
+  /** "METHOD path" → the webhook node of a published flow. */
   private readonly hooks = new Map<string, { flowId: string; nodeId: string }>();
-  /** Обработчики ошибок: flowId → ноды Error Trigger и список флоу, чьи ошибки они принимают (пусто — любые). */
+  /** Error handlers: flowId → Error Trigger nodes and the list of flows whose errors they accept (empty: any). */
   private readonly errorHandlers = new Map<string, { nodeId: string; flows: string[] }[]>();
-  /** Очередь событий, которые нельзя терять (сообщения бота): запускаются по мере освобождения слотов, по порядку. */
+  /** Queue of events that must not be lost (bot messages): started as slots free up, in order. */
   private eventQueue: { flowId: string; nodeId: string; data: Json }[] = [];
   private hookRuns = 0;
   private readonly log: (msg: string) => void;
@@ -106,7 +106,7 @@ export class Scheduler {
     this.log = deps.log ?? (() => {});
   }
 
-  /** Поднимает расписание всех опубликованных флоу из хранилища (при старте сервера). */
+  /** Brings up the schedule of all published flows from the store (at server start). */
   async start(): Promise<void> {
     const flows = await this.deps.store.list((file, e) =>
       this.log(`skipping unreadable flow file ${file}: ${e instanceof Error ? e.message : String(e)}`),
@@ -115,9 +115,9 @@ export class Scheduler {
   }
 
   /**
-   * Приводит активацию флоу в соответствие с его состоянием: published — ставит таймеры расписания,
-   * регистрирует вебхуки, файловые наблюдатели и обработчики ошибок, иначе снимает всё.
-   * `reason` (publish / update / startup) запускает триггеры жизненного цикла этого флоу.
+   * Brings a flow's activation in line with its state: published sets the schedule timers,
+   * registers webhooks, file watchers and error handlers; otherwise removes everything.
+   * `reason` (publish / update / startup) starts this flow's lifecycle triggers.
    */
   sync(flow: Flow, reason?: LifecycleReason): void {
     this.clear(flow.id);
@@ -134,7 +134,7 @@ export class Scheduler {
     const lifecycleNodes: string[] = [];
     for (const node of flow.nodes) {
       const cls = this.deps.registry[node.type];
-      if (!cls?.isTrigger || node.disabled) continue; // отключённый триггер не регистрируется (таймер, вебхук, опрос)
+      if (!cls?.isTrigger || node.disabled) continue; // a disabled trigger is not registered (timer, webhook, poll)
       try {
         const ms = cls.intervalMs(node.params);
         if (ms !== null) {
@@ -196,7 +196,7 @@ export class Scheduler {
     this.flows.set(flow.id, flow);
     if (jobs.length > 0) this.jobs.set(flow.id, jobs);
     if (handlers.length > 0) this.errorHandlers.set(flow.id, handlers);
-    // события жизненного цикла — уже после регистрации, отдельной задачей: sync вернётся сразу
+    // lifecycle events come after registration, as a separate task: sync returns immediately
     if (reason) {
       for (const nodeId of lifecycleNodes) {
         queueMicrotask(() =>
@@ -211,15 +211,15 @@ export class Scheduler {
   }
 
   /**
-   * Что мешает активировать опубликованный флоу: недопустимое расписание или путь вебхука, конфликт пути
-   * с другим флоу. Пустой список — можно публиковать. Вызывается до сохранения (в API публикации).
+   * What prevents activating a published flow: an invalid schedule or webhook path, a path conflict
+   * with another flow. An empty list means it can be published. Called before saving (in the publish API).
    */
   problems(flow: Flow): string[] {
     const out: string[] = [];
     const own = new Set<string>();
     for (const node of flow.nodes) {
       const cls = this.deps.registry[node.type];
-      if (!cls?.isTrigger || node.disabled) continue; // отключённый триггер не регистрируется (таймер, вебхук, опрос)
+      if (!cls?.isTrigger || node.disabled) continue; // a disabled trigger is not registered (timer, webhook, poll)
       try {
         cls.intervalMs(node.params);
         cls.fileWatch(node.params);
@@ -247,7 +247,7 @@ export class Scheduler {
     );
   }
 
-  /** Вебхук, слушающий этот метод и путь: точное совпадение метода, затем ANY. */
+  /** The webhook listening on this method and path: exact method match first, then ANY. */
   findWebhook(method: string, path: string): { flow: Flow; nodeId: string } | undefined {
     const hit = this.hooks.get(hookKey(method, path)) ?? this.hooks.get(hookKey("ANY", path));
     const flow = hit && this.flows.get(hit.flowId);
@@ -255,9 +255,9 @@ export class Scheduler {
   }
 
   /**
-   * Запуск флоу от триггера с данными (входящий запрос вебхука). Лимит параллельных запусков проверяется
-   * СИНХРОННО (бросает `SchedulerBusyError`), чтобы вызывающий мог отказать сразу, не дожидаясь запуска.
-   * Возвращает промис завершения запуска; он не отклоняется. `onEvent` получает те же события, что и Watch.
+   * Run a flow from a trigger with data (an incoming webhook request). The concurrent-run limit is checked
+   * SYNCHRONOUSLY (throws `SchedulerBusyError`) so the caller can refuse immediately without waiting for the run.
+   * Returns the run completion promise; it never rejects. `onEvent` receives the same events as Watch.
    */
   trigger(
     flowId: string,
@@ -276,8 +276,8 @@ export class Scheduler {
   }
 
   /**
-   * Флоу и триггер для вызова по каналу (outgoing call): ровно один incoming call среди ОПУБЛИКОВАННЫХ флоу. Раннер
-   * исполняет вызванный флоу вложенным запуском в своём процессе, поэтому возвращается само определение флоу.
+   * The flow and trigger for a call by channel (outgoing call): exactly one incoming call among PUBLISHED flows. The runner
+   * executes the called flow as a nested run in its own process, so the flow definition itself is returned.
    */
   resolveCall(channelId: string): Promise<{ flow: Flow; triggerId: string }> {
     try {
@@ -288,7 +288,7 @@ export class Scheduler {
   }
 
   stop(): void {
-    // флоу может быть активен без таймеров (только вебхуки) — чистим по всем известным id
+    // a flow can be active without timers (webhooks only), so clean up across all known ids
     for (const id of new Set([...this.jobs.keys(), ...this.flows.keys()])) this.clear(id);
   }
 
@@ -302,7 +302,7 @@ export class Scheduler {
   }
 
   private async fire(flow: Flow, nodeId: string): Promise<void> {
-    // один запуск флоу за раз: если прошлый ещё идёт — тик пропускаем, а не копим очередь
+    // one run of a flow at a time: if the previous one is still going, skip the tick rather than build a queue
     if (this.busy.has(flow.id)) {
       this.deps.hub.skip(flow.id, nodeId, "busy");
       this.log(`flow ${flow.id}: tick of ${nodeId} skipped, previous run is still active`);
@@ -317,8 +317,8 @@ export class Scheduler {
   }
 
   /**
-   * Запуск от события (файл, жизненный цикл, ошибка другого флоу). Занятость — не ошибка: запуск
-   * пропускается с пометкой в ленте; причины отказа попадают в лог.
+   * Run from an event (file, lifecycle, another flow's error). Being busy is not an error: the run
+   * is skipped with a note in the feed; refusal reasons go to the log.
    */
   private fireEvent(flowId: string, nodeId: string, data: Json, opts?: { errorRun?: boolean }): void {
     try {
@@ -334,8 +334,8 @@ export class Scheduler {
   }
 
   /**
-   * Событие, которое нельзя терять (сообщение бота): ждёт свободного слота в очереди, порядок сохраняется.
-   * Если очередь переполнена, новое событие отбрасывается — это видно в логе.
+   * An event that must not be lost (a bot message): waits for a free slot in the queue, order is preserved.
+   * If the queue is full, the new event is dropped; this is visible in the log.
    */
   private enqueueEvent(flowId: string, nodeId: string, data: Json): void {
     if (this.eventQueue.length >= MAX_EVENT_QUEUE) {
@@ -350,7 +350,7 @@ export class Scheduler {
     const limit = this.deps.maxConcurrentHookRuns ?? DEFAULT_MAX_HOOK_RUNS;
     while (this.eventQueue.length > 0 && this.hookRuns < limit) {
       const next = this.eventQueue.shift()!;
-      if (!this.flows.has(next.flowId)) continue; // флоу сняли с публикации, пока событие ждало
+      if (!this.flows.has(next.flowId)) continue; // the flow was unpublished while the event waited
       try {
         void this.trigger(next.flowId, next.nodeId, next.data).finally(() => this.drainQueue());
       } catch (e) {
@@ -359,7 +359,7 @@ export class Scheduler {
     }
   }
 
-  /** Передаёт ошибку запуска всем подходящим Error Trigger. */
+  /** Passes the run's error to all matching Error Triggers. */
   private dispatchError(flow: Flow, runId: string, trigger: string, message: string, node: string | null): void {
     const payload: Json = {
       flow: { id: flow.id, name: flow.name },
@@ -376,8 +376,8 @@ export class Scheduler {
   }
 
   /**
-   * Один запуск: события идут в хаб (Watch) и, если задан, в `extra`. Никогда не бросает.
-   * Упавший запуск (кроме запуска самого обработчика ошибок — иначе была бы цепочка) уходит в Error Trigger.
+   * One run: events go to the hub (Watch) and, if given, to `extra`. Never throws.
+   * A failed run (except the run of the error handler itself, otherwise there would be a chain) goes to Error Trigger.
    */
   private async execute(
     flow: Flow,
@@ -401,14 +401,14 @@ export class Scheduler {
       try {
         extra?.(e);
       } catch {
-        // сломанный потребитель событий не должен ронять запуск
+        // a broken event consumer must not crash the run
       }
     };
     try {
-      // вызовы по каналу (outgoing call): рабочий запуск находит только опубликованные флоу
+      // calls by channel (outgoing call): a working run finds only published flows
       await this.deps.run(flow, emit, { trigger: nodeId, triggerData, onResolveCall: (ch) => this.resolveCall(ch) });
     } catch (e) {
-      // run не должен бросать, но если бросил — запуск обязан закрыться событием
+      // run must not throw, but if it did, the run must close with an event
       emit({
         event: "flow:done",
         error: `Scheduler failure: ${e instanceof Error ? e.message : String(e)}`,
@@ -416,8 +416,8 @@ export class Scheduler {
     } finally {
       const last = hub.lastRun(flow.id);
       this.log(`flow ${flow.id}: run ${runId} ${last?.status ?? "?"} in ${Date.now() - started} ms`);
-      // обработчику — собственное сообщение упавшей ноды, а не обёртка итога («Node "x" failed: …»);
-      // если нода не называлась (невалидный флоу, падение процесса) — сообщение итога запуска
+      // the handler gets the failed node's own message, not the run summary wrapper ("Node "x" failed: …");
+      // if no node was named (invalid flow, process crash), the run summary message
       if (failure !== undefined && !opts?.errorRun) {
         this.dispatchError(flow, runId, nodeId, nodeMessage ?? failure, failedNode);
       }

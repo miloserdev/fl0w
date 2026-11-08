@@ -9,19 +9,19 @@ export type Call = { token: string; method: string; params: Record<string, Json>
 type Update = Record<string, Json> & { update_id: number };
 
 /**
- * Поддельный Bot API: честная семантика getUpdates — обновления с update_id < offset считаются подтверждёнными и
- * удаляются; пока обновлений нет, запрос «висит» до `timeout` секунд (не больше `maxWaitMs`) или до появления новых.
+ * Fake Bot API: honest getUpdates semantics, updates with update_id < offset count as acknowledged and are
+ * deleted; while there are no updates, the request "hangs" for up to `timeout` seconds (no more than `maxWaitMs`) or until new ones arrive.
  */
 export class FakeTelegram {
   server!: Server;
   url = "";
   calls: Call[] = [];
-  /** Неподтверждённые обновления по токенам. */
+  /** Unacknowledged updates per token. */
   queues = new Map<string, Update[]>();
-  /** Сколько getUpdates одновременно висит по токену (для проверки «один опрос на бота»). */
+  /** How many getUpdates hang at once per token (for checking "one poll per bot"). */
   inflight = new Map<string, number>();
   maxInflight = new Map<string, number>();
-  /** Подмена ответа: вернуть { status, body } вместо штатной обработки. */
+  /** Response override: return { status, body } instead of the normal handling. */
   override?: (call: Call) => { status: number; body: unknown } | undefined;
   maxWaitMs = 300;
   readonly defaultMaxWaitMs = 300;
@@ -49,7 +49,7 @@ export class FakeTelegram {
     this.server.close();
   }
 
-  /** Новое обновление для бота; возвращает его update_id. */
+  /** A new update for the bot; returns its update_id. */
   push(token: string, body: Record<string, Json>): number {
     const u = { update_id: this.nextId++, ...body } as Update;
     this.queues.set(token, [...(this.queues.get(token) ?? []), u]);
@@ -75,7 +75,7 @@ export class FakeTelegram {
     const offset = typeof call.params["offset"] === "number" ? call.params["offset"] : undefined;
     let q = this.queues.get(token) ?? [];
     if (offset !== undefined && offset >= 0) q = q.filter((u) => u.update_id >= offset);
-    else if (offset !== undefined && offset < 0) q = q.slice(-1); // offset=-1: только последнее
+    else if (offset !== undefined && offset < 0) q = q.slice(-1); // offset=-1: only the last one
     this.queues.set(token, offset !== undefined && offset >= 0 ? q : (this.queues.get(token) ?? []));
 
     const cur = (this.inflight.get(token) ?? 0) + 1;
@@ -90,7 +90,7 @@ export class FakeTelegram {
           const t = setTimeout(resolve, timeoutMs);
           const wake = () => (clearTimeout(t), resolve());
           this.waiters.push(wake);
-          req.on("close", wake); // клиент оборвал запрос — настоящий сервер тоже перестаёт его обслуживать
+          req.on("close", wake); // the client aborted the request, a real server also stops serving it
         });
         const fresh = (this.queues.get(token) ?? []).filter((u) => offset === undefined || offset < 0 || u.update_id >= offset);
         q = offset !== undefined && offset < 0 ? fresh.slice(-1) : fresh;

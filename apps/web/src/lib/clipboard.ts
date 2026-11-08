@@ -3,13 +3,13 @@ import { registry } from "@fl0w/blocks";
 import type { Edge } from "@xyflow/react";
 import { fromReactFlow, newNodeId, toReactFlow, type BlockNodeType } from "./flow-convert";
 
-/** Метка формата в буфере обмена: чужой текст при вставке игнорируется. */
+/** Format marker in the clipboard: foreign text is ignored on paste. */
 export const CLIP_MARK = "fl0w-clipboard";
 const MAX_CLIP_CHARS = 5_000_000;
 const MAX_CLIP_NODES = 500;
 const OFFSET = 40;
 
-/** Выделенные ноды и рёбра между ними → текст для системного буфера обмена (JSON). Нет выделения — null. */
+/** Selected nodes and the edges between them → text for the system clipboard (JSON). No selection — null. */
 export function serializeSelection(nodes: BlockNodeType[], edges: Edge[]): string | null {
   const picked = nodes.filter((n) => n.selected);
   if (picked.length === 0) return null;
@@ -18,7 +18,7 @@ export function serializeSelection(nodes: BlockNodeType[], edges: Edge[]): strin
   return JSON.stringify({ [CLIP_MARK]: 1, nodes: flow.nodes, edges: flow.edges });
 }
 
-/** Разбор текста из буфера: валидный набор нод известных блоков или null (не наш формат, битый, слишком большой). */
+/** Parsing text from the clipboard: a valid set of nodes of known blocks or null (not our format, broken, too large). */
 export function parseClipboard(text: string): Flow | null {
   if (text.length > MAX_CLIP_CHARS || !text.includes(CLIP_MARK)) return null;
   try {
@@ -35,8 +35,8 @@ export function parseClipboard(text: string): Flow | null {
 }
 
 /**
- * Вставка: новые id нод и рёбер, смещение, чтобы копия не лежала точно поверх существующих, выделены только вставленные.
- * Закреплённые данные и признак «отключена» копируются вместе с нодой.
+ * Paste: new node and edge ids, an offset so the copy does not lie exactly on top of existing ones, only the pasted ones are selected.
+ * Pinned data and the "disabled" flag are copied together with the node.
  */
 export function pasteNodes(clip: Flow, existing: BlockNodeType[]): { nodes: BlockNodeType[]; edges: Edge[] } {
   const idMap = new Map(clip.nodes.map((n) => [n.id, newNodeId(n.type)]));

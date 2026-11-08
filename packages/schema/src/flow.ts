@@ -10,13 +10,13 @@ export const nodeSchema = z.object({
   portsOverride: portsDefSchema.nullable(),
   cssOverride: z.string().nullable(),
   /**
-   * Закреплённый выход ноды (pin data): `{ порт: JSON }`. В ручном запуске нода не исполняется, а отдаёт эти данные —
-   * так отлаживают цепочку без повторных вызовов и без ожидания события. В плановых запусках опубликованного флоу не действует.
+   * Pinned node output (pin data): `{ port: JSON }`. In a manual run the node is not executed and returns this data instead,
+   * which is how a chain is debugged without repeated calls and without waiting for an event. Has no effect in scheduled runs of a published flow.
    */
   pinData: z.record(z.string(), jsonSchema).nullable().optional(),
   /**
-   * Нода отключена: в запуске не участвует (не исполняется, ничего не отдаёт — ветка за ней не идёт), триггер не регистрируется
-   * в планировщике (таймер, вебхук, опрос), параметры не проверяются, к каналам вызова она не относится.
+   * The node is disabled: it takes no part in the run (not executed, outputs nothing, so the branch behind it does not run), its trigger is not registered
+   * in the scheduler (timer, webhook, poll), parameters are not validated, and it does not belong to call channels.
    */
   disabled: z.boolean().optional(),
 });
@@ -31,7 +31,7 @@ export const edgeSchema = z.object({
 });
 export type FlowEdge = z.infer<typeof edgeSchema>;
 
-/** draft — только редактируется; published — исполняется сервером по расписанию триггеров. */
+/** draft: only edited; published: executed by the server on the triggers' schedule. */
 export const flowStatusSchema = z.enum(["draft", "published"]);
 export type FlowStatus = z.infer<typeof flowStatusSchema>;
 
@@ -41,7 +41,7 @@ export const flowSchema = z.object({
   name: z.string(),
   nodes: z.array(nodeSchema),
   edges: z.array(edgeSchema),
-  /** Нет поля = draft. Хранится только в серверной копии флоу. */
+  /** No field = draft. Stored only in the server-side copy of the flow. */
   status: flowStatusSchema.optional(),
 });
 export type Flow = z.infer<typeof flowSchema>;

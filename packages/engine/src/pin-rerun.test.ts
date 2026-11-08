@@ -8,7 +8,7 @@ const ran = (events: RunnerEvent[], id: string) => logs(events, id).includes("ra
 const code = (id: string) => node(id, "code", { code: `log("ran"); return { out0: { by: "${id}", got: inputs.in0 } }` });
 const run = (f: ReturnType<typeof flow>, opts: Record<string, unknown> = {}) => collect(f, { registry, ...opts });
 
-/** Source → a → b → c → Result, каждая ступень логирует «ran», когда реально исполняется. */
+/** Source → a → b → c → Result, each stage logs "ran" when it actually executes. */
 const chain = (pins: Record<string, Record<string, Json>> = {}) => {
   const nodes = [node("s", "source", { json: { v: 1 } }), code("a"), code("b"), code("c"), node("r", "result")];
   for (const n of nodes) if (pins[n.id]) n.pinData = pins[n.id]!;
@@ -16,7 +16,7 @@ const chain = (pins: Record<string, Record<string, Json>> = {}) => {
 };
 
 describe("pin data", () => {
-  it("закреплённая нода не исполняется и отдаёт закреплённый выход; остальные идут как обычно", async () => {
+  it("a pinned node is not executed and returns the pinned output; the others go as usual", async () => {
     const r = await run(chain({ b: { out0: { fake: true } } }));
     expect(ran(r.events, "a")).toBe(true);
     expect(ran(r.events, "b")).toBe(false);
@@ -25,12 +25,12 @@ describe("pin data", () => {
     expect(r.done?.result).toEqual({ by: "c", got: { fake: true } });
   });
 
-  it("закреплённый выход ноды-источника тоже подменяет данные", async () => {
+  it("a pinned output of a source node also replaces the data", async () => {
     const r = await run(chain({ s: { out0: { v: 99 } } }));
     expect(r.done?.result).toMatchObject({ by: "c", got: { by: "b", got: { by: "a", got: { v: 99 } } } });
   });
 
-  it("плановые запуски (с trigger) pin игнорируют: опубликованный флоу работает на настоящих данных", async () => {
+  it("scheduled runs (with trigger) ignore pins: a published flow works on real data", async () => {
     const f = flow(
       [{ ...node("w", "webhook", { path: "x" }), pinData: { out0: { fake: 1 } } }, node("r", "result")],
       [edge("w", "r")],
@@ -39,7 +39,7 @@ describe("pin data", () => {
     expect(r.done?.result).toEqual({ real: 1 });
   });
 
-  it("триггер события с закреплёнными данными стартует в ручном запуске; без закрепления — нет", async () => {
+  it("an event trigger with pinned data starts in a manual run; without a pin it does not", async () => {
     const mk = (pin?: Record<string, Json>) =>
       flow([{ ...node("w", "webhook", { path: "x" }), ...(pin ? { pinData: pin } : {}) }, node("r", "result")], [edge("w", "r")]);
     const pinned = await run(mk({ out0: { method: "POST", body: { id: 7 } } }));
@@ -50,47 +50,47 @@ describe("pin data", () => {
     expect(bare.done?.error).toMatch(/Nothing to start manually/);
   });
 
-  it("узел с закреплением валиден в схеме, лишние данные не ломают флоу", async () => {
+  it("a node with a pin is valid in the schema, extra data does not break the flow", async () => {
     const r = await run(chain({ a: { out0: { x: [1, 2, 3] }, extra: 1 } }));
     expect(r.done?.error).toBeUndefined();
   });
 });
 
-describe("перезапуск с ноды (from + seeds)", () => {
+describe("restart from a node (from + seeds)", () => {
   const seeds = { s: { out0: { v: 1 } }, a: { out0: { by: "a-old" } } };
 
-  it("исполняется выбранная нода и всё после неё; предшественники выдают данные прошлого запуска", async () => {
+  it("the chosen node and everything after it is executed; predecessors supply data from the previous run", async () => {
     const r = await run(chain(), { from: "b", seeds });
     expect(ran(r.events, "a")).toBe(false);
     expect(logs(r.events, "a")).toEqual(["data from the previous run used (node not executed)"]);
     expect(ran(r.events, "b")).toBe(true);
     expect(ran(r.events, "c")).toBe(true);
     expect(r.done?.result).toMatchObject({ by: "c", got: { by: "b", got: { by: "a-old" } } });
-    // источник s нужен только предшественнику-замороженной ноде a — не запускается и не мешает
+    // source s is needed only by the predecessor, the frozen node a: it does not start and does not interfere
     expect(r.started).toContain("r");
   });
 
-  it("нет данных у нужного предшественника — понятная ошибка, ничего лишнего не запускается", async () => {
+  it("a needed predecessor has no data: a clear error, nothing extra is started", async () => {
     const r = await run(chain(), { from: "b", seeds: { s: { out0: { v: 1 } } } });
     expect(r.done?.error).toMatch(/No saved data for node "a"/);
     expect(ran(r.events, "b")).toBe(false);
   });
 
-  it("неизвестная нода — ошибка; перезапуск с первой ноды не требует seeds", async () => {
+  it("an unknown node is an error; restarting from the first node needs no seeds", async () => {
     expect((await run(chain(), { from: "zzz" })).done?.error).toMatch(/Unknown node "zzz"/);
     const r = await run(chain(), { from: "s" });
     expect(r.done?.error).toBeUndefined();
     expect(ran(r.events, "c")).toBe(true);
   });
 
-  it("закреплённая нода в перезапускаемой части использует pin, а не исполняется", async () => {
+  it("a pinned node in the restarted part uses the pin rather than being executed", async () => {
     const r = await run(chain({ c: { out0: { pinned: "c" } } }), { from: "a", seeds: { s: { out0: { v: 1 } } } });
     expect(ran(r.events, "a")).toBe(true);
     expect(ran(r.events, "c")).toBe(false);
     expect(r.done?.result).toEqual({ pinned: "c" });
   });
 
-  it("ветки, не связанные с точкой перезапуска, не запускаются", async () => {
+  it("branches unrelated to the restart point do not start", async () => {
     const f = flow(
       [node("s", "source", { json: { v: 1 } }), code("a"), code("other"), node("r", "result"), node("r2", "result")],
       [edge("s", "a"), edge("a", "r"), edge("s", "other"), edge("other", "r2")],
@@ -101,13 +101,13 @@ describe("перезапуск с ноды (from + seeds)", () => {
     expect(r.started).not.toContain("other");
   });
 
-  it("from работает и для флоу с событийными триггерами (данные триггера — из seeds)", async () => {
+  it("from also works for flows with event triggers (trigger data comes from seeds)", async () => {
     const f = flow([node("w", "webhook", { path: "x" }), code("a"), node("r", "result")], [edge("w", "a"), edge("a", "r")]);
     const r = await run(f, { from: "a", seeds: { w: { out0: { body: { id: 1 } } } } });
     expect(r.done?.result).toEqual({ by: "a", got: { body: { id: 1 } } });
   });
 
-  it("большие данные seeds усекаются в событии, но по рёбрам идут целиком", async () => {
+  it("large seeds data is truncated in the event but goes along the edges in full", async () => {
     const big = "x".repeat(200_000);
     const r = await run(chain(), { from: "b", seeds: { s: { out0: { v: 1 } }, a: { out0: { big } } } });
     expect(JSON.stringify(r.done?.result)).toContain(big.slice(0, 1000));

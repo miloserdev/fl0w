@@ -1,7 +1,7 @@
 import type { Json } from "@fl0w/schema";
 import { getPath, isPlainObject, toList } from "./json-path";
 
-/** Детерминированный ключ значения: объекты с одинаковым содержимым дают один ключ независимо от порядка полей. */
+/** Deterministic key of a value: objects with the same content give the same key regardless of field order. */
 export function stableKey(v: Json | undefined): string {
   if (Array.isArray(v)) return `[${v.map(stableKey).join(",")}]`;
   if (isPlainObject(v)) {
@@ -14,8 +14,8 @@ export function stableKey(v: Json | undefined): string {
 }
 
 /**
- * Список для обработки: значение по `path` (пусто — сам вход). Массив — как есть, одиночное значение —
- * список из одного элемента (как единственный item в n8n). Путь, которого нет, — ошибка.
+ * List to process: the value at `path` (empty means the input itself). An array is taken as is, a single value becomes
+ * a one-element list (like a single item in n8n). A path that does not exist is an error.
  */
 export function listAt(input: Json | undefined, path: string, block: string): Json[] {
   const target = getPath(input, path);
@@ -25,7 +25,7 @@ export function listAt(input: Json | undefined, path: string, block: string): Js
   return toList(target ?? null);
 }
 
-/** Массив строк из параметра; допускается и строка «a, b, c». */
+/** Array of strings from a parameter; the string "a, b, c" is also accepted. */
 export function stringList(v: Json | undefined, name: string): string[] {
   if (v === undefined || v === null || v === "") return [];
   if (typeof v === "string") return v.split(",").map((s) => s.trim()).filter(Boolean);
@@ -36,7 +36,7 @@ export function stringList(v: Json | undefined, name: string): string[] {
 const TYPE_RANK = (v: Json | undefined): number =>
   v === undefined || v === null ? 5 : typeof v === "number" ? 0 : typeof v === "string" ? 1 : typeof v === "boolean" ? 2 : Array.isArray(v) ? 3 : 4;
 
-/** Полный порядок для JSON: числа < строки < булевы < массивы < объекты < null/отсутствует. */
+/** Total order for JSON: numbers < strings < booleans < arrays < objects < null/missing. */
 export function compareJson(a: Json | undefined, b: Json | undefined): number {
   const ra = TYPE_RANK(a);
   const rb = TYPE_RANK(b);
@@ -52,7 +52,7 @@ export function compareJson(a: Json | undefined, b: Json | undefined): number {
   return 0;
 }
 
-/** `Promise.all` с ограничением числа одновременно идущих задач (результаты — в порядке исходного списка). */
+/** `Promise.all` with a limit on concurrently running tasks (results are in the order of the original list). */
 export async function mapLimit<T, R>(items: readonly T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
   const out = new Array<R>(items.length);
   let next = 0;

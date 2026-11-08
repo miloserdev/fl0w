@@ -15,7 +15,7 @@ function parseBody(text: string, contentType: string): Json {
     try {
       return JSON.parse(text) as Json;
     } catch {
-      return text; // битый JSON отдаём как есть — флоу сам решит, что с ним делать
+      return text; // broken JSON is passed as is — the flow decides what to do with it
     }
   }
   if (contentType.includes("application/x-www-form-urlencoded")) {
@@ -24,7 +24,7 @@ function parseBody(text: string, contentType: string): Json {
   return text;
 }
 
-/** Ответ из событий запуска: Respond to Webhook, иначе результат Result, иначе ошибка. */
+/** Response from the run events: Respond to Webhook, otherwise the Result output, otherwise an error. */
 function responseFrom(flow: Flow, events: RunnerEvent[]): Response {
   const responders = new Set(flow.nodes.filter((n) => n.type === "respond_to_webhook").map((n) => n.id));
   for (const e of events) {
@@ -55,7 +55,7 @@ async function handle(req: Request, { params }: Ctx): Promise<Response> {
   const hookPath = path.map(decodeURIComponent).join("/");
   const hook = rt.scheduler.findWebhook(req.method, hookPath);
   if (!hook) {
-    // Вебхук регистрируется только у ОПУБЛИКОВАННОГО флоу. Если такой путь есть у сохранённого черновика — говорим об этом прямо.
+    // A webhook is registered only for a PUBLISHED flow. If a saved draft has such a path, we say so explicitly.
     const normalized = normalizeWebhookPath(hookPath);
     const drafts = (await rt.store.list()).filter(
       (f) => f.status !== "published" && f.nodes.some((n) => registry[n.type]?.webhook(n.params)?.path === normalized),
@@ -94,7 +94,7 @@ async function handle(req: Request, { params }: Ctx): Promise<Response> {
   const waitForFinish = node?.params["respond"] === "whenFinished" && registry[node.type] !== undefined;
   try {
     if (!waitForFinish) {
-      // отвечаем сразу, флоу идёт в фоне; итог запуска виден в Watch и логе планировщика
+      // respond immediately, the flow runs in the background; the run outcome is visible in Watch and the scheduler log
       void rt.scheduler.trigger(hook.flow.id, hook.nodeId, payload);
       return Response.json({ message: "Workflow was started" });
     }

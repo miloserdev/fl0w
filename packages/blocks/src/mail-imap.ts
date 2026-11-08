@@ -11,7 +11,7 @@ export type ImapSmtpConfig = {
   smtpSecure: boolean;
   username: string;
   password: string;
-  /** Не проверять сертификат сервера (самоподписанные у внутренних серверов). */
+  /** Do not verify the server certificate (self-signed ones on internal servers). */
   tlsInsecure: boolean;
   timeoutMs: number;
   signal: AbortSignal;
@@ -20,19 +20,19 @@ export type ImapSmtpConfig = {
 const addr = (a: { name?: string; address?: string } | undefined) => (a?.address ? (a.name ? `${a.name} <${a.address}>` : a.address) : "");
 
 /**
- * IMAP (чтение) + SMTP (отправка): работает с любым почтовым сервером — Exchange/Outlook, Gmail, Yandex, собственным.
- * Библиотеки (imapflow, nodemailer, mailparser) загружаются только при вызове и скрыты от сборщика (turbopackIgnore): они нужны
- * лишь в Node (сервер и процесс-раннер), а пакет блоков попадает и в клиентскую сборку — иначе она падает на `net`.
+ * IMAP (reading) + SMTP (sending): works with any mail server: Exchange/Outlook, Gmail, Yandex, your own.
+ * The libraries (imapflow, nodemailer, mailparser) are loaded only on call and hidden from the bundler (turbopackIgnore): they are needed
+ * only in Node (the server and the runner process), while the blocks package also gets into the client bundle, which would otherwise fail on `net`.
  */
 export function imapSmtpDriver(cfg: ImapSmtpConfig): MailDriver {
   const tls = { rejectUnauthorized: !cfg.tlsInsecure };
   const wrap = (e: unknown): never => {
     if (cfg.signal.aborted) throw new Error("Aborted", { cause: e });
-    // причину не прикрепляем: в ней может оказаться пароль (CLAUDE.md, «Секреты»)
+    // the cause is not attached: it may contain a password (CLAUDE.md, "Secrets")
     throw new Error(redact(`Mail: ${e instanceof Error ? e.message : String(e)}`, [cfg.password]));
   };
 
-  /** Одно соединение IMAP на вызов блока: открывается лениво, закрывается в `close`. */
+  /** One IMAP connection per block call: opened lazily, closed in `close`. */
   let imap: import("imapflow").ImapFlow | null = null;
   const connect = async () => {
     if (imap) return imap;
@@ -48,13 +48,13 @@ export function imapSmtpDriver(cfg: ImapSmtpConfig): MailDriver {
     });
     const onAbort = () => client.close();
     cfg.signal.addEventListener("abort", onAbort, { once: true });
-    client.on("error", () => undefined); // ошибки приходят из вызовов, а не событием
+    client.on("error", () => undefined); // errors come from calls, not as an event
     await client.connect();
     imap = client;
     return client;
   };
 
-  /** Отправка через SMTP (общая для send и reply). */
+  /** Sending via SMTP (shared by send and reply). */
   const smtp = async (mail: OutMail & { inReplyTo?: string; references?: string[] }): Promise<Json> => {
     const nodemailer = await import(/* webpackIgnore: true */ /* turbopackIgnore: true */ "nodemailer");
     const transport = nodemailer.createTransport({
@@ -82,7 +82,7 @@ export function imapSmtpDriver(cfg: ImapSmtpConfig): MailDriver {
     }
   };
 
-  /** Разбирает письмо целиком (заголовки, тело, вложения с содержимым). */
+  /** Parses a whole message (headers, body, attachments with content). */
   const parse = async (folder: string, id: string) => {
     const client = await connect();
     const lock = await client.getMailboxLock(folder);
@@ -164,7 +164,7 @@ export function imapSmtpDriver(cfg: ImapSmtpConfig): MailDriver {
             },
             { uid: true },
           );
-          // новые — первыми: UID растут со временем
+          // newest first: UIDs grow over time
           const uids = (found || []).sort((a, b) => b - a).slice(0, q.limit);
           const items: MailItem[] = [];
           if (uids.length > 0) {

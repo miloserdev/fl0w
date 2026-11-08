@@ -1,4 +1,4 @@
-/** Node-only. Вебхук Telegram для Telegram Trigger (режим webhook) и общая фабрика источников. Экспортируется через `@fl0w/engine/server`. */
+/** Node-only. Telegram webhook for Telegram Trigger (webhook mode) and the shared source factory. Exported via `@fl0w/engine/server`. */
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { callTelegram, TELEGRAM_OPT_IN_UPDATES, TELEGRAM_UPDATE_TYPES, type TelegramSpec } from "@fl0w/blocks";
 import type { Json } from "@fl0w/schema";
@@ -8,7 +8,7 @@ import { createTelegramPoller, updateMatches, type TelegramPollerOptions } from 
 export type TelegramWebhookResult = "ok" | "unauthorized" | "not_found";
 
 export type TelegramWebhookOptions = {
-  /** Паузы между повторами setWebhook после сбоя: минимум и максимум, мс. */
+  /** Pauses between setWebhook retries after a failure: minimum and maximum, ms. */
   retryMinMs?: number;
   retryMaxMs?: number;
   log?: (msg: string) => void;
@@ -19,7 +19,7 @@ type Bot = { token: string; key: string; secret: string; subs: Set<Sub>; synced?
 
 const DEFAULT_UPDATES = TELEGRAM_UPDATE_TYPES.filter((t) => !TELEGRAM_OPT_IN_UPDATES.includes(t));
 
-/** Односторонние производные от токена: по ним токен не восстановить, а угадать их без токена нельзя. */
+/** One-way values derived from the token: the token cannot be recovered from them, and they cannot be guessed without the token. */
 const derive = (token: string, purpose: string) => createHmac("sha256", token).update(`fl0w-telegram-${purpose}`).digest("hex");
 
 const botId = (token: string) => token.split(":")[0]!;
@@ -30,13 +30,13 @@ const safeEqual = (a: string, b: string) => {
   return timingSafeEqual(ha, hb);
 };
 
-/** Ключ в адресе вебхука для токена (виден в URL, поэтому не содержит токена). */
+/** Key in the webhook address for a token (visible in the URL, so it does not contain the token). */
 export const telegramWebhookKey = (token: string) => derive(token, "key").slice(0, 32);
 
 /**
- * Регистрация вебхука у Telegram (`setWebhook`) и приём обновлений. Адрес — `<publicUrl>/api/telegram/<ключ>`, подлинность
- * запроса проверяется секретным заголовком `X-Telegram-Bot-Api-Secret-Token`. Вызовы к Bot API по одному токену идут по
- * очереди, чтобы быстрая перепубликация не переставила `setWebhook` и `deleteWebhook`.
+ * Webhook registration with Telegram (`setWebhook`) and receiving updates. The address is `<publicUrl>/api/telegram/<key>`, the authenticity
+ * of the request is checked with the secret header `X-Telegram-Bot-Api-Secret-Token`. Bot API calls for one token go through
+ * a queue so that a quick republish does not reorder `setWebhook` and `deleteWebhook`.
  */
 export function createTelegramWebhooks(opts: TelegramWebhookOptions = {}) {
   const retryMin = opts.retryMinMs ?? 2000;
@@ -61,7 +61,7 @@ export function createTelegramWebhooks(opts: TelegramWebhookOptions = {}) {
   const sync = (bot: Bot, backoff = retryMin) => {
     clearTimeout(bot.retry);
     enqueue(bot.token, async () => {
-      if (bots.get(bot.token) !== bot) return; // за время ожидания в очереди все подписчики ушли
+      if (bots.get(bot.token) !== bot) return; // all subscribers left while waiting in the queue
       const allowed = wanted(bot);
       const signature = allowed.join(",");
       if (bot.synced === signature) return;
@@ -105,9 +105,9 @@ export function createTelegramWebhooks(opts: TelegramWebhookOptions = {}) {
       clearTimeout(mine.retry);
       if (bots.get(mine.token) === mine) bots.delete(mine.token);
       byKey.delete(mine.key);
-      if (mine.synced === undefined) return; // вебхук не регистрировали — снимать нечего
+      if (mine.synced === undefined) return; // the webhook was never registered, nothing to remove
       enqueue(mine.token, async () => {
-        if (bots.has(mine.token)) return; // тем временем подписались снова — вебхук нужен
+        if (bots.has(mine.token)) return; // subscribed again in the meantime, the webhook is needed
         try {
           await callTelegram(mine.token, "deleteWebhook", {}, { timeoutMs: 15_000 });
           log(`telegram bot ${botId(mine.token)}: webhook removed`);
@@ -118,7 +118,7 @@ export function createTelegramWebhooks(opts: TelegramWebhookOptions = {}) {
     };
   };
 
-  /** Входящий запрос от Telegram: проверка ключа и секрета, отсев повторов, раздача подписчикам. */
+  /** Incoming request from Telegram: check the key and secret, drop repeats, distribute to subscribers. */
   const handleWebhook = (key: string, secretHeader: string | null, update: unknown): TelegramWebhookResult => {
     const bot = byKey.get(key);
     if (!bot) return "not_found";
@@ -127,14 +127,14 @@ export function createTelegramWebhooks(opts: TelegramWebhookOptions = {}) {
     const obj = update as { [k: string]: Json };
     const id = obj["update_id"];
     if (typeof id !== "number") return "ok";
-    if (id <= bot.lastUpdateId) return "ok"; // Telegram повторяет доставку, если ответ не успел
+    if (id <= bot.lastUpdateId) return "ok"; // Telegram repeats delivery if the reply was not in time
     bot.lastUpdateId = id;
     for (const sub of [...bot.subs]) {
       if (!updateMatches(sub.spec, obj)) continue;
       try {
         sub.onUpdate(obj);
       } catch {
-        // сломанный подписчик не должен останавливать раздачу остальным
+        // a broken subscriber must not stop delivery to the others
       }
     }
     return "ok";
@@ -144,8 +144,8 @@ export function createTelegramWebhooks(opts: TelegramWebhookOptions = {}) {
 }
 
 /**
- * Общая фабрика источников Telegram: по `mode` подписка идёт через опрос или вебхук. У одного бота одновременно
- * возможен только один способ (Telegram не отдаёт getUpdates при активном вебхуке) — второй получает пустую подписку и запись в лог.
+ * Shared factory of Telegram sources: by `mode`, the subscription goes through polling or a webhook. A bot can use
+ * only one way at a time (Telegram does not return getUpdates while a webhook is active); the second gets an empty subscription and a log entry.
  */
 export function createTelegramSources(opts: TelegramPollerOptions & TelegramWebhookOptions = {}) {
   const log = opts.log ?? (() => {});

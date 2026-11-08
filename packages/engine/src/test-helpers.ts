@@ -1,7 +1,7 @@
 import { Block, registry as base, type BlockClass, type RunContext } from "@fl0w/blocks";
 import type { Flow, Json, ParamSchema, RunnerEvent } from "@fl0w/schema";
 
-/** Тестовые блоки: нужны, чтобы проверять движок независимо от набора MVP-блоков. */
+/** Test blocks: needed to check the engine independently of the set of MVP blocks. */
 class Transform extends Block {
   static type = "transform";
   static label = "Transform";
@@ -19,7 +19,7 @@ class Transform extends Block {
   }
 }
 
-/** value > 0 → out0, иначе out1; второй порт остаётся пустым. */
+/** value > 0 → out0, otherwise out1; the second port stays empty. */
 class Branch extends Block {
   static type = "branch";
   static label = "Branch";
@@ -83,7 +83,7 @@ class Slow extends Block {
   }
 }
 
-/** Пишет много логов и «хвост» уже после завершения ноды. */
+/** Writes many logs and a "tail" after the node has finished. */
 class Chatty extends Block {
   static type = "chatty";
   static label = "Chatty";
@@ -98,7 +98,7 @@ class Chatty extends Block {
   }
 }
 
-/** Возвращает свои (уже разрешённые движком) параметры — для проверки выражений `{{ inputs… }}`. */
+/** Returns its own parameters (already resolved by the engine), for checking `{{ inputs… }}` expressions. */
 class Echo extends Block {
   static type = "echo";
   static label = "Echo";
@@ -119,7 +119,7 @@ class Echo extends Block {
   }
 }
 
-/** Фиксирует момент, когда блок реально начал выполняться. */
+/** Records the moment the block actually started executing. */
 class Probe extends Block {
   static type = "probe";
   static label = "Probe";

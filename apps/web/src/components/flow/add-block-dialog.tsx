@@ -22,7 +22,7 @@ const categoryRank = (c: string) => {
   return i === -1 ? CATEGORY_ORDER.length : i;
 };
 
-/** Окно выбора блока: типы берутся из реестра, сгруппированы по `category`. */
+/** Block picker window: types come from the registry, grouped by `category`. */
 export function AddBlockDialog({
   open,
   onOpenChange,
@@ -35,7 +35,7 @@ export function AddBlockDialog({
   const t = useTranslations();
   const blockLabel = useBlockLabel();
   const [query, setQuery] = useState("");
-  // выбранный клавишами блок: индекс в плоском списке в порядке показа
+  // block selected with the keys: index in the flat list in display order
   const [active, setActive] = useState(0);
   const tiles = useRef<(HTMLButtonElement | null)[]>([]);
 
@@ -47,20 +47,20 @@ export function AddBlockDialog({
     groups.set(cls.category, [...(groups.get(cls.category) ?? []), type]);
   }
 
-  // порядок категорий: известные — по списку, остальные — следом в порядке реестра
+  // category order: known ones by the list, the rest follow in registry order
   const ordered = [...groups].sort(([a], [b]) => categoryRank(a) - categoryRank(b));
   const flat = ordered.flatMap(([, types]) => types);
   const current = Math.min(active, Math.max(flat.length - 1, 0));
 
-  // выбранная плитка всегда в видимой части окна
+  // the selected tile is always in the visible part of the window
   useEffect(() => {
-    tiles.current.length = flat.length; // после фильтрации остаются только показанные плитки
+    tiles.current.length = flat.length; // after filtering only the shown tiles remain
     tiles.current[current]?.scrollIntoView({ block: "nearest" });
-    // flat пересоздаётся каждый рендер; зависим от того, что реально меняет список
+    // flat is recreated on every render; depend on what actually changes the list
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current, query, open]);
 
-  /** Соседняя плитка вверх/вниз по экрану: ближайшая в следующей строке, с ближайшим по горизонтали центром. */
+  /** Neighbouring tile up/down on screen: the nearest in the next row, with the nearest horizontal centre. */
   const vertical = (dir: 1 | -1) => {
     const from = tiles.current[current]?.getBoundingClientRect();
     if (!from) return;
@@ -71,7 +71,7 @@ export function AddBlockDialog({
       if (!el || i === current) return;
       const r = el.getBoundingClientRect();
       const dy = dir === 1 ? r.top - from.top : from.top - r.top;
-      if (dy < from.height / 2) return; // та же строка или не в нужную сторону
+      if (dy < from.height / 2) return; // same row or not in the right direction
       const score = dy * 1000 + Math.abs(r.left + r.width / 2 - cx);
       if (score < bestScore) {
         bestScore = score;

@@ -2,21 +2,21 @@ import { describe, expect, it } from "vitest";
 import { sanitizeCss, scopeCss } from "./scope-css";
 
 describe("scopeCss", () => {
-  it("оборачивает CSS в контейнер ноды", () => {
+  it("wraps CSS in the node container", () => {
     expect(scopeCss(".a { color: red }", "n1")).toBe(
       '[data-node-id="n1"] {\n.a { color: red }\n}',
     );
   });
 
-  it("пустой CSS не даёт правил", () => {
+  it("empty CSS yields no rules", () => {
     expect(scopeCss("  /* только комментарий */ ", "n1")).toBe("");
   });
 
-  it("не даёт выйти из scope лишней закрывающей скобкой", () => {
+  it("does not let a stray closing brace escape the scope", () => {
     const out = scopeCss(".a{color:red} } body{background:red} .b{", "n1");
     expect(out).toContain(".a{color:red}");
     expect(out).toContain("body{background:red}");
-    // body остаётся внутри обёртки: ровно одна верхнеуровневая пара скобок
+    // body stays inside the wrapper: exactly one top-level pair of braces
     expect(out.startsWith('[data-node-id="n1"] {')).toBe(true);
     expect(out.endsWith("\n}")).toBe(true);
     const depthAtEnd = [...out].reduce((d, c) => d + (c === "{" ? 1 : c === "}" ? -1 : 0), 0);
@@ -24,19 +24,19 @@ describe("scopeCss", () => {
     expect(out).not.toContain(".b{");
   });
 
-  it("глобальная инъекция через `}` в начале не проходит", () => {
+  it("a global injection via `}` at the start does not pass", () => {
     const out = scopeCss("} html { display: none } {", "n1");
     expect(out.indexOf("html")).toBeGreaterThan(out.indexOf("{"));
   });
 
-  it("скобки внутри строк и url() не ломают разбор", () => {
+  it("braces inside strings and url() do not break parsing", () => {
     const css = '.a::after { content: "}{;" } .b { background: url(data:image/png;base64,AAA) }';
     const out = sanitizeCss(css);
     expect(out).toContain('content: "}{;"');
     expect(out).toContain("url(data:image/png;base64,AAA)");
   });
 
-  it("отбрасывает at-правила, создающие глобальные сущности", () => {
+  it("drops at-rules that create global entities", () => {
     const css = [
       '@import url("https://evil.test/x.css");',
       "@font-face { font-family: X; src: url(x.woff) }",
@@ -49,17 +49,17 @@ describe("scopeCss", () => {
     expect(out).toContain("@media (min-width: 1px)");
   });
 
-  it("разрешает декларации и & на верхнем уровне", () => {
+  it("allows declarations and & at the top level", () => {
     const out = scopeCss("background: tomato; & .x { color: red }", "n1");
     expect(out).toContain("background: tomato;");
     expect(out).toContain("& .x { color: red }");
   });
 
-  it("не позволяет закрыть тег style", () => {
+  it("does not allow closing the style tag", () => {
     expect(sanitizeCss('.a { content: "</style><script>" }')).not.toMatch(/<\/style/i);
   });
 
-  it("экранирует id ноды в атрибуте", () => {
+  it("escapes the node id in the attribute", () => {
     const out = scopeCss(".a{}", 'x"] body [y="');
     expect(out.split("\n")[0]).not.toContain('"] body');
   });

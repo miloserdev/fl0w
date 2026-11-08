@@ -9,8 +9,8 @@ const MAX_RANDOM_BYTES = 1024;
 const VERSION = "v1";
 
 /**
- * Crypto: hash, hmac, generate (uuid / случайные байты), encrypt и decrypt (AES-256-GCM по парольной фразе).
- * Секреты задаются в параметрах — хранилища учётных данных в MVP нет.
+ * Crypto: hash, hmac, generate (uuid / random bytes), encrypt and decrypt (AES-256-GCM by passphrase).
+ * Secrets are set in the parameters: the MVP has no credential store.
  */
 export class Crypto extends Block {
   static type = "crypto";
@@ -26,7 +26,7 @@ export class Crypto extends Block {
       default: "hash",
       options: ACTIONS.map((value) => ({ value })),
     },
-    // текст или шаблон «{{ поле }}»; пусто — сам вход
+    // text or a "{{ field }}" template; empty means the input itself
     { name: "value", type: "string", default: "" },
     {
       name: "algorithm",
@@ -40,7 +40,7 @@ export class Crypto extends Block {
       default: "hex",
       options: ENCODINGS.map((value) => ({ value })),
     },
-    // hmac — ключ, encrypt/decrypt — парольная фраза
+    // hmac: the key; encrypt/decrypt: the passphrase
     { name: "secret", type: "string", default: "" },
     {
       name: "kind",
@@ -54,9 +54,9 @@ export class Crypto extends Block {
   ];
 
   async run(inputs: Record<string, Json>, params: Record<string, Json>, ctx?: RunContext) {
-    // node-only API — только внутри тела run (SPEC §3)
+    // node-only API: only inside the body of run
     const nodeCrypto = await import(/* webpackIgnore: true */ /* turbopackIgnore: true */ "node:crypto");
-    // scrypt — в пуле потоков, а не `scryptSync`: тяжёлый вывод ключа не блокирует event loop и проверяет отмену запуска
+    // scrypt runs in the thread pool, not `scryptSync`: heavy key derivation does not block the event loop and honours run cancellation
     const derive = (pass: string, salt: Buffer, signal?: AbortSignal): Promise<Buffer> =>
       new Promise((resolve, reject) => {
         if (signal?.aborted) return reject(new Error("Aborted"));

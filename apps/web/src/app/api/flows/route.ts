@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/flows — серверные флоу: id, имя, статус, триггеры и каналы call-пар (для подсказок в блоках outgoing call/incoming).
+ * GET /api/flows — server flows: id, name, status, triggers and call-pair channels (for hints in the outgoing call/incoming blocks).
  */
 export async function GET() {
   const rt = getRuntime();
@@ -18,7 +18,7 @@ export async function GET() {
       name: f.name,
       status: f.status ?? "draft",
       triggers: f.nodes.filter((n) => registry[n.type]?.isTrigger).map((n) => ({ id: n.id, type: n.type })),
-      // каналы call-пар этого флоу: подсказки для выбора канала в блоках outgoing call / incoming call
+      // call-pair channels of this flow: hints for picking a channel in the outgoing call / incoming call blocks
       channels: { incoming: channelsOf(f).incoming.map((e) => e.channelId), outgoing: channelsOf(f).outgoing.map((e) => e.channelId) },
     })),
   });

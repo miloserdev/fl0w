@@ -3,7 +3,7 @@ import { Block } from "./block";
 import { conditionParams, evalCondition } from "./conditions";
 import { getPath } from "./json-path";
 
-/** map/filter над массивом внутри JSON. Всё декларативно — без исполнения выражений. */
+/** map/filter over an array inside JSON. Everything is declarative: no expressions are executed. */
 export class Transform extends Block {
   static type = "transform";
   static label = "Transform";
@@ -18,11 +18,11 @@ export class Transform extends Block {
       default: "map",
       options: [{ value: "map" }, { value: "filter" }],
     },
-    // путь к массиву во входе; пусто — сам вход
+    // path to the array in the input; empty means the input itself
     { name: "path", type: "string", default: "" },
-    // map: { "новый ключ": "путь в элементе" }; null — элементы без изменений
+    // map: { "new key": "path in the element" }; null means elements unchanged
     { name: "fields", type: "json", default: null },
-    // filter: условие над полем элемента
+    // filter: a condition on an element field
     ...conditionParams(),
   ];
 

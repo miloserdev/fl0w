@@ -17,7 +17,7 @@ function keys(tree: Tree, prefix = ""): string[] {
 const has = (tree: Tree, path: string) =>
   path.split(".").reduce<Tree | string | undefined>((t, k) => (typeof t === "object" ? t[k] : undefined), tree) !== undefined;
 
-// компилятор требует перечислить ВСЕ коды ошибок валидации — новый код без записи не соберётся
+// the compiler requires listing ALL validation error codes — a new code without an entry will not build
 const issueCodes = Object.keys({
   schema: 1,
   duplicate_node: 1,
@@ -37,16 +37,16 @@ const issueCodes = Object.keys({
   param_range: 1,
 } satisfies Record<FlowIssueCode, 1>);
 
-describe("словари", () => {
-  it("языки из конфига — ровно те, для которых есть словарь", () => {
+describe("dictionaries", () => {
+  it("the languages from the config are exactly those that have a dictionary", () => {
     expect([...locales].sort()).toEqual(Object.keys(dict).sort());
   });
 
-  it("ru и en содержат одинаковые ключи", () => {
+  it("ru and en contain the same keys", () => {
     expect(keys(ru).sort()).toEqual(keys(en).sort());
   });
 
-  it.each(Object.keys(dict))("%s: все сообщения — валидный ICU (скобки экранируются кавычками)", (lang) => {
+  it.each(Object.keys(dict))("%s: all messages are valid ICU (braces are escaped with quotes)", (lang) => {
     const tree = dict[lang]!;
     for (const k of keys(tree)) {
       const v = k.split(".").reduce<Tree | string>((t, p) => (t as Tree)[p]!, tree) as string;
@@ -54,7 +54,7 @@ describe("словари", () => {
     }
   });
 
-  it("нет пустых строк", () => {
+  it("no empty strings", () => {
     for (const [lang, tree] of Object.entries(dict)) {
       for (const k of keys(tree)) {
         const v = k.split(".").reduce<Tree | string>((t, p) => (t as Tree)[p]!, tree);
@@ -63,11 +63,11 @@ describe("словари", () => {
     }
   });
 
-  it.each(Object.keys(dict))("%s: есть перевод для каждого кода ошибки валидации", (lang) => {
+  it.each(Object.keys(dict))("%s: there is a translation for every validation error code", (lang) => {
     for (const code of issueCodes) expect(has(dict[lang]!, `issues.${code}`), `${lang}: issues.${code}`).toBe(true);
   });
 
-  it.each(Object.keys(dict))("%s: каждый блок реестра локализован (имя, категория, параметры, опции)", (lang) => {
+  it.each(Object.keys(dict))("%s: every registry block is localized (name, category, parameters, options)", (lang) => {
     const d = dict[lang]!;
     for (const [type, cls] of Object.entries(registry)) {
       expect(has(d, `blocks.${type}`), `${lang}: blocks.${type}`).toBe(true);
@@ -76,7 +76,7 @@ describe("словари", () => {
         if (port.label) expect(has(d, `ports.${type}.${port.id}`), `${lang}: ports.${type}.${port.id}`).toBe(true);
       }
       for (const p of cls.params) {
-        if (p.editor === "code") continue; // правится во вкладке кода, подписи нет
+        if (p.editor === "code") continue; // edited in the code tab, there is no caption
         expect(has(d, `params.${type}.${p.name}`), `${lang}: params.${type}.${p.name}`).toBe(true);
         if (p.type === "enum") {
           for (const o of p.options) {

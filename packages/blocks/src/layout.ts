@@ -1,7 +1,7 @@
 import type { Json, ParamSchema } from "@fl0w/schema";
 import { Block } from "./block";
 
-/** Цвета заметок и групп: UI подбирает под них оттенки для светлой и тёмной темы. */
+/** Colours of notes and groups: the UI picks shades for them for the light and dark themes. */
 export const LAYOUT_COLORS = ["yellow", "blue", "green", "pink", "purple", "gray"] as const;
 
 const colorParam: ParamSchema = {
@@ -10,7 +10,7 @@ const colorParam: ParamSchema = {
   default: "yellow",
   options: LAYOUT_COLORS.map((value) => ({ value })),
 };
-/** Размер на холсте, px (редактор меняет его за уголок ноды). */
+/** Size on the canvas, px (the editor changes it by the node corner). */
 const sizeParams = (w: number, h: number): ParamSchema[] => [
   { name: "width", type: "number", default: w, min: 80, max: 4000 },
   { name: "height", type: "number", default: h, min: 60, max: 4000 },
@@ -27,7 +27,7 @@ abstract class LayoutBlock extends Block {
   }
 }
 
-/** Стикер-заметка: текст на холсте (поддерживает переносы строк). Не участвует в запуске. */
+/** Sticky note: text on the canvas (supports line breaks). Does not take part in a run. */
 export class StickyNote extends LayoutBlock {
   static type = "note";
   static label = "Sticky Note";
@@ -40,8 +40,8 @@ export class StickyNote extends LayoutBlock {
 }
 
 /**
- * Группа («холст»): рамка с заголовком, объединяющая блоки в логический участок флоу. Перенос группы переносит блоки
- * внутри неё. Не участвует в запуске.
+ * Group ("canvas"): a frame with a title that joins blocks into a logical part of the flow. Moving a group moves the blocks
+ * inside it. Does not take part in a run.
  */
 export class GroupFrame extends LayoutBlock {
   static type = "group";

@@ -3,7 +3,7 @@ import type { RunnerEvent, WatchMessage } from "@fl0w/schema";
 export type RunSummary = {
   runId: string;
   trigger: string | null;
-  /** Ноды, участвующие в запуске (ветка от триггера): UI сбрасывает состояние именно их. */
+  /** Nodes taking part in the run (the branch from the trigger): the UI resets exactly their state. */
   nodes?: string[];
   startedAt: string;
   finishedAt?: string;
@@ -15,12 +15,12 @@ type RunRecord = RunSummary & { events: RunnerEvent[] };
 
 type FlowChannel = { last?: RunRecord; listeners: Set<(m: WatchMessage) => void> };
 
-// запуск с огромным логом не должен раздувать память хаба; живым подписчикам события всё равно уходят
+// a run with a huge log must not bloat the hub's memory; live subscribers still receive every event
 const MAX_BUFFERED_EVENTS = 5000;
 
 /**
- * Живая лента запусков по флоу (для Watch): публикует события, помнит последний запуск
- * и при подключении отдаёт его с начала — подписчик видит, что происходит, даже зайдя посреди запуска.
+  * Live feed of flow runs (for Watch): publishes events, remembers the last run
+  * and replays it from the start on connect, so a subscriber sees what is going on even when joining mid-run.
  */
 export class RunHub {
   private readonly channels = new Map<string, FlowChannel>();
@@ -37,7 +37,7 @@ export class RunHub {
       try {
         l(m);
       } catch {
-        // сломанный подписчик не должен мешать остальным и запуску
+        // a broken subscriber must not disturb the others or the run
       }
     }
   }
@@ -69,7 +69,7 @@ export class RunHub {
     this.emit(this.channel(flowId), { type: "run:skip", flowId, trigger, at: new Date().toISOString(), reason });
   }
 
-  /** Подписка; сразу воспроизводит последний запуск. Возвращает функцию отписки. */
+  /** Subscribe; immediately replays the last run. Returns the unsubscribe function. */
   subscribe(flowId: string, listener: (m: WatchMessage) => void): () => void {
     const c = this.channel(flowId);
     const rec = c.last;

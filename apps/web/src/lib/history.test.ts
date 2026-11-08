@@ -17,7 +17,7 @@ const doc = () => toReactFlow(base);
 const moved = (d: ReturnType<typeof doc>, x: number) => ({ nodes: d.nodes.map((n, i) => (i === 0 ? { ...n, position: { x, y: 0 } } : n)), edges: d.edges });
 
 describe("sameDoc", () => {
-  it("выделение и размеры не меняют документ; положение и параметры — меняют", () => {
+  it("selection and sizes do not change the document; position and parameters do", () => {
     const d = doc();
     expect(sameDoc(d, { nodes: d.nodes.map((n) => ({ ...n, selected: true, width: 9 })), edges: d.edges })).toBe(true);
     expect(sameDoc(d, moved(d, 5))).toBe(false);
@@ -26,7 +26,7 @@ describe("sameDoc", () => {
 });
 
 describe("History", () => {
-  it("undo/redo по правкам; новая правка сбрасывает redo; одинаковый документ не пишется", () => {
+  it("undo/redo over edits; a new edit resets redo; an identical document is not written", () => {
     const h = new History();
     const d0 = doc();
     h.reset(d0);
@@ -39,12 +39,12 @@ describe("History", () => {
     expect(h.undo()!.nodes[0]!.position.x).toBe(0);
     expect(h.undo()).toBeNull();
     expect(h.redo()!.nodes[0]!.position.x).toBe(10);
-    expect(h.commit(moved(d0, 99))).toBe(true); // новая ветка
+    expect(h.commit(moved(d0, 99))).toBe(true); // new branch
     expect(h.canRedo).toBe(false);
     expect(h.undo()!.nodes[0]!.position.x).toBe(10);
   });
 
-  it("глубина ограничена; в снимках нет выделения", () => {
+  it("depth is limited; snapshots have no selection", () => {
     const h = new History(3);
     const d0 = doc();
     h.reset({ nodes: d0.nodes.map((n) => ({ ...n, selected: true })), edges: [] });

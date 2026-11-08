@@ -9,7 +9,7 @@ const codes = (f: unknown) => {
 };
 
 describe("validateFlow", () => {
-  it("принимает корректный флоу", () => {
+  it("accepts a correct flow", () => {
     const f = flow(
       [node("a", "source", { json: 1 }), node("t", "transform"), node("r", "result")],
       [edge("a", "t"), edge("t", "r")],
@@ -17,18 +17,18 @@ describe("validateFlow", () => {
     expect(validateFlow(f, testRegistry).ok).toBe(true);
   });
 
-  it("отклоняет не-флоу (схема)", () => {
+  it("rejects a non-flow (schema)", () => {
     expect(codes({ version: 2 })).toContain("schema");
     expect(codes(null)).toContain("schema");
   });
 
-  it("отклоняет неизвестный тип блока", () => {
+  it("rejects an unknown block type", () => {
     expect(codes(flow([node("a", "nope")], []))).toEqual(["unknown_type"]);
     const r = validateFlow(flow([node("a", "nope")], []), testRegistry);
     expect(!r.ok && r.issues[0]).toMatchObject({ nodeId: "a", blockType: "nope" });
   });
 
-  it("отклоняет цикл", () => {
+  it("rejects a cycle", () => {
     const f = flow(
       [node("a", "transform"), node("b", "transform")],
       [edge("a", "b"), edge("b", "a")],
@@ -42,11 +42,11 @@ describe("validateFlow", () => {
     }
   });
 
-  it("отклоняет петлю на себя", () => {
+  it("rejects a self-loop", () => {
     expect(codes(flow([node("a", "transform")], [edge("a", "a")]))).toContain("cycle");
   });
 
-  it("отклоняет несуществующие порты", () => {
+  it("rejects nonexistent ports", () => {
     const f = flow(
       [node("a", "source", { json: 1 }), node("r", "result")],
       [edge("a", "r", "out9", "in0"), edge("a", "r", "out0", "in9", "e2")],
@@ -54,22 +54,22 @@ describe("validateFlow", () => {
     expect(codes(f).filter((c) => c === "unknown_port")).toHaveLength(2);
   });
 
-  it("порт-источник не может быть входом, и наоборот", () => {
+  it("a source port cannot be an input, and vice versa", () => {
     const f = flow([node("a", "source", { json: 1 }), node("r", "result")], [edge("a", "r", "in0", "in0")]);
     expect(codes(f)).toContain("unknown_port");
   });
 
-  it("учитывает portsOverride", () => {
+  it("takes portsOverride into account", () => {
     const t = { ...node("t", "transform"), portsOverride: { inputs: [{ id: "in1" }], outputs: [] } };
     const f = flow([node("a", "source", { json: 1 }), t], [edge("a", "t", "out0", "in1")]);
     expect(codes(f)).toEqual([]);
   });
 
-  it("отклоняет ребро к несуществующей ноде", () => {
+  it("rejects an edge to a nonexistent node", () => {
     expect(codes(flow([node("a", "source", { json: 1 })], [edge("a", "ghost")]))).toContain("unknown_node");
   });
 
-  it("в один входной порт — максимум одно ребро", () => {
+  it("at most one edge into a single input port", () => {
     const f = flow(
       [node("a", "source", { json: 1 }), node("b", "source", { json: 2 }), node("r", "result")],
       [edge("a", "r"), edge("b", "r")],
@@ -77,7 +77,7 @@ describe("validateFlow", () => {
     expect(codes(f)).toEqual(["port_occupied"]);
   });
 
-  it("отклоняет дубли id нод и рёбер", () => {
+  it("rejects duplicate node and edge ids", () => {
     const dupNodes = flow([node("a", "result"), node("a", "result")], []);
     expect(codes(dupNodes)).toContain("duplicate_node");
     const dupEdges = flow(
@@ -87,7 +87,7 @@ describe("validateFlow", () => {
     expect(codes(dupEdges)).toContain("duplicate_edge");
   });
 
-  it("проверяет params: required, тип, enum", () => {
+  it("checks params: required, type, enum", () => {
     const missing = flow([{ ...node("a", "source"), params: { json: null } }], []);
     expect(codes(missing)).toEqual(["param_required"]);
     const badEnum = flow([node("t", "transform", { mode: "zzz" })], []);
@@ -96,18 +96,18 @@ describe("validateFlow", () => {
     expect(codes(badType)).toEqual(["param_enum"]);
   });
 
-  it("default закрывает required", () => {
+  it("default satisfies required", () => {
     expect(codes(flow([node("a", "source", {})], []))).toEqual([]);
   });
 
-  it("issue несёт nodeId/edgeId для подсветки в UI", () => {
+  it("issue carries nodeId/edgeId for highlighting in the UI", () => {
     const r = validateFlow(flow([node("t", "transform", { mode: "zzz" })], []), testRegistry);
     expect(!r.ok && r.issues[0]).toMatchObject({ code: "param_enum", nodeId: "t", param: "mode" });
   });
 });
 
 describe("toposort", () => {
-  it("упорядочивает по зависимостям", () => {
+  it("orders by dependencies", () => {
     const f = flow(
       [node("c", "result"), node("b", "transform"), node("a", "source", { json: 1 })],
       [edge("a", "b"), edge("b", "c")],
@@ -116,12 +116,12 @@ describe("toposort", () => {
     expect(r).toEqual({ ok: true, order: ["a", "b", "c"] });
   });
 
-  it("детерминирован для независимых нод", () => {
+  it("is deterministic for independent nodes", () => {
     const f = flow([node("x", "source"), node("y", "source"), node("z", "source")], []);
     expect(toposort(f)).toEqual({ ok: true, order: ["x", "y", "z"] });
   });
 
-  it("находит цикл", () => {
+  it("finds a cycle", () => {
     const f = flow(
       [node("s", "source"), node("a", "transform"), node("b", "transform")],
       [edge("s", "a"), edge("a", "b"), edge("b", "a", "out0", "in1")],

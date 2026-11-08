@@ -27,7 +27,7 @@ afterEach(() => {
 
 const spec = (over: Partial<FileWatchSpec> = {}): FileWatchSpec => ({ path: "", event: "any", pattern: "*", recursive: false, ...over });
 
-/** Запускает наблюдателя и ждёт, пока он реально начнёт слушать (инициализация асинхронная). */
+/** Starts the watcher and waits until it actually starts listening (initialisation is asynchronous). */
 async function watching(s: FileWatchSpec) {
   const events: Ev[] = [];
   const factory = createFileWatcher({ baseDir: dir, debounceMs: 40, log: (m) => logs.push(m) });
@@ -40,10 +40,10 @@ async function until(cond: () => boolean, ms = 3000) {
   const t = Date.now();
   while (!cond() && Date.now() - t < ms) await sleep(20);
 }
-const settle = () => sleep(300); // тишина: убедиться, что лишних событий нет
+const settle = () => sleep(300); // quiet period: make sure there are no extra events
 
 describe("createFileWatcher", () => {
-  it("add: новый файл даёт событие с путём, именем и размером; уже лежавшие файлы — нет", async () => {
+  it("add: a new file gives an event with path, name and size; files already present do not", async () => {
     writeFileSync(path.join(dir, "old.txt"), "old");
     const events = await watching(spec());
     writeFileSync(path.join(dir, "new.txt"), "hello");
@@ -52,7 +52,7 @@ describe("createFileWatcher", () => {
     expect(events).toEqual([{ event: "add", path: "new.txt", name: "new.txt", size: 5, modifiedAt: expect.any(String) }]);
   });
 
-  it("change и unlink; у удалённого файла нет size и modifiedAt", async () => {
+  it("change and unlink; a deleted file has no size or modifiedAt", async () => {
     writeFileSync(path.join(dir, "a.txt"), "1");
     const events = await watching(spec());
     appendFileSync(path.join(dir, "a.txt"), "22");
@@ -64,7 +64,7 @@ describe("createFileWatcher", () => {
     expect(events[1]).toEqual({ event: "unlink", path: "a.txt", name: "a.txt" });
   });
 
-  it("серия быстрых записей сворачивается в одно срабатывание", async () => {
+  it("a series of quick writes collapses into one trigger", async () => {
     const events = await watching(spec());
     for (let i = 0; i < 6; i++) appendFileSync(path.join(dir, "burst.log"), `line ${i}\n`);
     await until(() => events.length > 0);
@@ -73,7 +73,7 @@ describe("createFileWatcher", () => {
     expect(events[0]!.size).toBe("line 0\n".length * 6);
   });
 
-  it("фильтр события: add не реагирует на change и unlink", async () => {
+  it("event filter: add does not react to change and unlink", async () => {
     writeFileSync(path.join(dir, "keep.txt"), "x");
     const events = await watching(spec({ event: "add" }));
     appendFileSync(path.join(dir, "keep.txt"), "y");
@@ -84,7 +84,7 @@ describe("createFileWatcher", () => {
     expect(events.map((e) => [e.event, e.path])).toEqual([["add", "fresh.txt"]]);
   });
 
-  it("маска имени: *.csv", async () => {
+  it("name mask: *.csv", async () => {
     const events = await watching(spec({ pattern: "*.csv" }));
     writeFileSync(path.join(dir, "a.txt"), "x");
     writeFileSync(path.join(dir, "b.csv"), "x");
@@ -93,7 +93,7 @@ describe("createFileWatcher", () => {
     expect(events.map((e) => e.path)).toEqual(["b.csv"]);
   });
 
-  it("подпапка: наблюдаемая папка и recursive", async () => {
+  it("subfolder: the watched folder and recursive", async () => {
     mkdirSync(path.join(dir, "inbox/deep"), { recursive: true });
     const shallow = await watching(spec({ path: "inbox" }));
     const deep = await watching(spec({ path: "inbox", recursive: true }));
@@ -106,7 +106,7 @@ describe("createFileWatcher", () => {
     expect(deep.map((e) => e.path).sort()).toEqual(["inbox/a.txt", "inbox/deep/b.txt"]);
   });
 
-  it("наблюдение за конкретным файлом: соседи не мешают", async () => {
+  it("watching a specific file: neighbours do not interfere", async () => {
     writeFileSync(path.join(dir, "target.txt"), "1");
     const events = await watching(spec({ path: "target.txt" }));
     writeFileSync(path.join(dir, "neighbour.txt"), "x");
@@ -116,7 +116,7 @@ describe("createFileWatcher", () => {
     expect(events.map((e) => [e.event, e.path])).toEqual([["change", "target.txt"]]);
   });
 
-  it("каталоги и симлинки событий не дают", async () => {
+  it("directories and symlinks give no events", async () => {
     const events = await watching(spec());
     mkdirSync(path.join(dir, "newdir"));
     symlinkSync(outside, path.join(dir, "link"));
@@ -124,7 +124,7 @@ describe("createFileWatcher", () => {
     expect(events).toEqual([]);
   });
 
-  it("stop прекращает доставку; stop до окончания инициализации не падает", async () => {
+  it("stop ends delivery; stop before initialisation finishes does not fail", async () => {
     const events = await watching(spec());
     stops.pop()!();
     writeFileSync(path.join(dir, "late.txt"), "x");
@@ -135,13 +135,13 @@ describe("createFileWatcher", () => {
     const stop = factory(spec(), () => {
       throw new Error("must not be called");
     });
-    stop(); // сразу, пока start() ещё идёт
+    stop(); // immediately, while start() is still going
     writeFileSync(path.join(dir, "later.txt"), "x");
     await settle();
     expect(logs.filter((l) => /not started|error/i.test(l))).toEqual([]);
   });
 
-  it("несуществующий путь и выход за каталог — не падение, а запись в лог", async () => {
+  it("a nonexistent path and escaping the directory are not a crash but a log entry", async () => {
     await watching(spec({ path: "missing-dir" }));
     expect(logs.join("\n")).toMatch(/does not exist/);
     await watching(spec({ path: "../escape" }));
@@ -151,7 +151,7 @@ describe("createFileWatcher", () => {
     expect(logs.join("\n")).toMatch(/outside/);
   });
 
-  it("повторное создание удалённого файла снова add", async () => {
+  it("re-creating a deleted file gives add again", async () => {
     writeFileSync(path.join(dir, "again.txt"), "1");
     const events = await watching(spec());
     unlinkSync(path.join(dir, "again.txt"));

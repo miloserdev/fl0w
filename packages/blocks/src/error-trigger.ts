@@ -3,10 +3,10 @@ import { Block, triggerPayload, type RunContext } from "./block";
 import { stringList } from "./list-utils";
 
 /**
- * Error Trigger: запускает этот флоу («обработчик ошибок»), когда падает автоматический запуск
- * другого опубликованного флоу (по расписанию, вебхуку, файлу, активации). Ручные запуски из редактора
- * сюда не попадают. Падение самого обработчика новых обработчиков не вызывает — цепочки ошибок нет.
- * Выход: { flow: {id, name}, run: {id, trigger}, error: {message, node}, at }.
+ * Error Trigger: starts this flow (an "error handler") when an automatic run of another
+ * published flow fails (on a schedule, webhook, file, activation). Manual runs from the editor
+ * do not get here. A failure of the handler itself does not start new handlers: there is no chain of errors.
+ * Output: { flow: {id, name}, run: {id, trigger}, error: {message, node}, at }.
  */
 export class ErrorTrigger extends Block {
   static type = "error_trigger";
@@ -17,7 +17,7 @@ export class ErrorTrigger extends Block {
   static autoTrigger = true;
   static eventDriven = true;
   static ports = { inputs: [], outputs: [{ id: "out0" }] };
-  // id флоу, чьи ошибки обрабатывать; пусто — ошибки любых флоу (включая этот)
+  // ids of flows whose errors to handle; empty means errors of any flow (including this one)
   static params: ParamSchema[] = [{ name: "flows", type: "json", default: [] }];
 
   static errorScope(params: Record<string, Json>) {

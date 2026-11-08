@@ -17,7 +17,7 @@ beforeAll(() => {
 });
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
-/** Поддельный раннер — обычный .mjs, поэтому без tsx (execArgv: []). */
+/** A fake runner is a plain .mjs, hence no tsx (execArgv: []). */
 function fake(name: string, body: string): ProcessRunOptions {
   const file = path.join(dir, `${name}.mjs`);
   writeFileSync(file, `process.once("message", async () => {\n${body}\n});\n`);
@@ -39,8 +39,8 @@ const alive = (pid: number) => {
   }
 };
 
-describe("runFlowInProcess (реальный раннер)", () => {
-  it("демо Source → Result: результат и события по нодам", async () => {
+describe("runFlowInProcess (real runner)", () => {
+  it("Source → Result demo: result and per-node events", async () => {
     const { events, done } = await run();
     expect(events.map((e) => (e.event === "flow:done" ? e.event : "nodeId" in e ? `${e.event}:${e.nodeId}` : e.event))).toEqual([
       "node:start:src",
@@ -52,7 +52,7 @@ describe("runFlowInProcess (реальный раннер)", () => {
     expect(done).toEqual([{ event: "flow:done", result: { n: 1 } }]);
   });
 
-  it("невалидный флоу: ошибка в flow:done, без событий нод, раннер не падает", async () => {
+  it("invalid flow: an error in flow:done, no node events, the runner does not crash", async () => {
     const cyc = flow(
       [node("a", "result"), node("b", "result")],
       [edge("a", "b"), edge("b", "a")],
@@ -63,7 +63,7 @@ describe("runFlowInProcess (реальный раннер)", () => {
     expect(events[0]!.event === "flow:done" && events[0]!.error).toMatch(/Invalid flow/);
   });
 
-  it("каждый запуск — новый процесс, независимый от родителя", async () => {
+  it("every run is a new process, independent of the parent", async () => {
     const pids = [1, 2].map(() => 0);
     for (let i = 0; i < 2; i++) {
       const { events } = await run(
@@ -82,8 +82,8 @@ describe("runFlowInProcess (реальный раннер)", () => {
   });
 });
 
-describe("runFlowInProcess (устойчивость)", () => {
-  it("падение процесса → flow:done с ошибкой и хвостом stderr", async () => {
+describe("runFlowInProcess (resilience)", () => {
+  it("a process crash → flow:done with an error and the stderr tail", async () => {
     const { done } = await run(fake("crash", `console.error("boom details"); process.exit(3);`));
     expect(done).toHaveLength(1);
     expect(done[0]).toMatchObject({ event: "flow:done" });
@@ -92,7 +92,7 @@ describe("runFlowInProcess (устойчивость)", () => {
     expect(err).toMatch(/boom details/);
   });
 
-  it("некорректное событие → ошибка протокола, процесс убит", async () => {
+  it("a malformed event → protocol error, the process is killed", async () => {
     const { done } = await run(
       fake("bad", `process.send({ event: "nonsense" }); setInterval(() => {}, 1000);`),
     );
@@ -100,7 +100,7 @@ describe("runFlowInProcess (устойчивость)", () => {
     expect(done[0]).toMatchObject({ error: expect.stringMatching(/protocol error/) });
   });
 
-  it("ровно один flow:done, даже если раннер шлёт лишние события после него", async () => {
+  it("exactly one flow:done, even if the runner sends extra events after it", async () => {
     const { events } = await run(
       fake(
         "dup",
@@ -113,7 +113,7 @@ describe("runFlowInProcess (устойчивость)", () => {
     expect(events).toEqual([{ event: "flow:done", result: 1 }]);
   });
 
-  it("отмена убивает процесс и завершает запуск", async () => {
+  it("cancellation kills the process and finishes the run", async () => {
     const ac = new AbortController();
     const opts = {
       ...fake(
@@ -137,7 +137,7 @@ describe("runFlowInProcess (устойчивость)", () => {
     expect(alive(pid)).toBe(false);
   });
 
-  it("timeoutMs убивает зависший процесс", async () => {
+  it("timeoutMs kills a hung process", async () => {
     const t = Date.now();
     const { done } = await run({
       ...fake("hang2", `setInterval(() => {}, 1000);`),
@@ -147,21 +147,21 @@ describe("runFlowInProcess (устойчивость)", () => {
     expect(Date.now() - t).toBeLessThan(3000);
   });
 
-  it("уже отменённый signal — процесс не стартует", async () => {
+  it("an already aborted signal: the process does not start", async () => {
     const ac = new AbortController();
     ac.abort();
     const { events } = await run({ signal: ac.signal });
     expect(events).toEqual([{ event: "flow:done", error: "Aborted" }]);
   });
 
-  it("несуществующий раннер → внятная ошибка, а не зависание", async () => {
+  it("a nonexistent runner → a clear error, not a hang", async () => {
     const { done } = await run({ runnerPath: path.join(dir, "missing.mjs"), execArgv: [] });
     expect(done).toHaveLength(1);
     expect(done[0]).toMatchObject({ error: expect.stringMatching(/Runner exited unexpectedly/) });
   });
 });
 
-/** Ждёт условия опросом (старт раннера через tsx под нагрузкой занимает по-разному). */
+/** Waits for a condition by polling (runner start through tsx takes varying time under load). */
 async function until(cond: () => boolean, ms = 20_000) {
   const t0 = Date.now();
   while (!cond()) {
@@ -170,13 +170,13 @@ async function until(cond: () => boolean, ms = 20_000) {
   }
 }
 
-describe("пауза запуска (реальный раннер)", () => {
+describe("run pause (real runner)", () => {
   const slow = flow(
     [node("src", "source", { json: { n: 1 } }), node("w", "wait", { unit: "seconds", amount: 0.15 }), node("res", "result")],
     [edge("src", "w"), edge("w", "res")],
   );
 
-  it("пауза не даёт стартовать следующей ноде, работающая доделывается; продолжение завершает запуск", async () => {
+  it("pause stops the next node from starting, the running one finishes; resuming completes the run", async () => {
     const events: RunnerEvent[] = [];
     let ctl: { pause: () => void; resume: () => void } | undefined;
     const finished = runFlowInProcess(
@@ -188,7 +188,7 @@ describe("пауза запуска (реальный раннер)", () => {
       { onControl: (c) => (ctl = c) },
     );
     await until(() => events.some((e) => e.event === "node:done" && e.nodeId === "w") && events.some((e) => e.event === "run:paused"));
-    await new Promise((r) => setTimeout(r, 300)); // дать шанс (ошибочно) стартовать следующей ноде
+    await new Promise((r) => setTimeout(r, 300)); // give the next node a chance to (wrongly) start
     const names = events.map((e) => e.event + ("nodeId" in e ? `:${e.nodeId}` : ""));
     expect(names).toContain("run:paused");
     expect(names).toContain("node:done:w");
@@ -200,7 +200,7 @@ describe("пауза запуска (реальный раннер)", () => {
     expect(events.map((e) => e.event === "node:start" && e.nodeId)).toContain("res");
   });
 
-  it("остановка на паузе завершает запуск ошибкой Aborted", async () => {
+  it("stopping while paused finishes the run with an Aborted error", async () => {
     const ac = new AbortController();
     const events: RunnerEvent[] = [];
     let ctl: { pause: () => void; resume: () => void } | undefined;

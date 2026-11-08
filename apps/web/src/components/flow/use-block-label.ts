@@ -1,7 +1,7 @@
 import { registry } from "@fl0w/blocks";
 import { useTranslations } from "next-intl";
 
-/** Локализованное имя блока; если перевода нет — label из класса. */
+/** Localized block name; if there is no translation, the class label. */
 export function useBlockLabel() {
   const t = useTranslations("blocks");
   return (blockType: string) =>

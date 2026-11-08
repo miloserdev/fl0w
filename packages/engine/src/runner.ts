@@ -1,7 +1,7 @@
 /**
- * Точка входа дочернего процесса (SPEC §5): один запуск флоу = один процесс.
- * Протокол по IPC: web → runner `{ cmd: "run", flow }`, runner → web события `RunnerEvent`.
- * Запускается через `fork`; сам ничего не слушает, кроме одной команды, и завершается после `flow:done`.
+ * Entry point of the child process: one flow run = one process.
+ * IPC protocol: web → runner `{ cmd: "run", flow }`, runner → web `RunnerEvent` events.
+ * Started via `fork`; listens for nothing except a single command and exits after `flow:done`.
  */
 import type { CallResolveReply, CallResolveRequest, Json, RunnerEvent } from "@fl0w/schema";
 import { PauseGate } from "./pause-gate";
@@ -14,7 +14,7 @@ function send(event: RunnerEvent | CallResolveRequest): Promise<void> {
   });
 }
 
-// запросы «найти флоу по каналу» (outgoing call) ждут ответа родителя: сопоставляем по id
+// "find a flow by channel" requests (outgoing call) wait for the parent's reply: matched by id
 const pendingResolves = new Map<string, { resolve: (v: { flow: unknown; triggerId: string }) => void; reject: (e: Error) => void }>();
 let resolveSeq = 0;
 const resolveCall = (channelId: string): Promise<{ flow: unknown; triggerId: string }> =>
@@ -42,9 +42,9 @@ process.on("message", (raw: unknown) => {
 });
 
 process.once("message", async (raw: unknown) => {
-  // отправки идут строго по порядку, иначе события могут обогнать друг друга
+  // sends go strictly in order, otherwise events could overtake each other
   let chain = Promise.resolve();
-  // возвращаем цепочку: runFlow дожидается доставки node:start/node:done до запуска следующего блока
+  // return the chain: runFlow waits for node:start/node:done to be delivered before starting the next block
   const emit = (e: RunnerEvent): Promise<void> => {
     chain = chain.then(() => send(e));
     return chain;
@@ -56,7 +56,7 @@ process.once("message", async (raw: unknown) => {
   if (cmd.cmd !== "run") {
     emit({ event: "flow:done", error: "Unknown runner command" });
   } else {
-    // валидация флоу — внутри runFlow, он же формирует внятную ошибку
+    // flow validation lives inside runFlow, which also produces a clear error
     await runFlow(cmd.flow, emit, {
       trigger: typeof cmd.trigger === "string" ? cmd.trigger : undefined,
       triggerData: cmd.triggerData as Json | undefined,

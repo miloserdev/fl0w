@@ -3,7 +3,7 @@ import type { Json, ParamSchema } from "@fl0w/schema";
 import { describe, expect, it } from "vitest";
 import { collect, edge, flow, node } from "./test-helpers";
 
-/** Блок-«медленка»: спит `ms` (с отменой) и считает, сколько таких блоков исполняется одновременно. */
+/** A "slow" block: sleeps `ms` (cancellable) and counts how many such blocks run at once. */
 let current = 0;
 let peak = 0;
 class Sleep extends Block {
@@ -31,8 +31,8 @@ const reg = { ...registry, sleep: Sleep as unknown as (typeof registry)[string] 
 const run = (f: ReturnType<typeof flow>) => collect(f, { registry: reg });
 const order = (events: { event: string; nodeId?: string }[], kind: string) => events.flatMap((e) => (e.event === kind ? [e.nodeId] : []));
 
-describe("параллельное исполнение независимых веток", () => {
-  it("две независимые ветки идут одновременно: общее время ≈ самой долгой, а не сумме", async () => {
+describe("parallel execution of independent branches", () => {
+  it("two independent branches go at once: total time ≈ the longest, not the sum", async () => {
     const f = flow(
       [node("s", "source", { json: { v: 1 } }), node("a", "sleep", { ms: 1000 }), node("b", "sleep", { ms: 1000 }), node("ra", "result"), node("rb", "result")],
       [edge("s", "a"), edge("s", "b"), edge("a", "ra"), edge("b", "rb")],
@@ -41,12 +41,12 @@ describe("параллельное исполнение независимых �
     const r = await run(f);
     const ms = Date.now() - t0;
     expect(r.done?.error).toBeUndefined();
-    expect(ms).toBeLessThan(1700); // последовательно было бы ≥ 2000; запас большой, чтобы тест не мигал под нагрузкой
-    expect(r.done?.result).toEqual({ ra: { v: 1 }, rb: { v: 1 } }); // порядок ключей — топологический, как раньше
+    expect(ms).toBeLessThan(1700); // sequentially it would be ≥ 2000; big margin so the test does not flake under load
+    expect(r.done?.result).toEqual({ ra: { v: 1 }, rb: { v: 1 } }); // key order is topological, as before
   });
 
-  it("долгая нода не задерживает соседний граф: быстрый заканчивается раньше медленного", async () => {
-    // два несвязанных графа в одном флоу: Manual → Sleep(600) → Result и Manual → Code → Result
+  it("a long node does not delay a neighbouring graph: the fast one finishes before the slow one", async () => {
+    // two unconnected graphs in one flow: Manual → Sleep(600) → Result and Manual → Code → Result
     const f = flow(
       [node("m1", "manual"), node("slow", "sleep", { ms: 600 }), node("r1", "result"), node("m2", "manual"), node("fast", "code", { code: "return { out0: 1 }" }), node("r2", "result")],
       [edge("m1", "slow"), edge("slow", "r1"), edge("m2", "fast"), edge("fast", "r2")],
@@ -58,7 +58,7 @@ describe("параллельное исполнение независимых �
     expect(r.done?.error).toBeUndefined();
   });
 
-  it("зависимая нода ждёт именно свои входы: ветка за медленной нодой идёт после неё", async () => {
+  it("a dependent node waits for exactly its own inputs: the branch behind a slow node goes after it", async () => {
     const f = flow(
       [node("s", "source", { json: { v: 1 } }), node("slow", "sleep", { ms: 300 }), node("after", "code", { code: "return { out0: inputs.in0 }" }), node("r", "result")],
       [edge("s", "slow"), edge("slow", "after"), edge("after", "r")],
@@ -68,17 +68,17 @@ describe("параллельное исполнение независимых �
     expect(r.done?.result).toEqual({ v: 1 });
   });
 
-  it("Merge ждёт все ветки (all) и по пришедшим (any) — семантика входов сохранена при параллельном исполнении", async () => {
+  it("Merge waits for all branches (all) and goes on those that arrived (any): input semantics are preserved under parallel execution", async () => {
     const mk = (wait: string) =>
       flow(
         [node("s", "source", { json: { x: 1 } }), node("a", "sleep", { ms: 300 }), node("b", "branch", { field: "x", operator: "eq", value: 1 }), node("m", "merge", { mode: "array", wait }), node("r", "result")],
         [edge("s", "a"), edge("s", "b"), edge("a", "m", "out0", "in0"), edge("b", "m", "out1", "in1", "e-false"), edge("m", "r")],
       );
-    expect((await run(mk("all"))).started).not.toContain("m"); // ветка false не пошла
+    expect((await run(mk("all"))).started).not.toContain("m"); // the false branch did not go
     expect((await run(mk("any"))).done?.result).toEqual([{ x: 1 }]);
   });
 
-  it("падение одной ветки обрывает остальные: запуск завершается сразу, у оборванной ноды нет лишнего node:error", async () => {
+  it("a failure of one branch aborts the others: the run finishes at once, the aborted node has no extra node:error", async () => {
     const f = flow(
       [node("s", "source", { json: { v: 1 } }), node("slow", "sleep", { ms: 5000 }), node("bad", "code", { code: "throw new Error('boom')" }), node("r1", "result"), node("r2", "result")],
       [edge("s", "slow"), edge("s", "bad"), edge("slow", "r1"), edge("bad", "r2")],
@@ -91,7 +91,7 @@ describe("параллельное исполнение независимых �
     expect(r.events.at(-1)?.event).toBe("flow:done");
   });
 
-  it("число одновременно исполняемых нод ограничено (16)", async () => {
+  it("the number of simultaneously executing nodes is limited (16)", async () => {
     peak = 0;
     const n = 40;
     const nodes = [node("s", "source", { json: { v: 1 } })];
@@ -103,10 +103,10 @@ describe("параллельное исполнение независимых �
     const r = await run(flow(nodes, edges));
     expect(r.done?.error).toBeUndefined();
     expect(peak).toBeLessThanOrEqual(16);
-    expect(peak).toBeGreaterThan(4); // действительно параллельно
+    expect(peak).toBeGreaterThan(4); // really in parallel
   });
 
-  it("отмена (signal) во время параллельных нод останавливает запуск", async () => {
+  it("cancellation (signal) during parallel nodes stops the run", async () => {
     const ac = new AbortController();
     const f = flow([node("s", "source", { json: 1 }), node("a", "sleep", { ms: 5000 }), node("b", "sleep", { ms: 5000 }), node("r", "result")], [edge("s", "a"), edge("s", "b"), edge("a", "r", "out0", "in0", "ea")]);
     setTimeout(() => ac.abort(), 100);

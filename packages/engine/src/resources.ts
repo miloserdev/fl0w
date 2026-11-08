@@ -3,7 +3,7 @@ import type { MemoryHandle, ToolHandle } from "@fl0w/blocks";
 import type { Flow, FlowEdge, Json, PortKind } from "@fl0w/schema";
 import type { Registry } from "./validate";
 
-/** Вид ребра — по виду порта-источника; неизвестные ноды и порты считаются данными (ошибку даст валидация). */
+/** Edge kind is taken from the source port's kind; unknown nodes and ports count as data (validation reports the error). */
 export function edgeKind(flow: Pick<Flow, "nodes">, registry: Registry, e: FlowEdge): PortKind {
   const node = flow.nodes.find((n) => n.id === e.source);
   const cls = node && registry[node.type];
@@ -12,12 +12,12 @@ export function edgeKind(flow: Pick<Flow, "nodes">, registry: Registry, e: FlowE
   return portKind(port);
 }
 
-/** Флоу только с рёбрами данных: ресурсные рёбра не влияют на порядок, ожидание входов и циклы. */
+/** The flow with data edges only: resource edges do not affect order, input waiting or cycles. */
 export function dataView(flow: Flow, registry: Registry): Flow {
   return { ...flow, edges: flow.edges.filter((e) => edgeKind(flow, registry, e) === "data") };
 }
 
-/** Ресурсные ноды (sub-nodes) — их запускает не поток данных, а хозяин. */
+/** Resource nodes (sub-nodes) are started not by the data flow but by their host. */
 export const isResourceNode = (flow: Pick<Flow, "nodes">, registry: Registry, nodeId: string): boolean => {
   const node = flow.nodes.find((n) => n.id === nodeId);
   return !!node && !!registry[node.type]?.resource;
@@ -30,8 +30,8 @@ const short = (v: unknown) => {
 };
 
 /**
- * Собирает инструменты и память, подключённые к ресурсным портам ноды `hostId`. Параметры sub-nodes проверяются и
- * получают выражения `{{ inputs… }}` по входам хозяина. Вызовы инструментов пишутся в лог хозяина — для отладки.
+ * Collects the tools and memory attached to the resource ports of node `hostId`. Sub-node parameters are validated and
+ * get `{{ inputs… }}` expressions from the host's inputs. Tool calls are written to the host's log for debugging.
  */
 export function buildResources(
   flow: Flow,
@@ -49,7 +49,7 @@ export function buildResources(
     if (e.target !== hostId) continue;
     const node = flow.nodes.find((n) => n.id === e.source);
     const cls = node && registry[node.type];
-    if (!node || node.disabled || !cls?.resource) continue; // отключённый инструмент/банк памяти недоступен хозяину
+    if (!node || node.disabled || !cls?.resource) continue; // a disabled tool/memory bank is unavailable to the host
 
     const params = resolveParamExpressions(cls.params, resolveParams(cls.params, node.params), hostInputs);
     const issues = validateParams(cls.params, params);

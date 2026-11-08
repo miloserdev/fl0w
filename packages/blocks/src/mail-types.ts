@@ -1,6 +1,6 @@
 import type { Json } from "@fl0w/schema";
 
-/** Письмо в списке: коротко, без тела. */
+/** A message in a list: brief, without the body. */
 export type MailItem = { id: string; from: string; to: string[]; subject: string; date: string | null; unread: boolean };
 
 export type OutMail = { from?: string; to: string[]; cc: string[]; bcc: string[]; subject: string; body: string; html: boolean };
@@ -8,23 +8,23 @@ export type OutMail = { from?: string; to: string[]; cc: string[]; bcc: string[]
 export type ListQuery = { folder: string; unreadOnly: boolean; from: string; subject: string; since: Date | null; limit: number };
 
 /**
- * Что умеет любой почтовый провайдер. Блок Mail не знает, чем реализована почта (IMAP/SMTP, Microsoft Graph, …): новый
- * провайдер — новый драйвер с этим набором операций, блок и флоу не меняются.
+ * What any mail provider can do. The Mail block does not know what implements the mail (IMAP/SMTP, Microsoft Graph, ...): a new
+ * provider is a new driver with this set of operations, the block and flows do not change.
  */
-/** Вложение с содержимым — только для сохранения на диск; в результат блока попадают лишь метаданные и путь. */
+/** An attachment with content: only for saving to disk; only metadata and the path go into the block result. */
 export type MailAttachment = { filename: string; contentType: string; size: number; bytes: Uint8Array };
 
 export interface MailDriver {
   send(mail: OutMail): Promise<Json>;
   list(q: ListQuery): Promise<MailItem[]>;
-  /** Письмо целиком: заголовки, текст, html, список вложений (содержимое вложений не загружается). */
+  /** A whole message: headers, text, html, list of attachments (attachment content is not loaded). */
   get(folder: string, id: string): Promise<Json>;
   markRead(folder: string, id: string, read: boolean): Promise<Json>;
-  /** Ответить на письмо (всем отправителям и получателям — при `all`). */
+  /** Reply to a message (to all senders and recipients with `all`). */
   reply(folder: string, id: string, body: string, html: boolean, all: boolean): Promise<Json>;
-  /** Переместить письмо в другую папку (в корзину — перемещением, не удалением насовсем). */
+  /** Move a message to another folder (to the trash by moving, not deleting for good). */
   move(folder: string, id: string, destination: string): Promise<Json>;
-  /** Вложения письма с содержимым (общий предел размера — `MAX_ATTACHMENT_TOTAL`). */
+  /** Attachments of a message with content (the total size limit is `MAX_ATTACHMENT_TOTAL`). */
   attachments(folder: string, id: string): Promise<MailAttachment[]>;
   close(): Promise<void>;
 }

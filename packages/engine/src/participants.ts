@@ -15,7 +15,7 @@ export function closure(from: Iterable<string>, next: (id: string) => string[]):
   return seen;
 }
 
-/** Блок без входных портов, не триггер: источник данных (Source). */
+/** A block with no input ports that is not a trigger: a data source (Source). */
 export function isDataSource(flow: Flow, registry: Registry, nodeId: string): boolean {
   const node = flow.nodes.find((n) => n.id === nodeId);
   const cls = node && registry[node.type];
@@ -23,24 +23,24 @@ export function isDataSource(flow: Flow, registry: Registry, nodeId: string): bo
 }
 
 /**
- * Какие ноды вообще участвуют в запуске. Запуск идёт от СТАРТОВЫХ нод:
- *  - если во флоу есть триггеры — это триггеры (`trigger` сужает до одного, как при плановом запуске; без `trigger` —
- *    только те, что не ждут внешнего события: у вебхука, файла, Telegram нет данных, и ручной запуск их не стартует);
- *  - иначе — источники данных (блоки без входов, например Source).
- * Участвуют стартовые ноды, всё, что достижимо от них по рёбрам, и всё, что питает достижимое
- * (второй вход Compare Datasets может идти от Source, не связанного с триггером напрямую).
- * Остальное — ноды без связи со стартом — не запускается, даже если у них нет подключённых входов.
+ * Which nodes take part in the run at all. A run starts from START nodes:
+ *  - if the flow has triggers, these are the triggers (`trigger` narrows to one, as in a scheduled run; without `trigger`,
+ *    only those that do not wait for an external event: a webhook, file or Telegram has no data, and a manual run does not start them);
+ *  - otherwise data sources (blocks without inputs, e.g. Source).
+ * The participants are the start nodes, everything reachable from them along edges, and everything that feeds the reachable ones
+ * (the second input of Compare Datasets may come from a Source not linked to the trigger directly).
+ * The rest, nodes with no link to the start, do not run even if they have no connected inputs.
  */
 export function startNodes(flow: Flow, registry: Registry, trigger?: string): string[] {
   const triggers = flow.nodes.filter((n) => registry[n.type]?.isTrigger && !n.disabled).map((n) => n.id);
   if (triggers.length === 0) return flow.nodes.filter((n) => isDataSource(flow, registry, n.id)).map((n) => n.id);
   if (trigger !== undefined) return [trigger];
-  // ручной запуск: триггеры, ждущие внешнего события (вебхук, файл, Telegram…), не стартуют — кроме закреплённых
-  // триггер события с закреплёнными данными (pin) стартует: закреплённый «запрос» заменяет настоящее событие
+  // manual run: triggers waiting for an external event (webhook, file, Telegram…) do not start, except pinned ones
+  // an event trigger with pinned data starts: the pinned "request" replaces the real event
   return triggers.filter((id) => {
     const n = flow.nodes.find((x) => x.id === id)!;
     const cls = registry[n.type];
-    if (cls?.callOnly) return false; // incoming call поднимается только вызовом — даже закреплённые данные его не запускают
+    if (cls?.callOnly) return false; // an incoming call is raised only by a call; even pinned data does not start it
     return !cls?.eventDriven || !!n.pinData;
   });
 }
@@ -49,7 +49,7 @@ export function participatingNodes(flow: Flow, registry: Registry, trigger?: str
   const outgoing = new Map<string, string[]>();
   const incoming = new Map<string, string[]>();
   for (const e of flow.edges) {
-    if (edgeKind(flow, registry, e) !== "data") continue; // инструменты и память не передают данные
+    if (edgeKind(flow, registry, e) !== "data") continue; // tools and memory do not pass data
     outgoing.set(e.source, [...(outgoing.get(e.source) ?? []), e.target]);
     incoming.set(e.target, [...(incoming.get(e.target) ?? []), e.source]);
   }

@@ -11,7 +11,7 @@ import { MailTrigger } from "./mail-trigger";
 import { resolveParams } from "./params";
 import { registry } from "./registry";
 
-// --- поддельный IMAP: проверяем, КАК блок пользуется imapflow (настоящего сервера в тестах нет) ---
+// --- fake IMAP: we check HOW the block uses imapflow (there is no real server in tests) ---
 const imapCalls: string[] = [];
 const imapState = { found: [] as number[], failConnect: false };
 vi.mock("imapflow", () => ({
@@ -60,13 +60,13 @@ vi.mock("imapflow", () => ({
   },
 }));
 
-// --- поддельный Microsoft Graph и точка входа ---
+// --- fake Microsoft Graph and the entry point ---
 type Seen = { method: string; url: string; headers: IncomingMessage["headers"]; raw: string };
 let graph: Server;
 let base = "";
 let seen: Seen[] = [];
 let routes: Record<string, [number, unknown]> = {};
-// --- настоящий SMTP-сервер (smtp-server): письмо реально уходит по протоколу ---
+// --- a real SMTP server (smtp-server): the message really goes out over the protocol ---
 let smtp: SMTPServer;
 let smtpPort = 0;
 const smtpGot: { from: string; to: string[]; data: string; user: string | undefined }[] = [];
@@ -130,8 +130,8 @@ const run = (params: Record<string, Json>, input: Json | undefined = undefined, 
 
 const tokenRoute = () => (routes["POST /login/tenant-1/oauth2/v2.0/token"] = [200, { access_token: "graph-token-xyz" }]);
 
-describe("Mail: общее", () => {
-  it("зарегистрирован как mail; ошибки параметров — до подключения к серверу", async () => {
+describe("Mail: general", () => {
+  it("is registered as mail; parameter errors come before connecting to the server", async () => {
     expect(registry["mail"]).toBe(Mail);
     const bad = (p: Record<string, Json>, re: RegExp) => expect(run({ ...IMAP, ...p })).rejects.toThrow(re);
     await bad({ operation: "sendMail", to: "" }, /"to" is empty/);
@@ -152,7 +152,7 @@ describe("Mail: общее", () => {
 });
 
 describe("Mail: IMAP / SMTP", () => {
-  it("список: фильтры уходят в поиск, новые первыми, ограничение limit, соединение закрывается", async () => {
+  it("list: filters go to the search, newest first, the limit is applied, the connection is closed", async () => {
     imapState.found = [3, 9, 5, 1];
     const r = await run({ ...IMAP, operation: "listMail", unreadOnly: true, fromFilter: "{{ who }}", subjectFilter: "отчёт", since: "2026-01-31", limit: 2, tlsInsecure: true }, { who: "ann@x.io" });
     const items = r["out0"] as { id: string; unread: boolean; subject: string; from: string }[];
@@ -169,7 +169,7 @@ describe("Mail: IMAP / SMTP", () => {
     ]);
   });
 
-  it("прочитать письмо: текст разобран, вложения — только метаданные; пометка прочитанным", async () => {
+  it("read a message: the text is parsed, attachments are metadata only; marking as read", async () => {
     const r = await run({ ...IMAP, operation: "getMail", folder: "Archive", messageId: "42" });
     expect(r["out0"]).toMatchObject({ id: "42", subject: "Привет", text: "текст письма\n", from: expect.stringContaining("ann@x.io"), unread: true, attachments: [] });
     expect(imapCalls).toContain("lock Archive");
@@ -179,14 +179,14 @@ describe("Mail: IMAP / SMTP", () => {
     expect(imapCalls.filter((c) => c.startsWith("flags"))).toEqual(["flags+ 42 \\Seen", "flags- 42 \\Seen"]);
   });
 
-  it("ошибка входа не раскрывает пароль", async () => {
+  it("a login error does not reveal the password", async () => {
     imapState.failConnect = true;
     const err = await run({ ...IMAP, operation: "listMail", password: "very-secret-pass" }).catch((e: Error) => e);
     expect((err as Error).message).toMatch(/Mail: Invalid credentials/);
     expect((err as Error).message).not.toContain("very-secret-pass");
   });
 
-  it("отправка по настоящему SMTP: адресаты, тема, тело, шаблоны из входа; неверный пароль — ошибка", async () => {
+  it("sending over a real SMTP: recipients, subject, body, templates from the input; a wrong password is an error", async () => {
     const smtpCfg = { ...IMAP, smtpHost: "127.0.0.1", smtpPort: smtpPort, smtpSecure: false, operation: "sendMail" } as const;
     const r = await run({ ...smtpCfg, to: "ann@x.io; bob@x.io", cc: "cc@x.io", bcc: "hidden@x.io", subject: "Заказ {{ id }}", body: "Здравствуйте, {{ name }}!" }, { id: 7, name: "Анна" });
     expect(r["out0"]).toMatchObject({ ok: true, accepted: expect.arrayContaining(["ann@x.io", "bob@x.io", "cc@x.io", "hidden@x.io"]) });
@@ -196,15 +196,15 @@ describe("Mail: IMAP / SMTP", () => {
     expect(m.from).toBe("me@x.io");
     expect(m.to.sort()).toEqual(["ann@x.io", "bob@x.io", "cc@x.io", "hidden@x.io"]);
     expect(m.data).toMatch(/^To: ann@x\.io, bob@x\.io/m);
-    expect(m.data).not.toMatch(/^Bcc:/m); // скрытая копия не светится в заголовках
-    expect(m.data).toMatch(/^Subject: =\?UTF-8\?/m); // тема с кириллицей закодирована
+    expect(m.data).not.toMatch(/^Bcc:/m); // a hidden copy does not show in the headers
+    expect(m.data).toMatch(/^Subject: =\?UTF-8\?/m); // a subject with Cyrillic is encoded
     await expect(run({ ...smtpCfg, to: "a@b.io", subject: "x", body: "y", password: "wrong" })).rejects.toThrow(/Mail:/);
     expect(smtpGot).toHaveLength(1);
   });
 });
 
 describe("Mail: Microsoft Graph", () => {
-  it("вход приложением и отправка: токен берётся один раз, письмо уходит от имени ящика", async () => {
+  it("app login and sending: the token is obtained once, the message goes on behalf of the mailbox", async () => {
     tokenRoute();
     routes["POST /v1.0/users/me%40x.io/sendMail"] = [202, undefined];
     const r = await run({ ...GRAPH, operation: "sendMail", to: "ann@x.io", cc: "c@x.io", subject: "Тема {{ n }}", body: "<b>Привет</b>", html: true }, { n: 1 });
@@ -219,7 +219,7 @@ describe("Mail: Microsoft Graph", () => {
     });
   });
 
-  it("список: папка INBOX → inbox, фильтры OData с экранированием кавычек, сортировка по дате", async () => {
+  it("list: folder INBOX -> inbox, OData filters with quote escaping, sort by date", async () => {
     tokenRoute();
     routes["GET /v1.0/users/me%40x.io/mailFolders/inbox/messages"] = [
       200,
@@ -233,7 +233,7 @@ describe("Mail: Microsoft Graph", () => {
     expect(q.get("$filter")).toBe("receivedDateTime ge 2026-01-31T00:00:00.000Z and isRead eq false and from/emailAddress/address eq 'o''brien@x.io' and contains(subject,'it''s')");
   });
 
-  it("письмо целиком (html и вложения), пометка прочитанным", async () => {
+  it("a whole message (html and attachments), marking as read", async () => {
     tokenRoute();
     routes["GET /v1.0/users/me%40x.io/messages/AAA%3D"] = [200, { id: "AAA=", subject: "S", isRead: true, hasAttachments: true, body: { contentType: "html", content: "<p>hi</p>" }, ccRecipients: [{ emailAddress: { address: "c@x.io" } }] }];
     routes["GET /v1.0/users/me%40x.io/messages/AAA%3D/attachments"] = [200, { value: [{ name: "a.pdf", contentType: "application/pdf", size: 10 }] }];
@@ -244,7 +244,7 @@ describe("Mail: Microsoft Graph", () => {
     expect(JSON.parse(seen.at(-1)!.raw)).toEqual({ isRead: false });
   });
 
-  it("ошибки: Graph-сообщение без секретов, вход не вернул токен", async () => {
+  it("errors: a Graph message without secrets, the login returned no token", async () => {
     routes["POST /login/tenant-1/oauth2/v2.0/token"] = [401, { error: "invalid_client", error_description: "bad secret client-secret-value" }];
     const err = await run({ ...GRAPH, operation: "listMail" }).catch((e: Error) => e);
     expect((err as Error).message).toMatch(/HTTP 401/);
@@ -253,15 +253,15 @@ describe("Mail: Microsoft Graph", () => {
     await expect(run({ ...GRAPH, operation: "listMail" })).rejects.toThrow(/did not return an access token/);
   });
 
-  it("отмена запуска прерывает запрос", async () => {
+  it("cancelling the run aborts the request", async () => {
     const ac = new AbortController();
     ac.abort();
     await expect(run({ ...GRAPH, operation: "listMail" }, undefined, ac.signal)).rejects.toThrow("Aborted");
   });
 });
 
-describe("Mail: ответ, перемещение, вложения", () => {
-  it("IMAP: ответ уходит отправителю (Reply-To) с «Re:», In-Reply-To и ссылкой на исходное письмо; replyAll добавляет остальных, но не меня", async () => {
+describe("Mail: reply, move, attachments", () => {
+  it("IMAP: the reply goes to the sender (Reply-To) with Re:, In-Reply-To and a reference to the original; replyAll adds the others but not me", async () => {
     const smtpCfg = { ...IMAP, smtpHost: "127.0.0.1", smtpPort: smtpPort, smtpSecure: false, operation: "replyMail", messageId: "42", body: "Спасибо, {{ who }}" } as const;
     await run(smtpCfg, { who: "Анна" });
     let m = smtpGot.at(-1)!;
@@ -271,10 +271,10 @@ describe("Mail: ответ, перемещение, вложения", () => {
     expect(m.data).toMatch(/^Subject: =\?UTF-8\?/m);
     await run({ ...smtpCfg, replyAll: true });
     m = smtpGot.at(-1)!;
-    expect(m.to.sort()).toEqual(["ann.reply@x.io", "boss@x.io", "team@x.io"]); // me@x.io (это я) не включён
+    expect(m.to.sort()).toEqual(["ann.reply@x.io", "boss@x.io", "team@x.io"]); // me@x.io (that is me) is not included
   });
 
-  it("IMAP: перемещение письма в папку; параметры проверяются до подключения", async () => {
+  it("IMAP: moving a message to a folder; parameters are checked before connecting", async () => {
     expect((await run({ ...IMAP, operation: "moveMail", messageId: "7", destination: "Archive" }))["out0"]).toEqual({ ok: true, id: "7", destination: "Archive" });
     expect(imapCalls).toContain("move 7 -> Archive");
     imapCalls.length = 0;
@@ -283,7 +283,7 @@ describe("Mail: ответ, перемещение, вложения", () => {
     expect(imapCalls).toEqual([]);
   });
 
-  it("Graph: ответ (текст и HTML), ответить всем, перемещение в известную папку", async () => {
+  it("Graph: reply (text and HTML), reply all, moving to a known folder", async () => {
     tokenRoute();
     routes["POST /v1.0/users/me%40x.io/messages/AAA%3D/reply"] = [202, undefined];
     routes["POST /v1.0/users/me%40x.io/messages/AAA%3D/replyAll"] = [202, undefined];
@@ -297,7 +297,7 @@ describe("Mail: ответ, перемещение, вложения", () => {
     expect(JSON.parse(seen.at(-1)!.raw)).toEqual({ destinationId: "deleteditems" });
   });
 
-  describe("сохранение вложений", () => {
+  describe("saving attachments", () => {
     let dir: string;
     const saved = process.env["FL0W_FILES_DIR"];
     const mk = () => {
@@ -310,7 +310,7 @@ describe("Mail: ответ, перемещение, вложения", () => {
       else process.env["FL0W_FILES_DIR"] = saved;
     });
 
-    it("Graph: вложения пишутся в <каталог>/<id>/<имя>, у результата появляется path; опасные имена обезврежены, одинаковые различаются", async () => {
+    it("Graph: attachments are written to <dir>/<id>/<name>, the result gets a path; dangerous names are neutralised, identical ones are distinguished", async () => {
       mk();
       tokenRoute();
       routes["GET /v1.0/users/me%40x.io/messages/AAA%3D"] = [200, { id: "AAA=", subject: "S", hasAttachments: true, body: { contentType: "text", content: "x" } }];
@@ -321,7 +321,7 @@ describe("Mail: ответ, перемещение, вложения", () => {
           { name: "отчёт.txt", contentType: "text/plain", size: 5, contentBytes: b64("hello") },
           { name: "../../evil.sh", contentType: "text/plain", size: 3, contentBytes: b64("pwn") },
           { name: "отчёт.txt", contentType: "text/plain", size: 5, contentBytes: b64("again") },
-          { name: "письмо.eml", contentType: "message/rfc822", size: 1 }, // вложенное письмо без содержимого — пропускается
+          { name: "письмо.eml", contentType: "message/rfc822", size: 1 }, // a nested message without content is skipped
         ] },
       ];
       const r = (await run({ ...GRAPH, operation: "getMail", messageId: "AAA=", saveAttachments: true, attachmentsDir: "inbox" }))["out0"] as { attachments: { filename: string; path?: string }[] };
@@ -331,24 +331,24 @@ describe("Mail: ответ, перемещение, вложения", () => {
       expect(r.attachments.map((a) => a.path ?? null)).toEqual(["inbox/AAA_/отчёт.txt", "inbox/AAA_/evil.sh", "inbox/AAA_/отчёт (2).txt", null]);
     });
 
-    it("IMAP: путь к каталогу вне каталога файлов отвергается; без включённого saveAttachments файлы не пишутся", async () => {
+    it("IMAP: a directory path outside the files directory is rejected; without saveAttachments enabled no files are written", async () => {
       mk();
       await run({ ...IMAP, operation: "getMail", messageId: "42" });
       expect(readdirSync(dir)).toEqual([]);
-      await expect(run({ ...IMAP, operation: "getMail", messageId: "42", saveAttachments: true, attachmentsDir: "../x" })).resolves.toBeDefined(); // нет вложений — каталога не касаемся
+      await expect(run({ ...IMAP, operation: "getMail", messageId: "42", saveAttachments: true, attachmentsDir: "../x" })).resolves.toBeDefined(); // no attachments: we do not touch the directory
     });
   });
 });
 
-describe("Mail Trigger: параметры подписки", () => {
+describe("Mail Trigger: subscription parameters", () => {
   const base = { provider: "imap", host: "imap.test", username: "me@x.io", password: "pw-12345" };
-  it("разумные значения по умолчанию и подстановка пароля из окружения", () => {
+  it("sensible defaults and password substitution from the environment", () => {
     process.env["FL0W_SECRET_MAILBOX"] = "from-env";
     const w = MailTrigger.mailWatch({ ...base, password: "env:FL0W_SECRET_MAILBOX" });
     delete process.env["FL0W_SECRET_MAILBOX"];
     expect(w).toMatchObject({ username: "me@x.io", password: "from-env", folder: "INBOX", unreadOnly: true, intervalSec: 60, action: "markRead", processExisting: false, saveAttachments: false });
   });
-  it("проверки: период 15…3600 с, хост/tenant, действие, каталог вложений", () => {
+  it("checks: period 15...3600 s, host/tenant, action, attachments directory", () => {
     expect(() => MailTrigger.mailWatch({ ...base, intervalSec: 5 })).toThrow(/intervalSec/);
     expect(() => MailTrigger.mailWatch({ ...base, intervalSec: 99999 })).toThrow(/intervalSec/);
     expect(() => MailTrigger.mailWatch({ ...base, host: "" })).toThrow(/host/);

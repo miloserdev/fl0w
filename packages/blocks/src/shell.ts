@@ -7,20 +7,20 @@ import { textOf } from "./value-io";
 export const SHELL_ALLOW_ENV = "FL0W_ALLOW_SHELL";
 const MAX_OUTPUT_BYTES = 1024 * 1024;
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
-/** Окружение команды — только это (+ заданное в `env`): секреты процесса сервера в неё не попадают. */
+/** The command's environment is only this (+ what is set in `env`): the server process's secrets do not get into it. */
 const PASSTHROUGH_ENV = ["PATH", "HOME", "LANG", "LC_ALL", "TZ", "TERM"];
 
 export const isShellEnabled = (): boolean => ["1", "true", "yes"].includes(String(process.env[SHELL_ALLOW_ENV] ?? "").toLowerCase());
 
 /**
- * Shell (Bash): выполняет скрипт командной оболочкой НА ЭТОЙ МАШИНЕ.
- * Это исключение из SPEC §12 и по умолчанию ОТКЛЮЧЕНО: включается только переменной `FL0W_ALLOW_SHELL=1`
- * у сервера, потому что редактор и API доступны без авторизации — любой, кто достучится до порта,
- * получил бы исполнение команд.
+ * Shell (Bash): runs a script with the command shell ON THIS MACHINE.
+ * This is an exception to the rule that user code runs only in the Code block (architecture rule 5 in CLAUDE.md) and is DISABLED by default: it is enabled only by the `FL0W_ALLOW_SHELL=1` variable
+ * on the server, because the editor and API are available without authorisation, and anyone who reached the port
+ * would get command execution.
  *
- * Скрипт НЕ шаблонизируется. Данные передаются отдельно и безопасно: `args` — позиционные параметры
- * `$1`, `$2`… (никогда не вклеиваются в текст скрипта), `env` — переменные окружения, `stdin` — ввод.
- * Выполняется в каталоге файлов (`cwd` — подпапка), с таймаутом; отмена и таймаут убивают всю группу процессов.
+ * The script is NOT templated. Data is passed separately and safely: `args` are positional parameters
+ * `$1`, `$2`... (never pasted into the script text), `env` are environment variables, `stdin` is the input.
+ * It runs in the files directory (`cwd` is a subfolder), with a timeout; cancellation and timeout kill the whole process group.
  */
 export class Shell extends Block {
   static type = "shell";
@@ -30,12 +30,12 @@ export class Shell extends Block {
   static ports = { inputs: [{ id: "in0" }], outputs: [{ id: "out0" }] };
   static params: ParamSchema[] = [
     { name: "script", type: "string", multiline: true, required: true, default: 'echo "hello"', expressions: false },
-    // позиционные параметры $1, $2…; строки поддерживают «{{ путь }}» из входа
+    // positional parameters $1, $2...; strings support "{{ path }}" from the input
     { name: "args", type: "json", default: [] },
-    // переменные окружения { ИМЯ: значение } (значения поддерживают шаблоны)
+    // environment variables { NAME: value } (values support templates)
     { name: "env", type: "json", default: {} },
     { name: "stdin", type: "string", default: "" },
-    // подпапка каталога файлов; пусто — сам каталог
+    // subfolder of the files directory; empty means the directory itself
     { name: "cwd", type: "string", default: "" },
     {
       name: "shell",
@@ -44,7 +44,7 @@ export class Shell extends Block {
       options: [{ value: "bash" }, { value: "sh" }],
     },
     { name: "timeoutMs", type: "number", default: 30_000, min: 100, max: 300_000 },
-    // ненулевой код выхода — ошибка ноды
+    // a non-zero exit code is a node error
     { name: "failOnError", type: "boolean", default: true },
   ];
 
@@ -78,10 +78,10 @@ export class Shell extends Block {
     const base = await filesBaseDir();
     const cwd = await resolveInside(base, String(params["cwd"] ?? ""));
 
-    // "$0" = имя оболочки, дальше позиционные параметры — данные никогда не попадают в текст скрипта
+    // "$0" = the shell name, then positional parameters: data never gets into the script text
     const child = cp.spawn(shell, ["-c", script, shell, ...args], {
       cwd,
-      // Next дополняет ProcessEnv обязательным NODE_ENV — наше окружение намеренно минимальное
+      // Next extends ProcessEnv with a mandatory NODE_ENV; our environment is deliberately minimal
       env: env as NodeJS.ProcessEnv,
       detached: true,
       stdio: ["pipe", "pipe", "pipe"],
@@ -100,14 +100,14 @@ export class Shell extends Block {
     };
     child.stdout.on("data", collect("out"));
     child.stderr.on("data", collect("err"));
-    child.stdin.on("error", () => {}); // команда могла завершиться, не дочитав ввод
+    child.stdin.on("error", () => {}); // the command may have finished without reading the input
     child.stdin.end(stdin ?? "");
 
     const killGroup = () => {
       try {
         if (child.pid !== undefined) process.kill(-child.pid, "SIGKILL");
       } catch {
-        // уже завершился
+        // already finished
       }
     };
 
@@ -131,7 +131,7 @@ export class Shell extends Block {
       ctx.signal.addEventListener("abort", onAbort, { once: true });
       if (ctx.signal.aborted) return onAbort();
       child.on("error", (e) => done(() => reject(new Error(`Shell failed to start: ${e.message}`, { cause: e }))));
-      // 'close' — после завершения процесса и закрытия потоков: вывод уже собран целиком
+      // 'close' fires after the process ends and the streams close: the output has already been fully collected
       child.on("close", (c, s) => done(() => resolve({ code: c, signal: s })));
     });
 

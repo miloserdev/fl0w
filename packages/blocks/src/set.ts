@@ -4,8 +4,8 @@ import { cloneJson, deletePath, isPlainObject, resolveTemplates, setPath } from 
 import { stringList } from "./list-utils";
 
 /**
- * Edit Fields (Set): задаёт, перезаписывает и удаляет поля. Значения — JSON; строки с `{{ путь }}`
- * подставляют данные самого объекта (вместо выражений n8n). Массив объектов обрабатывается поэлементно.
+ * Edit Fields (Set): sets, overwrites and removes fields. Values are JSON; strings with `{{ path }}`
+ * substitute data of the object itself (instead of n8n expressions). An array of objects is processed element by element.
  */
 export class SetFields extends Block {
   static type = "set";
@@ -14,10 +14,10 @@ export class SetFields extends Block {
   static category = "data";
   static ports = { inputs: [{ id: "in0" }], outputs: [{ id: "out0" }] };
   static params: ParamSchema[] = [
-    // { "поле.вложенное": значение | "{{ путь }}" }
+    // { "field.nested": value | "{{ path }}" }
     { name: "fields", type: "json", default: {} },
     { name: "keepOnlySet", type: "boolean", default: false },
-    // пути, которые нужно удалить из результата
+    // paths to remove from the result
     { name: "remove", type: "json", default: [] },
   ];
 

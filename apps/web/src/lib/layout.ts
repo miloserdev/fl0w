@@ -2,20 +2,20 @@ import type { Node } from "@xyflow/react";
 import { registry } from "@fl0w/blocks";
 import type { Json } from "@fl0w/schema";
 
-/** Блок оформления (заметка, группа): рисуется на холсте, но не участвует в запуске. */
+/** Decoration block (note, group): drawn on the canvas but takes no part in the run. */
 export function isLayoutBlock(blockType: string): boolean {
   return registry[blockType]?.layout === true;
 }
 
-/** Блок, размер которого задаёт пользователь (тянет за уголок): заметки, группы, Log. Размер живёт в params.width/height. */
+/** A block whose size is set by the user (resized by the corner): notes, groups, Log. The size lives in params.width/height. */
 export function isResizableBlock(blockType: string): boolean {
   return registry[blockType]?.resizable === true;
 }
 
-/** Прямоугольник ноды в координатах холста. */
+/** Node rectangle in canvas coordinates. */
 export type Box = { id: string; x: number; y: number; width: number; height: number };
 
-/** Запасной размер обычного блока, пока React Flow его не измерил. */
+/** Fallback size of an ordinary block until React Flow has measured it. */
 const FALLBACK_SIZE = 64;
 
 export function nodeBox(n: Pick<Node, "id" | "position" | "width" | "height" | "measured">): Box {
@@ -29,8 +29,8 @@ export function nodeBox(n: Pick<Node, "id" | "position" | "width" | "height" | "
 }
 
 /**
- * Какие ноды «лежат в группе»: те, чей центр внутри рамки (границы включены). Сама группа не входит.
- * Вложенные группы и заметки тоже считаются — они переезжают вместе с рамкой.
+ * Which nodes "lie in the group": those whose centre is inside the frame (borders included). The group itself is excluded.
+ * Nested groups and notes count too — they move together with the frame.
  */
 export function nodesInsideGroup(group: Box, others: Box[]): string[] {
   return others
@@ -45,7 +45,7 @@ export function nodesInsideGroup(group: Box, others: Box[]): string[] {
 
 const LAYOUT_LIMITS = { width: { min: 80, max: 4000 }, height: { min: 60, max: 4000 } } as const;
 
-/** Нижние границы размера блока — из схемы его параметров (у Log выше, чем у заметки). */
+/** Lower size bounds of a block — from its parameter schema (higher for Log than for a note). */
 function limit(blockType: string, key: "width" | "height") {
   const p = registry[blockType]?.params.find((x) => x.name === key);
   return p && p.type === "number" ? { min: p.min ?? LAYOUT_LIMITS[key].min, max: p.max ?? LAYOUT_LIMITS[key].max } : LAYOUT_LIMITS[key];
@@ -57,7 +57,7 @@ function dim(value: Json | undefined, fallback: number, key: "width" | "height",
   return Math.round(Math.min(max, Math.max(min, v)));
 }
 
-/** Размер блока оформления из params (с границами из схемы); без значений — размер по умолчанию класса. */
+/** Size of a decoration block from params (with bounds from the schema); without values — the class's default size. */
 export function layoutSize(blockType: string, params: Record<string, Json>): { width: number; height: number } {
   const def = (name: string, fb: number) => {
     const p = registry[blockType]?.params.find((x) => x.name === name);
@@ -69,26 +69,26 @@ export function layoutSize(blockType: string, params: Record<string, Json>): { w
   };
 }
 
-/** Слои холста: группы под заметками, заметки под блоками (у блоков zIndex 0). */
+/** Canvas layers: groups under notes, notes under blocks (blocks have zIndex 0). */
 const LAYER_GROUP = -2;
 const LAYER_NOTE = -1;
 
-/** Свойства ноды React Flow, которые зависят от вида блока оформления (пусто — для обычного блока). */
+/** React Flow node properties that depend on the decoration block kind (empty — for an ordinary block). */
 export function layoutNodeProps(blockType: string, params: Record<string, Json>): Partial<Pick<Node, "width" | "height" | "zIndex" | "dragHandle" | "style" | "draggable">> {
   if (!isResizableBlock(blockType)) return {};
   const size = layoutSize(blockType, params);
   if (blockType === "group") {
-    // под остальными; клики по пустой рамке проходят к холсту — группу берут за заголовок
+    // under the others; clicks on an empty frame pass through to the canvas — the group is grabbed by the title
     return { ...size, zIndex: LAYER_GROUP, dragHandle: ".fl-group-title", style: { pointerEvents: "none" }, ...(params.locked === true ? { draggable: false } : {}) };
   }
-  // заметка лежит ПОД блоками (но над группами): иначе свежая или большая заметка перекрывала бы ноды
+  // a note lies UNDER the blocks (but above groups): otherwise a fresh or large note would cover nodes
   if (isLayoutBlock(blockType)) return { ...size, zIndex: LAYER_NOTE };
   return size;
 }
 
 type Palette = { note: string; groupBox: string; groupTitle: string; swatch: string; mini: string };
 
-// Классы Tailwind записаны целиком — иначе сборка их не найдёт.
+// Tailwind classes are written out in full — otherwise the build will not find them.
 export const LAYOUT_PALETTE: Record<string, Palette> = {
   yellow: {
     note: "bg-yellow-100 border-yellow-300 text-yellow-950 dark:bg-yellow-900/50 dark:border-yellow-700 dark:text-yellow-50",

@@ -10,7 +10,7 @@ import { useNodeLogs } from "./node-logs";
 import { useNodeIssues } from "./node-issues";
 import { useNodeRunStatus } from "./run-status";
 
-/** Цвет строки по префиксу уровня, который ставит блок Log. */
+/** Line colour by the level prefix set by the Log block. */
 export function lineTone(line: string): string {
   if (line.startsWith("[error]")) return "text-destructive";
   if (line.startsWith("[warn]")) return "text-amber-600 dark:text-amber-300";
@@ -18,9 +18,9 @@ export function lineTone(line: string): string {
 }
 
 /**
- * Нода Log на холсте: как остальные блоки (те же скругления, цвет карточки, рамка состояния запуска), но с моноширинным
- * текстом строк лога последнего запуска и приглашением `$`. Тянется за уголок (минимум задан схемой параметров), строки
- * прокручиваются внутри, колесо мыши там не масштабирует холст.
+ * Log node on the canvas: like other blocks (same rounding, card colour, run-state border), but with monospace
+ * text of the last run's log lines and a `$` prompt. Resized by the corner (the minimum is set by the param schema), lines
+ * scroll inside, the mouse wheel there does not zoom the canvas.
  */
 export function TerminalNode({ id, selected }: NodeProps<BlockNodeType>) {
   const t = useTranslations("node");
@@ -29,7 +29,7 @@ export function TerminalNode({ id, selected }: NodeProps<BlockNodeType>) {
   const issues = useNodeIssues(id);
   const body = useRef<HTMLDivElement>(null);
 
-  // новые строки — внизу, как в настоящем терминале: окно прокручивается к последней
+  // new lines go at the bottom, as in a real terminal: the window scrolls to the last one
   useEffect(() => {
     body.current?.scrollTo({ top: body.current.scrollHeight });
   }, [lines]);

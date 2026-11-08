@@ -6,7 +6,7 @@ import type { Json, RunnerEvent } from "@fl0w/schema";
 import { runFlowInProcess } from "./spawn";
 import { edge, flow, node } from "./test-helpers";
 
-/** Дочерний процесс наследует окружение родителя — переменные задаём здесь. */
+/** A child process inherits the parent's environment, so the variables are set here. */
 let dir: string;
 const saved = { files: process.env["FL0W_FILES_DIR"], shell: process.env["FL0W_ALLOW_SHELL"] };
 beforeEach(() => {
@@ -29,8 +29,8 @@ async function run(f: ReturnType<typeof flow>) {
   return { events, done: done?.event === "flow:done" ? done : undefined };
 }
 
-describe("Files в отдельном процессе", () => {
-  it("manual → write → read (json) → result: данные проходят через диск", async () => {
+describe("Files in a separate process", () => {
+  it("manual → write → read (json) → result: data passes through the disk", async () => {
     const f = flow(
       [
         node("m", "manual"),
@@ -47,7 +47,7 @@ describe("Files в отдельном процессе", () => {
     expect(JSON.parse(readFileSync(path.join(dir, "reports/out.json"), "utf8"))).toEqual({ items: [1, 2, 3], note: "report" });
   });
 
-  it("выход за каталог файлов даёт node:error, раннер жив", async () => {
+  it("escaping the files directory gives node:error, the runner stays alive", async () => {
     const f = flow(
       [node("s", "source", { json: "x" }), node("bad", "files", { operation: "write", path: "../escape.txt" }), node("res", "result")],
       [edge("s", "bad"), edge("bad", "res")],
@@ -59,21 +59,21 @@ describe("Files в отдельном процессе", () => {
   });
 });
 
-describe("Shell в отдельном процессе", () => {
+describe("Shell in a separate process", () => {
   const shellFlow = (params: Record<string, Json>) =>
     flow(
       [node("s", "source", { json: { who: "ann" } }), node("sh", "shell", params), node("res", "result")],
       [edge("s", "sh"), edge("sh", "res")],
     );
 
-  it("по умолчанию отключён: понятная ошибка и ничего не выполнено", async () => {
+  it("disabled by default: a clear error and nothing executed", async () => {
     const { events, done } = await run(shellFlow({ script: "touch ran.txt" }));
     expect(events).toContainEqual({ event: "node:error", nodeId: "sh", error: expect.stringMatching(/FL0W_ALLOW_SHELL=1/) });
     expect(done?.error).toMatch(/disabled/);
     expect(existsSync(path.join(dir, "ran.txt"))).toBe(false);
   });
 
-  it("с FL0W_ALLOW_SHELL=1 выполняет скрипт; данные приходят безопасно через args", async () => {
+  it("with FL0W_ALLOW_SHELL=1 runs the script; data arrives safely via args", async () => {
     process.env["FL0W_ALLOW_SHELL"] = "1";
     const { done } = await run(shellFlow({ script: 'echo "hello $1" && echo err >&2', args: ["{{ who }}; touch pwned"] }));
     expect(done?.error).toBeUndefined();
@@ -81,7 +81,7 @@ describe("Shell в отдельном процессе", () => {
     expect(existsSync(path.join(dir, "pwned"))).toBe(false);
   });
 
-  it("файлы и Shell работают в одном каталоге", async () => {
+  it("Files and Shell work in the same directory", async () => {
     process.env["FL0W_ALLOW_SHELL"] = "1";
     const f = flow(
       [
@@ -96,7 +96,7 @@ describe("Shell в отдельном процессе", () => {
     expect(String((done?.result as { stdout: string }).stdout).trim()).toBe("7");
   });
 
-  it("ненулевой код — node:error с хвостом stderr", async () => {
+  it("a non-zero exit code gives node:error with the stderr tail", async () => {
     process.env["FL0W_ALLOW_SHELL"] = "1";
     const { events } = await run(shellFlow({ script: "echo nope >&2; exit 4" }));
     expect(events).toContainEqual({ event: "node:error", nodeId: "sh", error: "Command failed with exit code 4: nope" });

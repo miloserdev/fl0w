@@ -4,8 +4,8 @@ import { cloneJson, getPath, isPlainObject, setPath } from "./json-path";
 import { stringList } from "./list-utils";
 
 /**
- * Split Out: берёт массив из поля объекта и раскладывает на элементы. По умолчанию результат — список самих
- * элементов; `into` оборачивает каждый в { into: элемент }, `include` добавляет остальные поля исходного объекта.
+ * Split Out: takes an array from an object field and spreads it into items. By default the result is the list of the
+ * items themselves; `into` wraps each in { into: item }, `include` adds the remaining fields of the source object.
  */
 export class SplitOut extends Block {
   static type = "split_out";

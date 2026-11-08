@@ -1,6 +1,6 @@
 /**
- * Пауза запуска: пока она включена, планировщик не стартует НОВЫЕ ноды; уже работающие доделываются (их не заморозить: Wait, HTTP…).
- * Один затвор на весь запуск — его получают и вложенные (тела циклов, вызовы флоу).
+  * Run pause: while it is on, the scheduler does not start NEW nodes; ones already running finish (they cannot be frozen: Wait, HTTP…).
+  * One gate per whole run; nested runs (loop bodies, flow calls) receive it too.
  */
 export class PauseGate {
   private on = false;
@@ -20,7 +20,7 @@ export class PauseGate {
     this.wake();
   }
 
-  /** Ждёт снятия паузы или отмены. */
+  /** Waits for the pause to be lifted or for cancellation. */
   untilResumed(signal?: AbortSignal): Promise<void> {
     if (!this.on || signal?.aborted) return Promise.resolve();
     return new Promise((resolve) => {

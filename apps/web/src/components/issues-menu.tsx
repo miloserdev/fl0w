@@ -14,7 +14,7 @@ import {
 
 export type IssueEntry = { key: string; text: string; nodeId?: string };
 
-/** Список проблем флоу; клик по пункту выделяет ноду на холсте. */
+/** List of flow issues; clicking an item selects the node on the canvas. */
 export function IssuesMenu({
   issues,
   onSelectNode,

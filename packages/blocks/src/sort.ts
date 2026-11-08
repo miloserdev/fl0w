@@ -5,7 +5,7 @@ import { compareJson, listAt } from "./list-utils";
 
 type Key = { field: string; desc: boolean };
 
-/** Sort: сортирует список по полям (по возрастанию/убыванию) или перемешивает. Сортировка устойчивая. */
+/** Sort: sorts a list by fields (ascending/descending) or shuffles it. The sort is stable. */
 export class Sort extends Block {
   static type = "sort";
   static label = "Sort";
@@ -20,7 +20,7 @@ export class Sort extends Block {
       default: "simple",
       options: [{ value: "simple" }, { value: "random" }],
     },
-    // ["поле", { "field": "a.b", "order": "desc" }]; пусто — сортировка по самому значению
+    // ["field", { "field": "a.b", "order": "desc" }]; empty means sort by the value itself
     { name: "fields", type: "json", default: [] },
     {
       name: "order",

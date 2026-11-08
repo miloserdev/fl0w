@@ -7,21 +7,21 @@ import type { NodeRunStatus } from "./run-status";
 
 export type RunStatus = "idle" | "running" | "done" | "error" | "aborted";
 
-/** Сколько последних строк лога держим в памяти вкладки. */
+/** How many of the latest log lines are kept in the tab's memory. */
 const MAX_LOG_LINES = 500;
 
-/** Данные ноды в последнем запуске, где она участвовала: что пришло, с какими параметрами, что вышло, лог и ошибка. */
+/** Node data in the last run it took part in: what came in, with which params, what came out, the log and the error. */
 export type NodeDetail = {
   input?: Record<string, Json>;
   params?: Record<string, Json>;
   output?: Record<string, Json>;
-  /** Подпись, которую нода просила показать на себе (число у Counter). */
+  /** Caption the node asked to show on itself (the number for Counter). */
   display?: string;
   error?: string;
   logs: string[];
 };
 
-/** Сколько строк лога одной ноды держим для просмотра. */
+/** How many log lines of a single node are kept for viewing. */
 const MAX_DETAIL_LOGS = 200;
 
 export type RunState = {
@@ -30,28 +30,28 @@ export type RunState = {
   nodeErrors: Record<string, string>;
   logs: { nodeId: string; message: string }[];
   logsDropped: number;
-  /** По id ноды; новый запуск не стирает данные нод, до которых он ещё не дошёл. */
+  /** By node id; a new run does not erase the data of nodes it has not reached yet. */
   nodeDetails: Record<string, NodeDetail>;
   result?: Json;
   error?: string;
-  /** Запуск на паузе: новые ноды не стартуют, работающие доделываются. */
+  /** The run is paused: new nodes do not start, running ones finish. */
   paused?: boolean;
 };
 
 export const IDLE_RUN: RunState = { status: "idle", nodes: {}, nodeErrors: {}, logs: [], logsDropped: 0, nodeDetails: {} };
 
 /**
- * Начало нового запуска в Watch: статусы и ошибки нод ветки запуска (`involved` — триггер и всё после него) сбрасываются,
- * остальные ноды остаются как были (дёрнули один вебхук — другие ветки не «гаснут»). Данные нод (вкладка «Данные») хранятся
- * до перезаписи на старте ноды. Без `involved` ничего не сбрасывается. Лента и результат — заново.
+ * Start of a new run in Watch: statuses and errors of the run branch nodes (`involved` — the trigger and everything after it) are reset,
+ * the other nodes stay as they were (one webhook was hit — other branches do not "go dark"). Node data (the "Data" tab) is kept
+ * until overwritten when the node starts. Without `involved` nothing is reset. The feed and the result start over.
  */
 export function beginWatchRun(s: RunState, involved?: string[]): RunState {
   const drop = <T,>(r: Record<string, T>) => (involved ? Object.fromEntries(Object.entries(r).filter(([id]) => !involved.includes(id))) : r);
-  // ветка запуска (триггер и всё после него) начинается с чистого листа, остальные ноды остаются как были
+  // the run branch (the trigger and everything after it) starts from a clean slate, the other nodes stay as they were
   return { ...IDLE_RUN, status: "running", nodes: drop(s.nodes), nodeErrors: drop(s.nodeErrors), nodeDetails: s.nodeDetails };
 }
 
-/** Применяет событие запуска к состоянию (общий редьюсер для ручного запуска и Watch). */
+/** Applies a run event to the state (a shared reducer for manual run and Watch). */
 export function reduceRun(state: RunState, e: RunnerEvent, allNodeIds: string[]): RunState {
   switch (e.event) {
     case "node:start":
@@ -85,7 +85,7 @@ export function reduceRun(state: RunState, e: RunnerEvent, allNodeIds: string[])
         nodeDetails: { ...state.nodeDetails, [e.nodeId]: { ...(state.nodeDetails[e.nodeId] ?? { logs: [] }), error: e.error } },
       };
     case "node:killed":
-      // нода сама отработала; оборван её shoot-вызов — в ленте и в списке ошибок, статус ноды не меняется
+      // the node itself worked; its shoot call was aborted — shown in the feed and the error list, the node status does not change
       return {
         ...state,
         nodeErrors: { ...state.nodeErrors, [e.nodeId]: `killed: ${e.reason}` },
@@ -94,10 +94,10 @@ export function reduceRun(state: RunState, e: RunnerEvent, allNodeIds: string[])
     case "run:paused":
       return { ...state, paused: e.paused };
     case "flow:done": {
-      // ноды, ещё «идущие» к концу запуска, оборваны (shoot-вызов, отмена) — пульсировать им больше нечем
+      // nodes still "running" at the end of the run were aborted (shoot call, cancel) — they have nothing left to pulse for
       const settled = Object.fromEntries(Object.entries(state.nodes).map(([id, st]) => [id, st === "running" ? "skipped" : st])) as typeof state.nodes;
       if (e.error !== undefined) return { ...state, nodes: settled, status: "error", error: e.error, paused: false };
-      // при успехе ноды, до которых данные не дошли (невзятая ветка), помечаем как пропущенные
+      // on success, nodes the data never reached (the branch not taken) are marked as skipped
       const nodes = { ...settled };
       for (const id of allNodeIds) nodes[id] ??= "skipped";
       return { ...state, status: "done", nodes, result: e.result, paused: false };
@@ -105,7 +105,7 @@ export function reduceRun(state: RunState, e: RunnerEvent, allNodeIds: string[])
   }
 }
 
-/** Запуск флоу через POST /api/run и разбор NDJSON-стрима событий. */
+/** Running a flow via POST /api/run and parsing the NDJSON event stream. */
 export function useRun() {
   const [state, setState] = useState<RunState>(IDLE_RUN);
   const controller = useRef<AbortController | null>(null);
@@ -151,7 +151,7 @@ export function useRun() {
           if (parsed.success) setState((s) => reduceRun(s, parsed.data, ids));
         }
       }
-      // поток закрылся без flow:done — сервер оборвался
+      // the stream closed without flow:done — the server was cut off
       fail("Connection closed before the run finished");
     } catch (e) {
       if (ac.signal.aborted) setState((s) => ({ ...s, status: "aborted" }));
@@ -160,14 +160,14 @@ export function useRun() {
   }, []);
 
   const stop = useCallback(() => controller.current?.abort(), []);
-  // закрытая вкладка не должна оставлять идущий запуск
+  // a closed tab must not leave a run going
   useEffect(() => () => controller.current?.abort(), []);
   const control = useCallback((action: "pause" | "resume") => {
     if (runId.current) void fetch("/api/run/control", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ runId: runId.current, action }) }).catch(() => {});
   }, []);
   const pause = useCallback(() => control("pause"), [control]);
   const resume = useCallback(() => control("resume"), [control]);
-  // keepDetails: закрыть панель результата, не теряя данные нод для отладки
+  // keepDetails: close the result panel without losing node data for debugging
   const reset = useCallback((keepDetails = false) => setState((s) => ({ ...IDLE_RUN, nodeDetails: keepDetails ? s.nodeDetails : {} })), []);
 
   return { state, run, stop, pause, resume, reset };

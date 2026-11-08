@@ -1,7 +1,7 @@
 import type { Json } from "@fl0w/schema";
 import { Block } from "./block";
 
-/** No Operation: пропускает данные без изменений (заглушка, точка соединения). */
+/** No Operation: passes data through unchanged (a stub, a junction point). */
 export class NoOp extends Block {
   static type = "noop";
   static label = "No Operation";

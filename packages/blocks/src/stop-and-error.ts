@@ -2,7 +2,7 @@ import type { Json, ParamSchema } from "@fl0w/schema";
 import { Block } from "./block";
 import { interpolate, resolveTemplates } from "./json-path";
 
-/** Stop and Error: останавливает запуск с заданной ошибкой — текстом или объектом. Шаблоны `{{ путь }}` берут данные из входа. */
+/** Stop and Error: stops the run with the given error, as text or an object. `{{ path }}` templates take data from the input. */
 export class StopAndError extends Block {
   static type = "stop_and_error";
   static label = "Stop and Error";

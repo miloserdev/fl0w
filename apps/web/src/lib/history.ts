@@ -3,21 +3,21 @@ import { sameStructure, type BlockNodeType } from "./flow-convert";
 
 export type Doc = { nodes: BlockNodeType[]; edges: Edge[] };
 
-/** Одинаковы ли документы для истории: структура и положение нод; выделение, размеры и перетаскивание не в счёт. */
+/** Whether documents are the same for history: node structure and position; selection, sizes and dragging do not count. */
 export function sameDoc(a: Doc, b: Doc): boolean {
   if (!sameStructure(a, b)) return false;
   return a.nodes.every((n, i) => n.position.x === b.nodes[i]!.position.x && n.position.y === b.nodes[i]!.position.y);
 }
 
-/** Снимок для хранения: без выделения и признаков перетаскивания. */
+/** Snapshot for storage: without selection and dragging flags. */
 export const snapshot = (d: Doc): Doc => ({
   nodes: d.nodes.map((n) => (n.selected || n.dragging ? { ...n, selected: false, dragging: false } : n)),
   edges: d.edges.map((e) => (e.selected ? { ...e, selected: false } : e)),
 });
 
 /**
- * История правок (undo/redo): стеки снимков. `commit(doc)` вызывается, когда правка «устоялась»; одинаковый с последним
- * документ в историю не попадает. Чистая логика — подключается хуком редактора.
+ * Edit history (undo/redo): snapshot stacks. `commit(doc)` is called when an edit has "settled"; a document identical to the last
+ * one does not go into history. Pure logic — plugged in by the editor hook.
  */
 export class History {
   private past: Doc[] = [];
@@ -26,7 +26,7 @@ export class History {
 
   constructor(private readonly limit = 100) {}
 
-  /** Начать с этого документа (после загрузки флоу): история очищается. */
+  /** Start from this document (after loading a flow): history is cleared. */
   reset(doc: Doc): void {
     this.past = [];
     this.future = [];

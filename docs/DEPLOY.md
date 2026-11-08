@@ -1,27 +1,27 @@
-# Развёртывание
+# Deployment
 
-## Что хранится и где
+## What is stored and where
 
-| Данные | Переменная | В контейнере | Содержимое |
+| Data | Variable | In the container | Contents |
 |---|---|---|---|
-| Флоу | `FL0W_DATA_DIR` | `/data/flows` | JSON каждого флоу: черновики и опубликованные |
-| Память | `FL0W_MEMORY_DIR` | `/data/memory` | банки Memory Bank и счётчики Counter (`_sandbox` — пробные запуски из редактора) |
-| Файлы | `FL0W_FILES_DIR` | `/data/files` | всё, что читают и пишут блоки Files / Local File Trigger / Shell |
+| Flows | `FL0W_DATA_DIR` | `/data/flows` | JSON of every flow: drafts and published |
+| Memory | `FL0W_MEMORY_DIR` | `/data/memory` | Memory Bank banks and Counter counters (`_sandbox` — trial runs from the editor) |
+| Files | `FL0W_FILES_DIR` | `/data/files` | everything the Files / Local File Trigger / Shell blocks read and write |
 
-Образ объявляет `VOLUME /data`. Compose монтирует `/data` (флоу и память) и `/data/files` (файлы) отдельно, чтобы
-файловый каталог можно было направить в любую папку хоста.
+The image declares `VOLUME /data`. Compose mounts `/data` (flows and memory) and `/data/files` (files) separately, so that
+the files directory can be pointed at any folder on the host.
 
-## Локально без Docker
+## Locally without Docker
 
-Нужны Node 26+ и pnpm 11 (`npm install -g pnpm@11`).
+Requires Node 26+ and pnpm 11 (`npm install -g pnpm@11`).
 
 ```bash
 pnpm install
 pnpm build
-FL0W_FILES_DIR=/srv/fl0w/files FL0W_ALLOW_SHELL=0 pnpm start     # порт 3000; другой: pnpm --filter @fl0w/web start -p 8080
+FL0W_FILES_DIR=/srv/fl0w/files FL0W_ALLOW_SHELL=0 pnpm start     # port 3000; another port: pnpm --filter @fl0w/web start -p 8080
 ```
 
-Сервис поднимает расписание опубликованных флоу при старте. Для постоянной работы запустите под systemd / pm2.
+The service brings up the schedule of published flows at startup. For continuous operation, run it under systemd / pm2.
 
 ## Docker Compose
 
@@ -31,48 +31,48 @@ docker compose up -d --build
 docker compose logs -f
 ```
 
-### Куда класть данные
+### Where to put the data
 
-По умолчанию — именованные тома Docker. Чтобы хранить на хосте, укажите пути в `.env`:
+By default, named Docker volumes are used. To store data on the host, set the paths in `.env`:
 
 ```
-FL0W_DATA=/srv/fl0w/data      # флоу + память
-FL0W_FILES=/srv/fl0w/files    # файлы, доступные блокам
+FL0W_DATA=/srv/fl0w/data      # flows + memory
+FL0W_FILES=/srv/fl0w/files    # files available to blocks
 ```
 
-Каталоги должны существовать, а владельцем быть uid 1000 (пользователь `node` в контейнере):
+The directories must exist and be owned by uid 1000 (the `node` user in the container):
 `sudo mkdir -p /srv/fl0w/{data,files} && sudo chown -R 1000:1000 /srv/fl0w`.
 
-Резервная копия тома: `docker run --rm -v fl0w-data:/d -v "$PWD":/b busybox tar czf /b/fl0w-data.tgz -C /d .`
+Volume backup: `docker run --rm -v fl0w-data:/d -v "$PWD":/b busybox tar czf /b/fl0w-data.tgz -C /d .`
 
-### Параметры и функции
+### Settings and features
 
-Всё через `.env` (compose передаёт его в контейнер): `FL0W_ALLOW_SHELL=1` включает Shell, `FL0W_PUBLIC_URL` — вебхуки
-Telegram, `FL0W_SECRET_*` — секреты. После правки: `docker compose up -d`.
+Everything goes through `.env` (compose passes it into the container): `FL0W_ALLOW_SHELL=1` enables Shell, `FL0W_PUBLIC_URL` — Telegram
+webhooks, `FL0W_SECRET_*` — secrets. After editing: `docker compose up -d`.
 
-Shell в контейнере исполняет команды **внутри контейнера** под пользователем `node` (доступ к хосту — только через то,
-что вы смонтировали). Всё равно включайте его лишь там, куда имеете доступ только вы.
+Shell in the container runs commands **inside the container** as the `node` user (access to the host only through
+what you have mounted). Still, enable it only where you are the only one with access.
 
-### Сеть
+### Network
 
-По умолчанию порт публикуется только на `127.0.0.1`. Для доступа извне поставьте перед сервисом обратный прокси с
-авторизацией (или VPN) и только тогда меняйте `FL0W_BIND`. Вебхуки (`/api/hooks/...`, `/api/telegram/...`) должны быть
-доступны снаружи — проксируйте только их, если редактор наружу открывать не нужно.
+By default the port is published on `127.0.0.1` only. For external access, put a reverse proxy with
+authentication (or a VPN) in front of the service, and only then change `FL0W_BIND`. Webhooks (`/api/hooks/...`, `/api/telegram/...`) must be
+reachable from outside — if you do not need to expose the editor, proxy only these.
 
-## Сборка и публикация образа
+## Building and publishing the image
 
 ```bash
-scripts/docker.sh build                                  # fl0w:<версия> и fl0w:latest
+scripts/docker.sh build                                  # fl0w:<version> and fl0w:latest
 docker login ghcr.io
-IMAGE=ghcr.io/<вы>/fl0w scripts/docker.sh push           # спросит подтверждение (-y — без вопроса)
-IMAGE=ghcr.io/<вы>/fl0w PLATFORMS=linux/amd64,linux/arm64 scripts/docker.sh push   # мультиархитектурная сборка (buildx)
+IMAGE=ghcr.io/<you>/fl0w scripts/docker.sh push          # asks for confirmation (-y — without asking)
+IMAGE=ghcr.io/<you>/fl0w PLATFORMS=linux/amd64,linux/arm64 scripts/docker.sh push   # multi-architecture build (buildx)
 ```
 
-Версия берётся из `apps/web/package.json` (или `VERSION=…`). Скрипт ничего не отправляет без команды `push`.
+The version is taken from `apps/web/package.json` (or `VERSION=…`). The script sends nothing without the `push` command.
 
-## Обновление
+## Updating
 
 ```bash
-git pull && docker compose up -d --build     # данные в томах не затрагиваются
+git pull && docker compose up -d --build     # data in volumes is not affected
 ```
-или `FL0W_IMAGE=<новый образ> docker compose pull && docker compose up -d`.
+or `FL0W_IMAGE=<new image> docker compose pull && docker compose up -d`.

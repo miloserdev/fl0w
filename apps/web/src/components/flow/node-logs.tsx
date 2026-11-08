@@ -2,7 +2,7 @@
 
 import { createKeyedStore } from "@/lib/keyed-store";
 
-/** То, что нода показывает «вживую» по последнему запуску: строки лога (терминал Log) и подпись вместо иконки (Counter). */
+/** What a node shows "live" from the last run: log lines (Log terminal) and a caption instead of the icon (Counter). */
 export type NodeLive = { logs: string[]; display?: string };
 
 const store = createKeyedStore<NodeLive>();

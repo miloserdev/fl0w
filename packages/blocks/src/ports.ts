@@ -1,15 +1,15 @@
 import type { Json, PortDef, PortKind, PortsDef } from "@fl0w/schema";
 import type { BlockClass } from "./registry";
 
-/** Вид порта (по умолчанию — данные). */
+/** Port kind (data by default). */
 export const portKind = (p: PortDef | undefined): PortKind => p?.kind ?? "data";
 
-/** Порт данных (не ресурсный). */
+/** Data port (not a resource port). */
 export const isDataPort = (p: PortDef): boolean => portKind(p) === "data";
 
 /**
- * Порты инстанса: дефолтные из класса (или зависящие от параметров — `portsFor`, например порт `err` у outgoing call
- * только в режиме await) + добавленные через portsOverride.
+ * Instance ports: defaults from the class (or parameter-dependent ones via `portsFor`, for example the `err` port of an outgoing call
+ * only in await mode) plus those added via portsOverride.
  */
 export function getNodePorts(
   cls: Pick<BlockClass, "ports"> & Partial<Pick<BlockClass, "portsFor">>,

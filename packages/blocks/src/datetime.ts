@@ -8,13 +8,13 @@ type Unit = (typeof UNITS)[number];
 const OPERATIONS = ["now", "format", "add", "subtract", "diff", "extract", "round"] as const;
 const PARTS = ["year", "month", "week", "weekday", "day", "hour", "minute", "second"] as const;
 
-/** Разбор даты в UTC. Строки без часового пояса считаются UTC, а не локальным временем сервера. */
+/** Date parsing in UTC. Strings without a time zone are treated as UTC, not as the server's local time. */
 function parseDate(v: Json): Date {
   let d: Date;
   if (typeof v === "number") d = new Date(v);
   else if (typeof v === "string") {
     const s = v.trim();
-    // число, пришедшее через выражение `{{ inputs… }}` в строковый параметр, — это миллисекунды эпохи
+    // a number that arrived through the `{{ inputs... }}` expression into a string parameter is epoch milliseconds
     if (/^-?\d+(\.\d+)?$/.test(s)) return parseDate(Number(s));
     const noZone = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(s);
     d = new Date(noZone ? `${s.replace(" ", "T")}Z` : s);
@@ -40,7 +40,7 @@ function format(d: Date, fmt: string): string {
   });
 }
 
-/** Сдвиг на месяцы с прижатием дня к концу месяца (31 января + 1 месяц = 28/29 февраля). */
+/** Shift by months clamping the day to the end of the month (31 January + 1 month = 28/29 February). */
 function addMonths(d: Date, n: number): Date {
   const day = d.getUTCDate();
   const r = new Date(d.getTime());
@@ -59,7 +59,7 @@ function shift(d: Date, unit: Unit, amount: number): Date {
   return new Date(d.getTime() + amount * UNIT_MS[unit]);
 }
 
-/** Начало единицы (недели — с понедельника). */
+/** Start of a unit (weeks start on Monday). */
 function startOf(d: Date, unit: Unit): Date {
   const y = d.getUTCFullYear();
   const m = d.getUTCMonth();
@@ -81,7 +81,7 @@ function isoWeek(d: Date): number {
   return Math.ceil(((t.getTime() - Date.UTC(t.getUTCFullYear(), 0, 1)) / 86_400_000 + 1) / 7);
 }
 
-/** Полных единиц между датами (в сторону нуля). Для месяцев и лет — календарно. */
+/** Whole units between dates (towards zero). For months and years: by calendar. */
 function between(a: Date, b: Date, unit: Unit): number {
   if (unit === "years" || unit === "months") {
     const sign = b >= a ? 1 : -1;
@@ -93,7 +93,7 @@ function between(a: Date, b: Date, unit: Unit): number {
   return Math.trunc((b.getTime() - a.getTime()) / UNIT_MS[unit]);
 }
 
-/** Date & Time: now, format, add, subtract, diff, extract, round. Всё в UTC. */
+/** Date & Time: now, format, add, subtract, diff, extract, round. All in UTC. */
 export class DateTime extends Block {
   static type = "datetime";
   static label = "Date & Time";
@@ -108,7 +108,7 @@ export class DateTime extends Block {
       default: "now",
       options: OPERATIONS.map((value) => ({ value })),
     },
-    // дата: ISO-строка, мс (число) или шаблон «{{ createdAt }}»; пусто — сам вход
+    // date: an ISO string, ms (a number) or a "{{ createdAt }}" template; empty means the input itself
     { name: "value", type: "string", default: "" },
     {
       name: "unit",
@@ -117,7 +117,7 @@ export class DateTime extends Block {
       options: UNITS.map((value) => ({ value })),
     },
     { name: "amount", type: "number", default: 1 },
-    // токены: YYYY MM DD HH mm ss SSS; пусто — ISO 8601
+    // tokens: YYYY MM DD HH mm ss SSS; empty means ISO 8601
     { name: "format", type: "string", default: "" },
     {
       name: "part",
@@ -125,7 +125,7 @@ export class DateTime extends Block {
       default: "year",
       options: PARTS.map((value) => ({ value })),
     },
-    // вторая дата для diff (шаблон или значение)
+    // second date for diff (a template or a value)
     { name: "other", type: "string", default: "" },
     {
       name: "direction",

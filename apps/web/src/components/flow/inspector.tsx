@@ -16,8 +16,8 @@ import { ParamForm } from "./param-form";
 import { useBlockLabel } from "./use-block-label";
 
 /**
- * Окно параметров выбранного блока: плавает слева поверх холста и существует,
- * пока выбран ровно один блок. Закрытие снимает выделение.
+ * Parameters window of the selected block: floats on the left over the canvas and exists
+ * while exactly one block is selected. Closing it clears the selection.
  */
 export function Inspector({
   node,
@@ -30,18 +30,18 @@ export function Inspector({
 }) {
   const t = useTranslations("inspector");
   const blockLabel = useBlockLabel();
-  // счётчик «сбросов» CSS: редактор неуправляемый, после сброса к стилям блока его нужно пересоздать
+  // counter of CSS "resets": the editor is uncontrolled, after a reset to the block's styles it must be recreated
   const [cssEpoch, setCssEpoch] = useState(0);
   const cls = registry[node.data.blockType];
   if (!cls) return null;
   const codeParam = cls.params.find((p) => p.editor === "code");
-  // заметки и группы: только параметры — ни запусков, ни кода, ни стилей блока
+  // notes and groups: only parameters — no runs, no code, no block styles
   const layout = cls.layout;
 
   return (
-    // `nokey` — штатный способ React Flow: внутри этого окна он не обрабатывает клавиши (Backspace/Delete удаляли бы
-    // выбранную ноду, Space включал бы панорамирование) — Monaco вводит текст через native-edit-context, который
-    // React Flow сам полем ввода не считает
+    // `nokey` is React Flow's standard way: inside this window it does not handle keys (Backspace/Delete would delete
+    // the selected node, Space would turn on panning) — Monaco takes input via native-edit-context, which
+    // React Flow does not consider an input field itself
     <aside className={cn(FLOATING, "nokey absolute top-[4.25rem] bottom-3 left-3 z-10 flex w-96 max-w-[calc(100%-1.5rem)] flex-col overflow-hidden")}>
       <div className="flex items-center gap-2 border-b px-3 py-2">
         <BlockIcon name={cls.icon} className="text-muted-foreground size-4" />
@@ -66,7 +66,7 @@ export function Inspector({
           <X className="size-4" />
         </Button>
       </div>
-      {/* key: при смене блока вкладка сбрасывается (у другого блока может не быть вкладки «Код») */}
+      {/* key: when the block changes the tab is reset (another block may have no "Code" tab) */}
       {layout ? (
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
           <ParamForm
@@ -151,9 +151,9 @@ export function Inspector({
 
 
 /**
- * Редактор кода во вкладке окна параметров с кнопкой «открыть по центру»: тот же текст в большом окне, как у «Добавить блок».
- * Редакторы неуправляемые (см. CodeEditor): окно монтирует свой редактор с текущим текстом при открытии, а встроенный
- * редактор после закрытия окна пересоздаётся — иначе он показал бы текст на момент открытия.
+ * Code editor in a tab of the parameters window with an "open in the centre" button: the same text in a large window, like "Add block".
+ * Editors are uncontrolled (see CodeEditor): the window mounts its own editor with the current text on open, and the embedded
+ * editor is recreated after the window closes — otherwise it would show the text as of the opening.
  */
 function ExpandableEditor({
   title,
@@ -192,7 +192,7 @@ function ExpandableEditor({
           if (!o) setEpoch((n) => n + 1);
         }}
       >
-        {/* nokey: React Flow не должен перехватывать клавиши (Backspace/Space) в редакторе, вынесенном в портал */}
+        {/* nokey: React Flow must not intercept keys (Backspace/Space) in an editor moved to a portal */}
         <DialogContent className={cn(FLOATING, "nokey flex h-[85dvh] flex-col gap-3 p-4 sm:max-w-[min(92vw,72rem)]")}>
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>

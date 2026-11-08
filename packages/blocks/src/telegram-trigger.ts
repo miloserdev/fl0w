@@ -5,17 +5,17 @@ import { resolveSecret } from "./secrets";
 import { TELEGRAM_TOKEN_ENV } from "./telegram";
 import { TELEGRAM_API_ENV, assertToken } from "./telegram-api";
 
-/** Типы обновлений Bot API (поле Update). */
+/** Bot API update types (the Update field). */
 export const TELEGRAM_UPDATE_TYPES = [
   "message", "edited_message", "channel_post", "edited_channel_post", "business_connection", "business_message",
   "edited_business_message", "deleted_business_messages", "message_reaction", "message_reaction_count", "inline_query",
   "chosen_inline_result", "callback_query", "shipping_query", "pre_checkout_query", "purchased_paid_media", "poll",
   "poll_answer", "my_chat_member", "chat_member", "chat_join_request", "chat_boost", "removed_chat_boost",
 ];
-/** Эти три Telegram не присылает по умолчанию («*» их не включает): они дают очень много обновлений. */
+/** Telegram does not send these three by default ("*" does not include them): they produce a great many updates. */
 export const TELEGRAM_OPT_IN_UPDATES = ["chat_member", "message_reaction", "message_reaction_count"];
 
-/** Публичный адрес сервера для вебхука Telegram: именно по нему Telegram будет присылать обновления. */
+/** Public server address for the Telegram webhook: Telegram will send updates exactly to it. */
 export const PUBLIC_URL_ENV = "FL0W_PUBLIC_URL";
 
 function publicUrl(): string {
@@ -29,7 +29,7 @@ function publicUrl(): string {
   } catch {
     throw new Error(`${PUBLIC_URL_ENV} is not a valid URL`);
   }
-  // Telegram принимает вебхуки только по https; http допускается лишь при своём Bot API (FL0W_TELEGRAM_API) — для тестов
+  // Telegram accepts webhooks only over https; http is allowed only with your own Bot API (FL0W_TELEGRAM_API), for tests
   if (u.protocol !== "https:" && !(u.protocol === "http:" && process.env[TELEGRAM_API_ENV])) {
     throw new Error(`${PUBLIC_URL_ENV} must be an https URL (Telegram sends webhooks only over https)`);
   }
@@ -44,14 +44,14 @@ const idList = (raw: Json | undefined, name: string, allowNames: boolean): strin
   });
 
 /**
- * Telegram Trigger: запускает флоу на обновления бота (сообщения, нажатия кнопок, inline-запросы и т.д.).
- * Работает у опубликованного флоу. Два способа получения (`mode`): `polling` — сервер сам опрашивает `getUpdates`
- * (только исходящие запросы, ничего публиковать не нужно); `webhook` — как в n8n: при публикации регистрируется вебхук
- * (`setWebhook`), Telegram присылает обновления на `<FL0W_PUBLIC_URL>/api/telegram/<ключ>` мгновенно, запрос проверяется
- * секретным заголовком. Вебхуку нужен публичный https-адрес сервера — выставляйте наружу только путь `/api/telegram/`.
- * Выход — объект Update целиком, например `{ update_id, message: { chat: { id }, text, … } }`.
- * Токен — как у блока Telegram (`env:FL0W_SECRET_…`). У бота не должно быть активного вебхука, а опрашивать его может
- * только один потребитель — несколько триггеров с одним токеном разделяют один опрос.
+ * Telegram Trigger: starts a flow on bot updates (messages, button presses, inline queries, etc.).
+ * Works for a published flow. Two ways to receive (`mode`): `polling`: the server polls `getUpdates` itself
+ * (outgoing requests only, nothing needs to be published); `webhook`: as in n8n, a webhook is registered on publication
+ * (`setWebhook`), Telegram sends updates to `<FL0W_PUBLIC_URL>/api/telegram/<key>` instantly, and the request is verified
+ * by a secret header. A webhook needs a public https address of the server: expose only the path `/api/telegram/` externally.
+ * The output is the whole Update object, for example `{ update_id, message: { chat: { id }, text, ... } }`.
+ * The token is the same as for the Telegram block (`env:FL0W_SECRET_...`). The bot must have no active webhook, and only
+ * one consumer can poll it: several triggers with one token share a single poll.
  */
 export class TelegramTrigger extends Block {
   static type = "telegram_trigger";
@@ -64,14 +64,14 @@ export class TelegramTrigger extends Block {
   static ports = { inputs: [], outputs: [{ id: "out0" }] };
   static params: ParamSchema[] = [
     { name: "token", type: "string", default: "" },
-    // способ получения: опрос (getUpdates, только исходящие запросы) или вебхук (Telegram присылает сам, нужен FL0W_PUBLIC_URL)
+    // how to receive: polling (getUpdates, outgoing requests only) or a webhook (Telegram sends by itself, needs FL0W_PUBLIC_URL)
     {
       name: "mode",
       type: "enum",
       default: "polling",
       options: [{ value: "polling" }, { value: "webhook" }],
     },
-    // на какие события срабатывать; "*" — все (кроме chat_member, message_reaction, message_reaction_count)
+    // which events to fire on; "*" means all (except chat_member, message_reaction, message_reaction_count)
     {
       name: "updates",
       type: "multienum",
@@ -79,10 +79,10 @@ export class TelegramTrigger extends Block {
       default: ["message"],
       options: ["*", ...TELEGRAM_UPDATE_TYPES].map((value) => ({ value })),
     },
-    // ограничения через запятую; пусто — без ограничений
+    // restrictions separated by commas; empty means no restrictions
     { name: "chatIds", type: "string", default: "" },
     { name: "userIds", type: "string", default: "" },
-    // при запуске сбросить накопившиеся, пока флоу не работал, обновления
+    // on start, drop the updates that piled up while the flow was not running
     { name: "dropPending", type: "boolean", default: false },
   ];
 

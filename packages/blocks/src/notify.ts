@@ -7,19 +7,19 @@ export const NOTIFY_URGENCIES = ["low", "normal", "critical"] as const;
 const MAX_TITLE = 200;
 const MAX_BODY = 2000;
 const MAX_TIMEOUT_MS = 600_000;
-/** Только имя иконки из темы («dialog-information», «mail-unread»): путь к файлу не принимаем. */
+/** Only a theme icon name ("dialog-information", "mail-unread"): a file path is not accepted. */
 const ICON_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
-/** Что нужно `notify-send`, чтобы найти сессию рабочего стола; остальное окружение сервера (токены, ключи) команде не отдаём. */
+/** What `notify-send` needs to find the desktop session; the rest of the server environment (tokens, keys) is not given to the command. */
 const PASSTHROUGH_ENV = ["PATH", "HOME", "LANG", "LC_ALL", "DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR", "DISPLAY", "WAYLAND_DISPLAY", "XDG_CURRENT_DESKTOP"];
 
 /**
- * Notification: показывает уведомление рабочего стола на машине, где работает сервер (KDE Plasma, GNOME и любой
- * демон уведомлений freedesktop — через `notify-send` из libnotify). Данные проходят дальше без изменений.
+ * Notification: shows a desktop notification on the machine where the server runs (KDE Plasma, GNOME and any
+ * freedesktop notification daemon, via `notify-send` from libnotify). Data passes on unchanged.
  *
- * Команда запускается без оболочки, аргументами-массивом, а заголовок и текст идут после `--`: данные из входа не могут
- * стать флагом или командой. В `title`/`message` работают `{{ путь }}` из входа; пустой `message` — весь вход как текст.
- * Нужны `notify-send` в PATH и сессия рабочего стола (D-Bus) у процесса сервера: в Docker-контейнере без проброса
- * сессионной шины блок отвечает понятной ошибкой.
+ * The command is started without a shell, with an array of arguments, and the title and text go after `--`: data from the input cannot
+ * become a flag or a command. `{{ path }}` from the input works in `title`/`message`; an empty `message` means the whole input as text.
+ * It needs `notify-send` in PATH and a desktop session (D-Bus) for the server process: in a Docker container without forwarding
+ * the session bus the block answers with a clear error.
  */
 export class Notification extends Block {
   static type = "notify";
@@ -28,13 +28,13 @@ export class Notification extends Block {
   static category = "io";
   static ports = { inputs: [{ id: "in0" }], outputs: [{ id: "out0" }] };
   static params: ParamSchema[] = [
-    { name: "title", type: "string", default: "Node Flow Board" },
+    { name: "title", type: "string", default: "FL0W" },
     { name: "message", type: "string", multiline: true, default: "" },
     { name: "urgency", type: "enum", default: "normal", options: NOTIFY_URGENCIES.map((value) => ({ value })) },
-    // имя иконки из темы; пусто — без иконки
+    // theme icon name; empty means no icon
     { name: "icon", type: "string", default: "" },
-    { name: "appName", type: "string", default: "Node Flow Board" },
-    // сколько показывать, мс; 0 — как решит демон уведомлений (у critical — пока не закроют)
+    { name: "appName", type: "string", default: "FL0W" },
+    // how long to show, ms; 0 means as the notification daemon decides (for critical, until closed)
     { name: "timeoutMs", type: "number", default: 0, min: 0, max: MAX_TIMEOUT_MS },
   ];
 
@@ -54,7 +54,7 @@ export class Notification extends Block {
     if (!(NOTIFY_URGENCIES as readonly string[]).includes(urgency)) throw new Error(`Unknown urgency "${urgency}"`);
     const icon = typeof params["icon"] === "string" ? params["icon"].trim() : "";
     if (icon !== "" && !ICON_NAME.test(icon)) throw new Error('Notification: "icon" must be an icon name from the theme (letters, digits, . _ -)');
-    const appName = (typeof params["appName"] === "string" ? params["appName"] : "").replace(/\0/g, "").trim().slice(0, 100) || "Node Flow Board";
+    const appName = (typeof params["appName"] === "string" ? params["appName"] : "").replace(/\0/g, "").trim().slice(0, 100) || "FL0W";
     const timeoutMs = Math.trunc(Number(params["timeoutMs"] ?? 0));
     if (!Number.isFinite(timeoutMs) || timeoutMs < 0 || timeoutMs > MAX_TIMEOUT_MS) throw new Error(`Notification: "timeoutMs" must be 0…${MAX_TIMEOUT_MS}`);
 

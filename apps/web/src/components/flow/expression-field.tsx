@@ -18,9 +18,9 @@ type Props = {
   value: string;
   onChange: (value: string) => void;
   multiline?: boolean;
-  /** принудительно «режим выражения» (поле числа/списка в виде выражения), даже если шаблона в тексте нет */
+  /** force "expression mode" (a number/list field shown as an expression), even if the text has no template */
   forceExpression?: boolean;
-  /** выражения не поддерживаются (`expressions: false`): без подсветки */
+  /** expressions are not supported (`expressions: false`): no highlighting */
   plain?: boolean;
   placeholder?: string;
   invalid?: boolean;
@@ -28,9 +28,9 @@ type Props = {
 };
 
 /**
- * Текстовое поле с подсветкой фрагментов `{{ … }}`. Настоящий <input>/<textarea> лежит поверх «зеркала» с тем же
- * текстом: зеркало рисует только цветные подложки (его текст прозрачен), а текст, курсор, выделение и IME остаются
- * нативными — поэтому небольшое расхождение метрик не ломает ввод. Прокрутка зеркала синхронизируется с полем.
+ * Text field with highlighting of `{{ … }}` fragments. The real <input>/<textarea> lies on top of a "mirror" with the same
+ * text: the mirror draws only the coloured backgrounds (its text is transparent), while the text, caret, selection and IME stay
+ * native — so a small metrics mismatch does not break input. The mirror's scroll is synchronized with the field.
  */
 export function ExpressionField({ id, value, onChange, multiline, forceExpression, plain, placeholder, invalid, className }: Props) {
   const fieldRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null);

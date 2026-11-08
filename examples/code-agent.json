@@ -27,7 +27,7 @@
         "y": 100
       },
       "params": {
-        "code": "// Инструменты и память подключены снизу. tools.list() показывает, что доступно.\nlog(\"tools:\", tools.list().map((t) => t.name).join(\", \"))\nconst now = await tools.call(\"current_datetime\", { timezone: inputs.in0.timezone })\nconst calc = await tools.call(\"calculator\", { expression: inputs.in0.expression })\nconst visits = ((await memory.get(\"visits\")) ?? 0) + 1\nawait memory.set(\"visits\", visits)\nconst history = await memory.append(\"history\", { at: now.iso, result: calc.result }, 5)\nreturn { out0: { now, calc, visits, history } }\n",
+        "code": "// Tools and memory are attached from below. tools.list() shows what is available.\nlog(\"tools:\", tools.list().map((t) => t.name).join(\", \"))\nconst now = await tools.call(\"current_datetime\", { timezone: inputs.in0.timezone })\nconst calc = await tools.call(\"calculator\", { expression: inputs.in0.expression })\nconst visits = ((await memory.get(\"visits\")) ?? 0) + 1\nawait memory.set(\"visits\", visits)\nconst history = await memory.append(\"history\", { at: now.iso, result: calc.result }, 5)\nreturn { out0: { now, calc, visits, history } }\n",
         "timeoutMs": 10000
       },
       "portsOverride": null,

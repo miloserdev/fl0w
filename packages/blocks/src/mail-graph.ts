@@ -4,7 +4,7 @@ import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TOTAL, MAX_BODY_CHARS, type ListQu
 import { MAX_RESPONSE_BYTES, readCapped } from "./http-request";
 import { redact } from "./secrets";
 
-/** Адреса Microsoft Graph и входа; переменные нужны для национальных облаков и тестов (настоящие серверы Microsoft в тестах не вызываются). */
+/** Microsoft Graph and login addresses; the variables are needed for national clouds and tests (real Microsoft servers are not called in tests). */
 export const GRAPH_URL_ENV = "FL0W_GRAPH_URL";
 export const GRAPH_LOGIN_URL_ENV = "FL0W_GRAPH_LOGIN_URL";
 const DEFAULT_GRAPH = "https://graph.microsoft.com/v1.0";
@@ -15,7 +15,7 @@ const SELECT_LIST = "id,subject,from,toRecipients,receivedDateTime,isRead";
 export type GraphConfig = { tenantId: string; clientId: string; clientSecret: string; mailbox: string; timeoutMs: number; signal: AbortSignal };
 
 const origin = (env: string, fallback: string) => (process.env[env] ?? fallback).replace(/\/+$/, "");
-/** Строка в OData-фильтре: одинарные кавычки удваиваются. */
+/** A string in an OData filter: single quotes are doubled. */
 const odata = (s: string) => `'${s.replace(/'/g, "''")}'`;
 const person = (r: Json | undefined): string => {
   const e = isPlainObject(r) && isPlainObject(r["emailAddress"]) ? r["emailAddress"] : null;
@@ -25,8 +25,8 @@ const person = (r: Json | undefined): string => {
 };
 
 /**
- * Microsoft Graph (Outlook / Microsoft 365): REST API без дополнительных библиотек. Вход — приложение Azure AD
- * (client credentials: tenant, client id, client secret) с правами Mail.Read / Mail.ReadWrite / Mail.Send на нужный ящик.
+ * Microsoft Graph (Outlook / Microsoft 365): REST API with no extra libraries. Login is an Azure AD application
+ * (client credentials: tenant, client id, client secret) with Mail.Read / Mail.ReadWrite / Mail.Send rights on the needed mailbox.
  */
 export function graphDriver(cfg: GraphConfig): MailDriver {
   const secrets = [cfg.clientSecret];
@@ -59,7 +59,7 @@ export function graphDriver(cfg: GraphConfig): MailDriver {
         const msg = isPlainObject(j) && isPlainObject(j["error"]) ? (j["error"]["message"] ?? j["error"]["code"]) : isPlainObject(j) ? j["error_description"] : null;
         if (typeof msg === "string") detail = msg.slice(0, 300);
       } catch {
-        // не JSON — оставляем начало тела
+        // not JSON: keep the start of the body
       }
       throw new Error(redact(`Mail HTTP ${res.status} ${res.statusText}: ${detail}`, secrets).trim());
     }
@@ -117,7 +117,7 @@ export function graphDriver(cfg: GraphConfig): MailDriver {
 
     async list(q: ListQuery) {
       await auth();
-      // Graph требует, чтобы поле сортировки стояло в фильтре первым — поэтому дата есть всегда
+      // Graph requires the sort field to come first in the filter, so a date is always present
       const filter = [
         `receivedDateTime ge ${(q.since ?? new Date(0)).toISOString()}`,
         ...(q.unreadOnly ? ["isRead eq false"] : []),
@@ -179,7 +179,7 @@ export function graphDriver(cfg: GraphConfig): MailDriver {
       let total = 0;
       const out: MailAttachment[] = [];
       for (const x of items) {
-        // только файловые вложения: у вложенных писем и ссылок нет contentBytes
+        // file attachments only: nested messages and links have no contentBytes
         if (!isPlainObject(x) || typeof x["contentBytes"] !== "string") continue;
         const bytes = Buffer.from(x["contentBytes"], "base64");
         if (bytes.byteLength > MAX_ATTACHMENT_BYTES) throw new Error(`Mail: attachment "${String(x["name"] ?? "")}" is too large`);
@@ -191,7 +191,7 @@ export function graphDriver(cfg: GraphConfig): MailDriver {
     },
 
     async close() {
-      // сессии нет: токен живёт недолго и не хранится
+      // no session: the token is short-lived and not stored
     },
   };
 }

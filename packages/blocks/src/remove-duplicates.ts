@@ -3,7 +3,7 @@ import { Block } from "./block";
 import { getPath } from "./json-path";
 import { listAt, stableKey, stringList } from "./list-utils";
 
-/** Remove Duplicates: убирает повторы по всему значению или по выбранным полям; остаётся первое вхождение. */
+/** Remove Duplicates: removes repeats by the whole value or by chosen fields; the first occurrence stays. */
 export class RemoveDuplicates extends Block {
   static type = "remove_duplicates";
   static label = "Remove Duplicates";
@@ -18,7 +18,7 @@ export class RemoveDuplicates extends Block {
       default: "all",
       options: [{ value: "all" }, { value: "fields" }],
     },
-    // для compare = fields: ["id", "user.email"]
+    // for compare = fields: ["id", "user.email"]
     { name: "fields", type: "json", default: [] },
   ];
 

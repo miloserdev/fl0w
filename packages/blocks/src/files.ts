@@ -9,16 +9,16 @@ import { textOf, valueOf } from "./value-io";
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_GLOB_FILES = 1000;
 const MAX_WALK_ENTRIES = 20_000;
-/** Предел суммарного размера файлов за одно чтение по маске и числа одновременно открытых файлов / запросов `lstat`. */
+/** Limit on the total size of files per mask read and on the number of simultaneously open files / `lstat` requests. */
 const MAX_TOTAL_READ_BYTES = 50 * 1024 * 1024;
 const FS_CONCURRENCY = 16;
 
 type FileInfo = { path: string; name: string; type: "file" | "dir"; size: number; modifiedAt: string };
 
 /**
- * Read/Write Files: чтение, запись, дописывание и список файлов в каталоге файлов (`FL0W_FILES_DIR`) —
- * выше него доступа нет (SPEC §12). Путь поддерживает `{{ шаблоны }}`. Чтение по маске (`*`, `?`, `[abc]`,
- * `**`) отдаёт список. Бинарные данные — через формат base64.
+ * Read/Write Files: read, write, append and list files in the files directory (`FL0W_FILES_DIR`);
+ * there is no access above it. The path supports `{{ templates }}`. Reading by mask (`*`, `?`, `[abc]`,
+ * `**`) returns a list. Binary data goes via the base64 format.
  */
 export class Files extends Block {
   static type = "files";
@@ -34,7 +34,7 @@ export class Files extends Block {
       default: "read",
       options: [{ value: "read" }, { value: "write" }, { value: "append" }, { value: "list" }],
     },
-    // путь относительно каталога файлов; для read и list допустима маска
+    // path relative to the files directory; a mask is allowed for read and list
     { name: "path", type: "string", required: true },
     {
       name: "format",
@@ -42,7 +42,7 @@ export class Files extends Block {
       default: "text",
       options: [{ value: "text" }, { value: "json" }, { value: "base64" }],
     },
-    // write/append: что записать; пусто — вход
+    // write/append: what to write; empty means the input
     { name: "content", type: "json", default: null },
     { name: "createDirs", type: "boolean", default: true },
     { name: "overwrite", type: "boolean", default: true },
@@ -56,12 +56,12 @@ export class Files extends Block {
     const format = String(params["format"] ?? "text");
     if (!["text", "json", "base64"].includes(format)) throw new Error(`Unknown format "${format}"`);
     const base = await filesBaseDir();
-    // пустой путь остаётся пустым (корень каталога файлов): общее правило valueOf «пусто — взять вход» тут неуместно
+    // an empty path stays empty (the root of the files directory): the general valueOf rule "empty means take the input" does not fit here
     const rawPath = String(params["path"] ?? "");
     const rel = (rawPath === "" ? "" : textOf(valueOf(input, rawPath))).replace(/\\/g, "/").replace(/^\.\//, "");
     if (rel === "" && op !== "list") throw new Error('Files: "path" is required');
 
-    // отмена запуска: проверяется между операциями с диском, а чтение/запись получают сам signal
+    // run cancellation: checked between disk operations, while read/write receive the signal itself
     const signal = ctx?.signal;
     const alive = () => {
       if (signal?.aborted) throw new Error("Aborted");
@@ -79,7 +79,7 @@ export class Files extends Block {
       };
     };
 
-    /** Обход каталога без перехода по симлинкам; возвращает пути, подходящие под маску. */
+    /** Directory walk without following symlinks; returns the paths matching the mask. */
     const matching = async (glob: string, wantDirs: boolean): Promise<string[]> => {
       const start = await resolveInside(base, globBase(glob));
       const re = globToRegExp(glob);
@@ -126,7 +126,7 @@ export class Files extends Block {
       };
       if (hasGlob(rel)) {
         const paths = (await matching(rel, false)).slice(0, MAX_GLOB_FILES);
-        // суммарный размер проверяем ДО чтения (по метаданным), чтобы не набрать гигабайты в память
+        // we check the total size BEFORE reading (from metadata) so as not to pull gigabytes into memory
         const sizes = await mapLimit(paths, FS_CONCURRENCY, async (p) => (await info(p)).size);
         const total = sizes.reduce<number>((a, b) => a + (typeof b === "number" ? b : 0), 0);
         if (total > MAX_TOTAL_READ_BYTES) throw new Error(`Files: the matching files are ${total} bytes in total (at most ${MAX_TOTAL_READ_BYTES}) — narrow the pattern`);
@@ -158,7 +158,7 @@ export class Files extends Block {
     if (op === "write") {
       const exists = await fs.lstat(abs).then(() => true, () => false);
       if (exists && params["overwrite"] === false) throw new Error(`Files: "${rel}" already exists`);
-      // через временный файл: читатель не увидит наполовину записанный результат
+      // via a temp file: a reader will never see a half-written result
       const tmp = `${abs}.${process.pid}.tmp`;
       alive();
       await fs.writeFile(tmp, bytes, { signal });

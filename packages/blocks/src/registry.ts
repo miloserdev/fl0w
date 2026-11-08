@@ -50,7 +50,7 @@ import { CalculatorTool, CodeTool, DateTimeTool, RandomTool } from "./tools";
 export type BlockClass = (new () => Block) & typeof Block;
 
 export const registry: Record<string, BlockClass> = {
-  // триггеры
+  // triggers
   manual: ManualTrigger,
   every: Every,
   webhook: Webhook,
@@ -61,7 +61,7 @@ export const registry: Record<string, BlockClass> = {
   workflow_trigger: WorkflowTrigger,
   activation_trigger: ActivationTrigger,
   call_trigger: CallTrigger,
-  // ввод / вывод
+  // input / output
   source: Source,
   http_request: HttpRequest,
   respond_to_webhook: RespondToWebhook,
@@ -70,11 +70,11 @@ export const registry: Record<string, BlockClass> = {
   notify: Notification,
   log: Log,
   result: ResultBlock,
-  // приложения
+  // apps
   telegram: Telegram,
   atlassian: Atlassian,
   mail: Mail,
-  // данные
+  // data
   transform: Transform,
   set: SetFields,
   filter: Filter,
@@ -91,16 +91,16 @@ export const registry: Record<string, BlockClass> = {
   jwt: Jwt,
   code: CodeBlock,
   code_agent: CodeAgent,
-  // оформление: заметки и группы (не участвуют в запуске)
+  // decoration: notes and groups (do not take part in a run)
   note: StickyNote,
   group: GroupFrame,
-  // ресурсы: подключаются к ресурсным портам нод (инструменты, память)
+  // resources: attached to nodes' resource ports (tools, memory)
   tool_datetime: DateTimeTool,
   tool_calculator: CalculatorTool,
   tool_random: RandomTool,
   tool_code: CodeTool,
   memory_bank: MemoryBank,
-  // логика
+  // logic
   branch: Branch,
   switch: Switch,
   merge: Merge,

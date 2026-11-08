@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ key: string }> };
 
-/** Вебхук Telegram: сюда Bot API присылает обновления (режим webhook у Telegram Trigger). */
+/** Telegram webhook: the Bot API sends updates here (the webhook mode of Telegram Trigger). */
 export async function POST(req: Request, { params }: Ctx) {
   const { key } = await params;
   const rt = getRuntime();

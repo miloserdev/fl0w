@@ -8,7 +8,7 @@ import { textOf } from "./value-io";
 export const ATLASSIAN_OPERATIONS = ["searchIssues", "getIssue", "createIssue", "updateIssue", "addComment", "transitionIssue", "request"] as const;
 export const ATLASSIAN_AUTH = ["form", "basic", "session", "bearer"] as const;
 const ISSUE_KEY = /^[A-Za-z][A-Za-z0-9_]*-\d+$/;
-/** Путь для произвольного запроса: только на тот же хост (начинается с одного «/»), без `..`, схемы и пробелов. */
+/** Path for an arbitrary request: only to the same host (starts with a single "/"), with no `..`, scheme or spaces. */
 const SAFE_PATH = /^\/(?!\/)[A-Za-z0-9._~!$&'()*+,;=:@%/?-]*$/;
 const MAX_ERROR_BODY = 300;
 const MAX_RESULTS = 100;
@@ -16,22 +16,22 @@ const MAX_RESULTS = 100;
 const when = (...ops: string[]) => ({ param: "operation", in: ops });
 const ISSUE_OPS = ["getIssue", "updateIssue", "addComment", "transitionIssue"];
 
-/** Atlassian ADF (формат текста Jira Cloud REST v3): абзацы из строк. */
+/** Atlassian ADF (Jira Cloud REST v3 text format): paragraphs from lines. */
 function adf(text: string): Json {
   const paragraphs = text.split("\n").filter((l) => l.trim() !== "");
   return { type: "doc", version: 1, content: paragraphs.map((l) => ({ type: "paragraph", content: [{ type: "text", text: l }] })) };
 }
 
 /**
- * Atlassian (Jira): поиск по JQL, задача, создание/правка, комментарий, переход по статусам и произвольный REST-запрос
- * (последний покрывает и Confluence: `/rest/api/content`). Работает с Jira Server/Data Center и Cloud.
+ * Atlassian (Jira): JQL search, an issue, create/edit, comment, status transitions and an arbitrary REST request
+ * (the last also covers Confluence: `/rest/api/content`). Works with Jira Server/Data Center and Cloud.
  *
- * Вход (`auth`): `form` — логин и пароль через форму входа Jira (`/login.jsp`, как в браузере; токен не нужен);
- * `basic` — логин и пароль заголовком Basic (или e-mail + API-токен в Cloud); `session` — вход через `/rest/auth/1/session`;
- * `bearer` — персональный токен (PAT, Server/DC 8.14+). Для `form` и `session` cookie живёт один вызов блока и в конце гасится.
- * Пароль/токен — текстом в параметре (он хранится во флоу) либо ссылкой на переменную окружения сервера `env:FL0W_SECRET_…`;
- * в логи, события и сообщения об ошибках он не попадает.
- * Адрес — свой `baseUrl`; запросы идут только на него (произвольный путь не может сменить хост), редиректы не выполняются.
+ * Login (`auth`): `form`: username and password via the Jira login form (`/login.jsp`, like in the browser; no token needed);
+ * `basic`: username and password in a Basic header (or e-mail + API token in Cloud); `session`: login via `/rest/auth/1/session`;
+ * `bearer`: a personal token (PAT, Server/DC 8.14+). For `form` and `session` the cookie lives for one block call and is dropped at the end.
+ * The password/token is plain text in the parameter (it is stored in the flow) or a reference to a server environment variable `env:FL0W_SECRET_...`;
+ * it never reaches logs, events or error messages.
+ * The address is your own `baseUrl`; requests go only to it (an arbitrary path cannot change the host), redirects are not followed.
  */
 export class Atlassian extends Block {
   static type = "atlassian";
@@ -40,30 +40,30 @@ export class Atlassian extends Block {
   static category = "app";
   static ports = { inputs: [{ id: "in0" }], outputs: [{ id: "out0" }] };
   static params: ParamSchema[] = [
-    // например http://jira.dev.local или https://company.atlassian.net
+    // for example http://jira.dev.local or https://company.atlassian.net
     { name: "baseUrl", type: "string", required: true, expressions: false },
     { name: "auth", type: "enum", default: "form", options: ATLASSIAN_AUTH.map((value) => ({ value })) },
     { name: "username", type: "string", default: "", expressions: false, showWhen: { param: "auth", in: ["form", "basic", "session"] } },
-    // пароль (или API-токен / PAT): прямо текстом либо ссылкой env:FL0W_SECRET_… на переменную окружения сервера
+    // password (or API token / PAT): directly as text or a reference env:FL0W_SECRET_... to a server environment variable
     { name: "password", type: "string", required: true, expressions: false },
     { name: "operation", type: "enum", default: "searchIssues", options: ATLASSIAN_OPERATIONS.map((value) => ({ value })) },
     { name: "apiVersion", type: "enum", default: "2", options: [{ value: "2" }, { value: "3" }] },
     { name: "jql", type: "string", multiline: true, default: "", showWhen: when("searchIssues") },
     { name: "maxResults", type: "number", default: 50, min: 1, max: MAX_RESULTS, showWhen: when("searchIssues") },
-    // какие поля вернуть; пусто — по умолчанию Jira
+    // which fields to return; empty means the Jira default
     { name: "fields", type: "json", default: [], showWhen: when("searchIssues", "getIssue") },
     { name: "issueKey", type: "string", default: "", showWhen: when(...ISSUE_OPS) },
     { name: "project", type: "string", default: "", showWhen: when("createIssue") },
     { name: "issueType", type: "string", default: "Task", showWhen: when("createIssue") },
     { name: "summary", type: "string", default: "", showWhen: when("createIssue", "updateIssue") },
     { name: "description", type: "string", multiline: true, default: "", showWhen: when("createIssue", "updateIssue") },
-    // дополнительные поля задачи { "labels": ["a"], "customfield_10000": … }
+    // extra issue fields { "labels": ["a"], "customfield_10000": ... }
     { name: "extraFields", type: "json", default: {}, showWhen: when("createIssue", "updateIssue") },
     { name: "comment", type: "string", multiline: true, default: "", showWhen: when("addComment") },
-    // id перехода или его имя («Done», «In Progress»)
+    // transition id or its name ("Done", "In Progress")
     { name: "transition", type: "string", default: "", showWhen: when("transitionIssue") },
     { name: "method", type: "enum", default: "GET", options: [{ value: "GET" }, { value: "POST" }, { value: "PUT" }, { value: "DELETE" }], showWhen: when("request") },
-    // путь от корня сайта: /rest/api/2/myself, /rest/api/content?spaceKey=DOC
+    // path from the site root: /rest/api/2/myself, /rest/api/content?spaceKey=DOC
     { name: "path", type: "string", default: "", showWhen: when("request") },
     { name: "body", type: "json", default: null, showWhen: when("request") },
     { name: "timeoutMs", type: "number", default: 30_000, min: 1000, max: 300_000 },
@@ -86,7 +86,7 @@ export class Atlassian extends Block {
     const signal = AbortSignal.any([ctx.signal, AbortSignal.timeout(timeoutMs)]);
     const richText = (s: string): Json => (v === "3" ? adf(s) : s);
 
-    // запрос к Jira: один вход (cookie/заголовок) на вызов блока
+    // request to Jira: one login (cookie/header) per block call
     const headersBase: Record<string, string> = { Accept: "application/json", "X-Atlassian-Token": "no-check" };
     let cookie = "";
     const send = async (method: string, path: string, body?: Json, extra: Record<string, string> = {}): Promise<{ status: number; json: Json }> => {
@@ -98,13 +98,13 @@ export class Atlassian extends Block {
       let res: Response;
       let raw: string;
       try {
-        // редиректы не выполняем: перенаправление на страницу входа — это ошибка настройки, а не успех
+        // we do not follow redirects: a redirect to the login page is a configuration error, not a success
         res = await fetch(base + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal, redirect: "manual" });
         raw = res.status >= 300 && res.status < 400 ? "" : await readCapped(res, MAX_RESPONSE_BYTES);
       } catch (e) {
         if (ctx.signal.aborted) throw new Error("Aborted", { cause: e });
         if (e instanceof Error && e.name === "TimeoutError") throw new Error(`Atlassian request timed out after ${timeoutMs} ms`, { cause: e });
-        // причину не прикрепляем намеренно: исходная ошибка могла бы нести секрет, а в сообщении он вырезан (CLAUDE.md, «Секреты»)
+        // the cause is deliberately not attached: the original error could carry the secret, and it is stripped from the message (CLAUDE.md, "Secrets")
         // eslint-disable-next-line preserve-caught-error
         throw new Error(redact(`Atlassian request failed: ${e instanceof Error ? e.message : String(e)}`, secrets));
       }
@@ -121,7 +121,7 @@ export class Atlassian extends Block {
     };
 
     if (auth === "form") {
-      // как форма входа Jira в браузере (os_username/os_password); успех — заголовок X-Seraph-LoginReason: OK и cookie сессии
+      // like the Jira login form in the browser (os_username/os_password); success is the X-Seraph-LoginReason: OK header and a session cookie
       const form = new URLSearchParams({ os_username: username, os_password: token, os_destination: "", user_role: "", atl_token: "", login: "Log In" });
       let res: Response;
       try {
@@ -132,11 +132,11 @@ export class Atlassian extends Block {
           signal,
           redirect: "manual",
         });
-        await res.arrayBuffer().catch(() => undefined); // тело страницы не нужно
+        await res.arrayBuffer().catch(() => undefined); // the page body is not needed
       } catch (e) {
         if (ctx.signal.aborted) throw new Error("Aborted", { cause: e });
         if (e instanceof Error && e.name === "TimeoutError") throw new Error(`Atlassian login timed out after ${timeoutMs} ms`, { cause: e });
-        // причину не прикрепляем намеренно (см. выше)
+        // the cause is deliberately not attached (see above)
         // eslint-disable-next-line preserve-caught-error
         throw new Error(redact(`Atlassian login failed: ${e instanceof Error ? e.message : String(e)}`, secrets));
       }
@@ -166,7 +166,7 @@ export class Atlassian extends Block {
       const out = await this.operate(operation, { send, text, params, data, v, richText });
       return { out0: out };
     } finally {
-      // сессия — одноразовая: гасим, чтобы не копились на сервере (ошибка выхода не важна)
+      // the session is one-off: drop it so they do not pile up on the server (a logout error does not matter)
       if (cookie) await send("DELETE", "/rest/auth/1/session").catch(() => undefined);
     }
   }
@@ -279,7 +279,7 @@ export class Atlassian extends Block {
   }
 }
 
-/** Адрес сайта без пути и учётных данных в нём: запросы идут только на него. */
+/** Site address without a path or credentials in it: requests go only to it. */
 function parseBase(raw: Json | undefined): string {
   const s = typeof raw === "string" ? raw.trim() : "";
   let u: URL;
@@ -294,7 +294,7 @@ function parseBase(raw: Json | undefined): string {
   return u.origin + u.pathname.replace(/\/+$/, "");
 }
 
-/** Пароль/токен: текст как есть либо `env:FL0W_SECRET_…` (читается из окружения сервера). */
+/** Password/token: text as is or `env:FL0W_SECRET_...` (read from the server environment). */
 function secretOf(raw: Json | undefined): string {
   return resolveSecret(typeof raw === "string" ? raw.trim() : "", undefined);
 }

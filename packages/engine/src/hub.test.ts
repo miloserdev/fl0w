@@ -5,7 +5,7 @@ import { RunHub } from "./hub";
 const done = { event: "flow:done" as const, result: 1 };
 
 describe("RunHub", () => {
-  it("живой подписчик получает старт и события запуска по порядку", () => {
+  it("a live subscriber receives the start and the run events in order", () => {
     const hub = new RunHub();
     const got: WatchMessage[] = [];
     hub.subscribe("f", (m) => got.push(m));
@@ -16,7 +16,7 @@ describe("RunHub", () => {
     expect(got[0]).toMatchObject({ type: "run:start", runId, flowId: "f", trigger: "t1" });
   });
 
-  it("run:start несёт ноды ветки запуска — и живым подписчикам, и при воспроизведении", () => {
+  it("run:start carries the run's branch nodes, both to live subscribers and on replay", () => {
     const hub = new RunHub();
     const live: WatchMessage[] = [];
     hub.subscribe("f", (m) => live.push(m));
@@ -31,12 +31,12 @@ describe("RunHub", () => {
     expect(bare[0]).not.toHaveProperty("nodes");
   });
 
-  it("новый подписчик сразу получает последний запуск с начала", () => {
+  it("a new subscriber immediately receives the last run from the start", () => {
     const hub = new RunHub();
     const runId = hub.startRun("f", "t1");
     hub.publish("f", runId, { event: "node:start", nodeId: "n" });
     const got: WatchMessage[] = [];
-    hub.subscribe("f", (m) => got.push(m)); // зашёл посреди запуска
+    hub.subscribe("f", (m) => got.push(m)); // joined mid-run
     hub.publish("f", runId, done);
     expect(got.map((m) => (m.type === "run:event" ? m.event.event : m.type))).toEqual([
       "run:start",
@@ -45,7 +45,7 @@ describe("RunHub", () => {
     ]);
   });
 
-  it("воспроизводится только последний запуск", () => {
+  it("only the last run is replayed", () => {
     const hub = new RunHub();
     const first = hub.startRun("f", "t");
     hub.publish("f", first, done);
@@ -56,7 +56,7 @@ describe("RunHub", () => {
     expect(got[0]).toMatchObject({ type: "run:start", runId: second });
   });
 
-  it("каналы флоу изолированы", () => {
+  it("flow channels are isolated", () => {
     const hub = new RunHub();
     const got: WatchMessage[] = [];
     hub.subscribe("a", (m) => got.push(m));
@@ -64,7 +64,7 @@ describe("RunHub", () => {
     expect(got).toEqual([]);
   });
 
-  it("отписка прекращает доставку", () => {
+  it("unsubscribing stops delivery", () => {
     const hub = new RunHub();
     const got: WatchMessage[] = [];
     const off = hub.subscribe("f", (m) => got.push(m));
@@ -73,7 +73,7 @@ describe("RunHub", () => {
     expect(got).toEqual([]);
   });
 
-  it("упавший подписчик не мешает остальным", () => {
+  it("a failing subscriber does not disturb the others", () => {
     const hub = new RunHub();
     const got: WatchMessage[] = [];
     hub.subscribe("f", () => {
@@ -84,7 +84,7 @@ describe("RunHub", () => {
     expect(got).toHaveLength(1);
   });
 
-  it("lastRun: статус, ошибка и время завершения", () => {
+  it("lastRun: status, error and finish time", () => {
     const hub = new RunHub();
     expect(hub.lastRun("f")).toBeUndefined();
     const id = hub.startRun("f", "t");
@@ -97,7 +97,7 @@ describe("RunHub", () => {
     expect(hub.lastRun("f")).not.toHaveProperty("events");
   });
 
-  it("события чужого (устаревшего) запуска не портят сводку текущего", () => {
+  it("events of a foreign (stale) run do not corrupt the current summary", () => {
     const hub = new RunHub();
     const old = hub.startRun("f", "t");
     hub.startRun("f", "t");
@@ -105,7 +105,7 @@ describe("RunHub", () => {
     expect(hub.lastRun("f")?.status).toBe("running");
   });
 
-  it("skip доходит подписчикам", () => {
+  it("skip reaches subscribers", () => {
     const hub = new RunHub();
     const got: WatchMessage[] = [];
     hub.subscribe("f", (m) => got.push(m));

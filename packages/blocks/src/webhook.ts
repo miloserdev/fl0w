@@ -4,19 +4,19 @@ import { Block, triggerPayload, type RunContext } from "./block";
 export const WEBHOOK_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "ANY"] as const;
 const PATH = /^[A-Za-z0-9._~-]+(\/[A-Za-z0-9._~-]+)*$/;
 
-/** Путь без ведущих/замыкающих слэшей; null — путь недопустим. */
+/** Path without leading/trailing slashes; null means the path is not allowed. */
 export function normalizeWebhookPath(raw: string): string | null {
   const p = raw.trim().replace(/^\/+|\/+$/g, "");
-  // сегменты «.» и «..» клиенты и прокси схлопывают — путь вышел бы не туда, куда задумано
+  // the segments "." and ".." are collapsed by clients and proxies: the path would end up not where intended
   if (!PATH.test(p) || p.split("/").some((s) => s === "." || s === "..")) return null;
   return p;
 }
 
 /**
- * Webhook: триггер по входящему HTTP-запросу на /api/hooks/<path>. Работает у опубликованного флоу.
- * Выход — запрос: { method, path, query, headers, body }. При ручном запуске отдаёт пример запроса.
- * respond: onReceived — сразу 200, флоу идёт в фоне; whenFinished — ответ после завершения флоу
- * (его формирует Respond to Webhook или Result).
+ * Webhook: a trigger on an incoming HTTP request to /api/hooks/<path>. Works for a published flow.
+ * The output is the request: { method, path, query, headers, body }. In a manual run it gives an example request.
+ * respond: onReceived: 200 right away, the flow runs in the background; whenFinished: the response after the flow finishes
+ * (it is built by Respond to Webhook or Result).
  */
 export class Webhook extends Block {
   static type = "webhook";

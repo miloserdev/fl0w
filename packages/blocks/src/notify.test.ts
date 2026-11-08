@@ -10,7 +10,7 @@ import { registry } from "./registry";
 let dir: string;
 const saved = { PATH: process.env["PATH"], secret: process.env["FL0W_SECRET_X"], dbus: process.env["DBUS_SESSION_BUS_ADDRESS"] };
 
-/** Подменяет notify-send скриптом: аргументы по строке в args.txt, окружение — в env.txt; stderr/код — из аргументов теста. */
+/** Replaces notify-send with a script: arguments one per line in args.txt, the environment in env.txt; stderr/exit code from the test's arguments. */
 function fakeNotifySend(body = "") {
   const file = path.join(dir, "notify-send");
   writeFileSync(file, `#!/bin/sh\nprintf '%s\\n' "$@" > "${dir}/args.txt"\nenv > "${dir}/env.txt"\n${body}\n`);
@@ -35,32 +35,32 @@ afterEach(() => {
 });
 
 describe("Notification (notify-send)", () => {
-  it("зарегистрирован как notify и передаёт вход дальше без изменений", async () => {
+  it("is registered as notify and passes the input on unchanged", async () => {
     expect(registry["notify"]).toBe(Notification);
     fakeNotifySend();
     expect(await run({ a: 1 }, { title: "T", message: "M" })).toEqual({ out0: { a: 1 } });
   });
 
-  it("аргументы: срочность, имя приложения, иконка, время; заголовок и текст — после `--`; {{ путь }} из входа", async () => {
+  it("arguments: urgency, app name, icon, time; title and text after `--`; {{ path }} from the input", async () => {
     fakeNotifySend();
     await run({ user: { name: "Ann" } }, { title: "Привет, {{ user.name }}", message: "Заказ {{ user.name }}", urgency: "critical", icon: "dialog-warning", appName: "Flow", timeoutMs: 3000 });
     expect(argv()).toEqual(["-u", "critical", "-a", "Flow", "-i", "dialog-warning", "-t", "3000", "--", "Привет, Ann", "Заказ Ann"]);
   });
 
-  it("пустой текст — весь вход; без иконки и времени этих флагов нет", async () => {
+  it("empty text means the whole input; without an icon and time these flags are absent", async () => {
     fakeNotifySend();
     await run({ x: 1 }, { title: "T" });
-    expect(argv()).toEqual(["-u", "normal", "-a", "Node Flow Board", "--", "T", '{"x":1}']);
+    expect(argv()).toEqual(["-u", "normal", "-a", "FL0W", "--", "T", '{"x":1}']);
   });
 
-  it("данные, похожие на флаги, остаются текстом (после `--`) и не становятся аргументами команды", async () => {
+  it("data that looks like flags stays text (after `--`) and does not become command arguments", async () => {
     fakeNotifySend();
     await run(undefined, { title: "--hint=string:x:y", message: "-h int:urgency:2; rm -rf /" });
     const a = argv();
     expect(a.slice(a.indexOf("--"))).toEqual(["--", "--hint=string:x:y", "-h int:urgency:2; rm -rf /"]);
   });
 
-  it("окружение: только PATH/сессия рабочего стола, секреты сервера команде не передаются", async () => {
+  it("environment: only PATH/desktop session, the server's secrets are not passed to the command", async () => {
     fakeNotifySend();
     process.env["FL0W_SECRET_X"] = "super-secret";
     process.env["DBUS_SESSION_BUS_ADDRESS"] = "unix:path=/run/user/1000/bus";
@@ -71,7 +71,7 @@ describe("Notification (notify-send)", () => {
     expect(env).not.toContain("FL0W_SECRET_X");
   });
 
-  it("ошибки параметров: пусто, срочность, иконка-путь, время", async () => {
+  it("parameter errors: empty, urgency, icon-path, time", async () => {
     fakeNotifySend();
     await expect(run(undefined, { title: "", message: "" })).rejects.toThrow(/both empty/);
     await expect(run(undefined, { title: "T", message: "M", urgency: "boom" })).rejects.toThrow(/Unknown urgency/);
@@ -80,17 +80,17 @@ describe("Notification (notify-send)", () => {
     await expect(run(undefined, { title: "T", message: "M", timeoutMs: -1 })).rejects.toThrow(/timeoutMs/);
   });
 
-  it("нет notify-send — понятная ошибка с подсказкой, что установить", async () => {
-    process.env["PATH"] = dir; // пустой каталог
+  it("no notify-send gives a clear error with a hint what to install", async () => {
+    process.env["PATH"] = dir; // an empty directory
     await expect(run(undefined, { title: "T", message: "M" })).rejects.toThrow(/notify-send. not found.*libnotify/);
   });
 
-  it("notify-send завершился с ошибкой — в тексте stderr; про отсутствие сессии — подсказка", async () => {
+  it("notify-send finished with an error: stderr in the text; for a missing session, a hint", async () => {
     fakeNotifySend('echo "Cannot autolaunch D-Bus without X11 $DISPLAY" >&2; exit 1');
     await expect(run(undefined, { title: "T", message: "M" })).rejects.toThrow(/Cannot autolaunch.*no desktop session/);
   });
 
-  it("отмена запуска прерывает ожидание команды", async () => {
+  it("cancelling the run interrupts waiting for the command", async () => {
     fakeNotifySend("sleep 5");
     const ac = new AbortController();
     const p = run(undefined, { title: "T", message: "M" }, ac.signal);

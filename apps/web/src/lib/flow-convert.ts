@@ -8,23 +8,23 @@ export type BlockNodeData = {
   params: Record<string, Json>;
   portsOverride: PortsDef | null;
   cssOverride: string | null;
-  /** Закреплённый выход ноды (pin data): в ручном запуске нода отдаёт его, не исполняясь. */
+  /** Pinned node output (pin data): in a manual run the node returns it without executing. */
   pinData?: Record<string, Json> | null;
-  /** Нода отключена: в запуске не участвует, триггер не регистрируется. */
+  /** The node is disabled: it takes no part in the run, the trigger is not registered. */
   disabled?: boolean;
 };
-/** Нода холста: обычный блок (`block`) или блок оформления (*/
+/** Canvas node: an ordinary block (`block`) or a decoration block (*/
 export type BlockNodeType = Node<BlockNodeData, "block" | "layout-note" | "layout-group" | "terminal">;
 
 export type FlowMeta = Pick<Flow, "id" | "name">;
 
-/** Порты инстанса: дефолтные из класса + добавленные через portsOverride. */
+/** Instance ports: defaults from the class + those added via portsOverride. */
 export function getPorts(blockType: string, override: PortsDef | null, params?: Record<string, Json>): PortsDef {
   const cls = registry[blockType];
   return cls ? getNodePorts(cls, override, params) : { inputs: [], outputs: [] };
 }
 
-/** Порты, разделённые на данные (по бокам) и ресурсные (снизу у хозяина, сверху у ресурса). */
+/** Ports split into data (on the sides) and resource ones (at the bottom on the host, at the top on the resource). */
 export function splitPorts(ports: PortsDef): {
   dataIn: PortDef[];
   dataOut: PortDef[];
@@ -39,7 +39,7 @@ export function splitPorts(ports: PortsDef): {
   };
 }
 
-/** Вид порта по инстансу ноды; null — нет такого блока или порта. */
+/** Port kind by node instance; null — no such block or port. */
 export function nodePortKind(
   blockType: string,
   override: PortsDef | null,
@@ -51,12 +51,12 @@ export function nodePortKind(
   return port ? portKind(port) : null;
 }
 
-/** Класс CSS ребра: ресурсные рёбра (источник — не порт данных) рисуются пунктиром. */
+/** CSS class of an edge: resource edges (the source is not a data port) are drawn dashed. */
 export function edgeClassFor(kind: PortKind | null): string | undefined {
   return kind && kind !== "data" ? `fl-edge-resource fl-edge-${kind}` : undefined;
 }
 
-/** Вид ребра по узлам флоу (для проставления className). */
+/** Edge kind by flow nodes (for assigning className). */
 export function edgeClass(flow: Pick<Flow, "nodes">, source: string, sourcePort: string): string | undefined {
   const n = flow.nodes.find((x) => x.id === source);
   return n ? edgeClassFor(nodePortKind(n.type, n.portsOverride, "outputs", sourcePort, n.params)) : undefined;
@@ -78,15 +78,15 @@ export function newFlowId(): string {
   return `flow_${Math.random().toString(36).slice(2, 10)}`;
 }
 
-/** Тип ноды React Flow: у блоков оформления собственный отрисовщик, у остальных — `block`. */
+/** React Flow node type: decoration blocks have their own renderer, the rest use `block`. */
 export function nodeTypeFor(blockType: string): "block" | "layout-note" | "layout-group" | "terminal" {
-  if (blockType === "log") return "terminal"; // Log — обычный блок с портами, но на холсте чёрное окошко-терминал
-  // имя `group` занято встроенным стилем React Flow (рамка, фон) — поэтому префикс
+  if (blockType === "log") return "terminal"; // Log is an ordinary block with ports, but on the canvas it is a black terminal window
+  // the name `group` is taken by React Flow's built-in style (border, background) — hence the prefix
   if (!isLayoutBlock(blockType)) return "block";
   return blockType === "group" ? "layout-group" : "layout-note";
 }
 
-/** Параметры блока оформления с актуальным размером ноды (тянут за уголок — размер живёт в node.width/height). */
+/** Block params of decoration with the actual node size (resized by the corner — the size lives in node.width/height). */
 function paramsOf(n: BlockNodeType): Record<string, Json> {
   if (!isResizableBlock(n.data.blockType)) return n.data.params;
   const size = layoutSize(n.data.blockType, {
@@ -97,8 +97,8 @@ function paramsOf(n: BlockNodeType): Record<string, Json> {
 }
 
 /**
- * Одинаковы ли два набора нод/рёбер для валидации и отпечатка: положение, выделение и размеры не в счёт, учитываются id,
- * объект `data` (меняется только при правке параметров/портов/CSS/закрепления/отключения) и подключения.
+ * Whether two sets of nodes/edges are the same for validation and the fingerprint: position, selection and sizes do not count, what counts is id,
+ * the `data` object (changes only when editing params/ports/CSS/pinning/disabling) and connections.
  */
 export function sameStructure(a: { nodes: BlockNodeType[]; edges: Edge[] }, b: { nodes: BlockNodeType[]; edges: Edge[] }): boolean {
   if (a.nodes.length !== b.nodes.length || a.edges.length !== b.edges.length) return false;
@@ -190,12 +190,12 @@ function stableStringify(value: unknown): string {
 }
 
 /**
- * Отпечаток исполняемого содержимого флоу: ноды и рёбра без позиций, статуса и имени.
- * Сравнение отпечатков локальной и серверной копии показывает «есть неопубликованные изменения».
+ * Fingerprint of the flow's executable content: nodes and edges without positions, status and name.
+ * Comparing the fingerprints of the local and server copies shows "there are unpublished changes".
  */
 export function flowFingerprint(flow: Flow): string {
   return stableStringify({
-    // заметки и группы — оформление: их правка не делает опубликованный флоу «изменённым»
+    // notes and groups are decoration: editing them does not make a published flow "changed"
     nodes: flow.nodes
       .filter((n) => !registry[n.type]?.layout)
       .map((n) => ({ id: n.id, type: n.type, params: n.params, portsOverride: n.portsOverride, cssOverride: n.cssOverride, disabled: n.disabled === true }))
@@ -205,8 +205,8 @@ export function flowFingerprint(flow: Flow): string {
 }
 
 /**
- * Данные для перезапуска с ноды: выходы нод из последнего запуска (по id). Движок берёт из них данные предшественников,
- * которые заново не исполняются.
+ * Data for restarting from a node: node outputs from the last run (by id). The engine takes predecessors' data from them,
+ * which are not executed again.
  */
 export function collectSeeds(details: Record<string, { output?: Record<string, Json> }>): Record<string, Record<string, Json>> {
   const seeds: Record<string, Record<string, Json>> = {};
@@ -214,7 +214,7 @@ export function collectSeeds(details: Record<string, { output?: Record<string, J
   return seeds;
 }
 
-/** Разбор закреплённых данных, введённых вручную: JSON-объект `{ порт: значение }`; иначе текст ошибки. */
+/** Parsing manually entered pinned data: a JSON object `{ port: value }`; otherwise the error text. */
 export function parsePin(text: string): { ok: true; value: Record<string, Json> } | { ok: false; error: string } {
   let v: unknown;
   try {

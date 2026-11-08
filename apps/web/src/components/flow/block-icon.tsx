@@ -53,7 +53,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-// Имена иконок в классах блоков — tabler; здесь сопоставляем с доступными в lucide.
+// Icon names in the block classes are tabler; here we map them to the ones available in lucide.
 const icons: Record<string, LucideIcon> = {
   database: Database,
   flag: Flag,

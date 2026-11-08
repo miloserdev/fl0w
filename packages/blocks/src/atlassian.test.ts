@@ -10,7 +10,7 @@ type Seen = { method: string; url: string; headers: IncomingMessage["headers"]; 
 let server: Server;
 let base = "";
 let seen: Seen[] = [];
-/** Что отвечает поддельная Jira: по «метод путь» → [статус, тело, заголовки]. */
+/** What the fake Jira answers: by "method path" -> [status, body, headers]. */
 let routes: Record<string, [number, unknown, Record<string, string | string[]>?]> = {};
 
 const TOKEN = "s3cr3t-token-value";
@@ -45,11 +45,11 @@ const run = (params: Record<string, Json>, input: Json | undefined = undefined, 
 };
 
 describe("Atlassian (Jira)", () => {
-  it("зарегистрирован как atlassian", () => {
+  it("is registered as atlassian", () => {
     expect(registry["atlassian"]).toBe(Atlassian);
   });
 
-  it("searchIssues: Basic-вход, JQL с подстановкой из входа, поля и лимит", async () => {
+  it("searchIssues: Basic login, JQL with substitution from the input, fields and limit", async () => {
     routes["POST /rest/api/2/search"] = [200, { total: 1, issues: [{ key: "ABC-1" }] }];
     const r = await run({ operation: "searchIssues", jql: "project = {{ proj }} ORDER BY created", fields: ["summary", "status"], maxResults: 10 }, { proj: "ABC" });
     expect(r).toEqual({ out0: { total: 1, issues: [{ key: "ABC-1" }] } });
@@ -57,7 +57,7 @@ describe("Atlassian (Jira)", () => {
     expect(seen[0]!.body).toEqual({ jql: "project = ABC ORDER BY created", maxResults: 10, fields: ["summary", "status"] });
   });
 
-  it("form: вход логином и паролем через login.jsp (как в браузере), cookie на вызов, выход в конце — без токена", async () => {
+  it("form: login with username and password via login.jsp (like the browser), a cookie per call, logout at the end, no token", async () => {
     routes["POST /login.jsp"] = [200, undefined, { "X-Seraph-LoginReason": "OK", "Set-Cookie": ["JSESSIONID=form-sess-9; Path=/; HttpOnly", "atlassian.xsrf.token=xsrf-1_lin; Path=/", "gone=; Max-Age=0"] }];
     routes["POST /rest/api/2/search"] = [200, { total: 0, issues: [] }];
     routes["DELETE /rest/auth/1/session"] = [204, undefined];
@@ -70,7 +70,7 @@ describe("Atlassian (Jira)", () => {
     expect(seen[1]!.headers["authorization"]).toBeUndefined();
   });
 
-  it("form: неверный пароль / капча — понятная ошибка без пароля; нет сессии — тоже ошибка", async () => {
+  it("form: wrong password / captcha gives a clear error without the password; no session is also an error", async () => {
     routes["POST /login.jsp"] = [200, undefined, { "X-Seraph-LoginReason": "AUTHENTICATED_FAILED" }];
     const err = await run({ auth: "form", operation: "getIssue", issueKey: "A-1" }).catch((e: Error) => e);
     expect((err as Error).message).toMatch(/login failed \(AUTHENTICATED_FAILED\).*CAPTCHA/);
@@ -80,25 +80,25 @@ describe("Atlassian (Jira)", () => {
     await expect(run({ auth: "form", operation: "getIssue", issueKey: "A-1" })).rejects.toThrow(/did not return a session/);
   });
 
-  it("по умолчанию режим входа — форма (логин и пароль)", () => {
+  it("the login mode is form by default (username and password)", () => {
     expect(resolveParams(Atlassian.params, { baseUrl: base })["auth"]).toBe("form");
   });
 
-  it("пароль, введённый текстом, не попадает в сообщение об ошибке", async () => {
+  it("a password entered as text does not get into the error message", async () => {
     routes["POST /rest/api/2/search"] = [401, { errorMessages: ["wrong plain-password here"] }];
     const err = await run({ password: "plain-password", operation: "searchIssues", jql: "x = 1" }).catch((e: Error) => e);
     expect((err as Error).message).toMatch(/HTTP 401/);
     expect((err as Error).message).not.toContain("plain-password");
   });
 
-  it("bearer: персональный токен в заголовке, имя пользователя не нужно", async () => {
+  it("bearer: a personal token in the header, no username needed", async () => {
     routes["GET /rest/api/2/issue/ABC-7"] = [200, { key: "ABC-7" }];
     expect(await run({ auth: "bearer", username: "", operation: "getIssue", issueKey: "ABC-7", fields: ["summary"] })).toEqual({ out0: { key: "ABC-7" } });
     expect(seen[0]!.headers["authorization"]).toBe(`Bearer ${TOKEN}`);
     expect(seen[0]!.url).toBe("/rest/api/2/issue/ABC-7?fields=summary");
   });
 
-  it("session: вход через REST, cookie на вызов, выход в конце", async () => {
+  it("session: login via REST, a cookie per call, logout at the end", async () => {
     routes["POST /rest/auth/1/session"] = [200, { session: { name: "JSESSIONID", value: "sess-abc-123" } }];
     routes["GET /rest/api/2/issue/ABC-1"] = [200, { key: "ABC-1" }];
     routes["DELETE /rest/auth/1/session"] = [204, undefined];
@@ -109,7 +109,7 @@ describe("Atlassian (Jira)", () => {
     expect(seen[1]!.headers["authorization"]).toBeUndefined();
   });
 
-  it("session: сессия гасится и при ошибке операции", async () => {
+  it("session: the session is dropped on an operation error too", async () => {
     routes["POST /rest/auth/1/session"] = [200, { session: { name: "JSESSIONID", value: "sess-abc-123" } }];
     routes["GET /rest/api/2/issue/ABC-1"] = [404, { errorMessages: ["Issue does not exist"] }];
     routes["DELETE /rest/auth/1/session"] = [204, undefined];
@@ -117,7 +117,7 @@ describe("Atlassian (Jira)", () => {
     expect(seen.at(-1)!.method).toBe("DELETE");
   });
 
-  it("createIssue: поля задачи, описание обычным текстом в v2 и ADF в v3, extraFields", async () => {
+  it("createIssue: issue fields, description as plain text in v2 and ADF in v3, extraFields", async () => {
     routes["POST /rest/api/2/issue"] = [201, { key: "ABC-9" }];
     routes["POST /rest/api/3/issue"] = [201, { key: "ABC-10" }];
     const p = { operation: "createIssue", project: "ABC", issueType: "Bug", summary: "Сломано {{ what }}", description: "строка 1\n\nстрока 2", extraFields: { labels: ["flow"] } } satisfies Record<string, Json>;
@@ -134,7 +134,7 @@ describe("Atlassian (Jira)", () => {
     });
   });
 
-  it("updateIssue / addComment / transitionIssue (по имени и по id)", async () => {
+  it("updateIssue / addComment / transitionIssue (by name and by id)", async () => {
     routes["PUT /rest/api/2/issue/ABC-1"] = [204, undefined];
     expect(await run({ operation: "updateIssue", issueKey: "ABC-1", summary: "Новое" })).toEqual({ out0: { ok: true, key: "ABC-1" } });
     expect(seen[0]!.body).toEqual({ fields: { summary: "Новое" } });
@@ -148,7 +148,7 @@ describe("Atlassian (Jira)", () => {
     await expect(run({ operation: "transitionIssue", issueKey: "ABC-1", transition: "Nope" })).rejects.toThrow(/no transition "Nope".*Done, In Progress/);
   });
 
-  it("request: произвольный путь на тот же сайт; тело по умолчанию — вход", async () => {
+  it("request: an arbitrary path on the same site; the default body is the input", async () => {
     routes["GET /rest/api/content"] = [200, { results: [] }];
     routes["POST /rest/api/content"] = [200, { id: "1" }];
     expect(await run({ operation: "request", method: "GET", path: "/rest/api/content?spaceKey=DOC" })).toEqual({ out0: { results: [] } });
@@ -157,7 +157,7 @@ describe("Atlassian (Jira)", () => {
     expect(seen[1]!.body).toEqual({ title: "T" });
   });
 
-  it("защита адреса: путь не может сменить хост, выйти вверх или содержать схему; baseUrl без учётных данных", async () => {
+  it("address protection: the path cannot change the host, go up or contain a scheme; baseUrl without credentials", async () => {
     for (const path of ["//evil.example/x", "http://evil.example/x", "/a/../b", "rest/api", "/a b", "/a#b"]) {
       await expect(run({ operation: "request", path })).rejects.toThrow(/"path" must start/);
     }
@@ -167,7 +167,7 @@ describe("Atlassian (Jira)", () => {
     await expect(run({ baseUrl: "не url" })).rejects.toThrow(/valid URL/);
   });
 
-  it("секрет: пароль можно ввести текстом; ссылка env: — на чужую или не заданную переменную и пустой пароль дают понятные ошибки", async () => {
+  it("secret: the password can be entered as text; an env: reference to a foreign or unset variable and an empty password give clear errors", async () => {
     routes["GET /rest/api/2/issue/ABC-1"] = [200, { key: "ABC-1" }];
     await run({ password: "plain-password", operation: "getIssue", issueKey: "ABC-1" });
     expect(seen[0]!.headers["authorization"]).toBe(`Basic ${Buffer.from("bob:plain-password").toString("base64")}`);
@@ -178,19 +178,19 @@ describe("Atlassian (Jira)", () => {
     expect(seen).toHaveLength(0);
   });
 
-  it("ошибка API не раскрывает секрет, даже если сервер вернул его в теле", async () => {
+  it("an API error does not reveal the secret even if the server returned it in the body", async () => {
     routes["POST /rest/api/2/search"] = [401, { errorMessages: [`bad credentials for ${TOKEN}`] }];
     const err = await run({ operation: "searchIssues", jql: "x = 1" }).catch((e: Error) => e);
     expect((err as Error).message).toMatch(/HTTP 401/);
     expect((err as Error).message).not.toContain(TOKEN);
   });
 
-  it("редирект (например на страницу входа) — ошибка, на чужой адрес не ходим", async () => {
+  it("a redirect (for example to the login page) is an error, we do not go to a foreign address", async () => {
     routes["POST /rest/api/2/search"] = [302, undefined, { Location: "http://evil.example/login" }];
     await expect(run({ operation: "searchIssues", jql: "x = 1" })).rejects.toThrow(/unexpected redirect/);
   });
 
-  it("проверки параметров: ключ задачи, пустые jql/комментарий, неизвестная операция", async () => {
+  it("parameter checks: issue key, empty jql/comment, unknown operation", async () => {
     await expect(run({ operation: "getIssue", issueKey: "../etc" })).rejects.toThrow(/not an issue key/);
     await expect(run({ operation: "searchIssues", jql: " " })).rejects.toThrow(/jql/);
     await expect(run({ operation: "addComment", issueKey: "A-1", comment: "" })).rejects.toThrow(/comment/);
@@ -201,7 +201,7 @@ describe("Atlassian (Jira)", () => {
     expect(seen).toHaveLength(0);
   });
 
-  it("отмена запуска прерывает запрос", async () => {
+  it("cancelling the run aborts the request", async () => {
     routes["POST /rest/api/2/search"] = [200, {}];
     const ac = new AbortController();
     ac.abort();

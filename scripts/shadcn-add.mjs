@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Добавляет компоненты shadcn/ui в apps/web/src/components/ui напрямую из реестра.
-// Нужен, потому что `npx shadcn add` в этом окружении падает на сетевых запросах («other side closed»).
-// Использование: node scripts/shadcn-add.mjs button dialog   (стиль new-york-v4, как в components.json)
+// Adds shadcn/ui components to apps/web/src/components/ui directly from the registry.
+// Needed because `npx shadcn add` fails on network requests in this environment ("other side closed").
+// Usage: node scripts/shadcn-add.mjs button dialog   (style new-york-v4, as in components.json)
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -26,7 +26,7 @@ for (const name of names) {
   const item = await res.json();
   for (const file of item.files) {
     const out = path.join(dest, path.basename(file.path));
-    // в реестре импорты записаны через алиасы реестра — переписываем на алиасы проекта
+    // the registry writes imports through registry aliases; rewrite them to the project's aliases
     const content = file.content
       .replaceAll('from "cn"', 'from "@/lib/utils"')
       .replaceAll("@/registry/new-york-v4/ui/", "@/components/ui/");

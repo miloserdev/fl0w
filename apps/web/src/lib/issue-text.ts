@@ -1,7 +1,7 @@
 import type { FlowIssue } from "@fl0w/engine";
 import { useTranslations } from "next-intl";
 
-/** Локализованный текст ошибки валидации по её `code` (запасной message движка — английский). */
+/** Localized text of a validation error by its `code` (the engine's fallback message is English). */
 export function useIssueText() {
   const t = useTranslations("issues");
   return (i: FlowIssue): string =>
@@ -16,7 +16,7 @@ export function useIssueText() {
     });
 }
 
-/** Ноды, которые нужно подсветить для данной ошибки. */
+/** Nodes to highlight for the given error. */
 export function issueNodeIds(i: FlowIssue): string[] {
   return i.nodeIds ?? (i.nodeId ? [i.nodeId] : []);
 }

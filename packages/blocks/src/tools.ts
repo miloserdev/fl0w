@@ -6,7 +6,7 @@ import { ToolBlock } from "./resources";
 const nameParam = (def: string): ParamSchema => ({ name: "name", type: "string", required: true, default: def });
 const descriptionParam = (def: string): ParamSchema => ({ name: "description", type: "string", multiline: true, default: def });
 
-/** Имя инструмента — идентификатор, по которому его вызывает код (и, позже, модель). */
+/** Tool name: the identifier the code calls it by (and, later, the model). */
 function toolName(raw: Json | undefined, def: string): string {
   const name = String(raw ?? def).trim();
   if (!/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(name)) throw new Error(`Invalid tool name "${name}": use letters, digits and _ (up to 64), not starting with a digit`);
@@ -15,11 +15,11 @@ function toolName(raw: Json | undefined, def: string): string {
 
 const obj = (args: Json): { [k: string]: Json } => (args !== null && typeof args === "object" && !Array.isArray(args) ? args : {});
 
-/* ---------------------------------------------------------------- дата и время */
+/* ---------------------------------------------------------------- date and time */
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-/** Текущие дата и время; часовой пояс — IANA-имя (`Europe/Moscow`), по умолчанию UTC. */
+/** Current date and time; the time zone is an IANA name (`Europe/Moscow`), UTC by default. */
 export function currentDateTime(timezone: string, now = new Date()): Json {
   let parts: Record<string, string>;
   try {
@@ -67,7 +67,7 @@ export class DateTimeTool extends ToolBlock {
   }
 }
 
-/* ---------------------------------------------------------------- калькулятор */
+/* ---------------------------------------------------------------- calculator */
 
 const MAX_EXPR = 500;
 const MAX_DEPTH = 40;
@@ -90,7 +90,7 @@ const FUNCS: Record<string, (...a: number[]) => number> = {
 };
 const CONSTS: Record<string, number> = { pi: Math.PI, e: Math.E };
 
-/** Безопасный вычислитель арифметики: рекурсивный спуск, без eval и доступа к окружению. */
+/** Safe arithmetic evaluator: recursive descent, no eval and no access to the environment. */
 export function calculate(expression: string): number {
   if (expression.length > MAX_EXPR) throw new Error(`Expression is too long (max ${MAX_EXPR} characters)`);
   const src = expression;
@@ -142,7 +142,7 @@ export function calculate(expression: string): number {
     const c = peek();
     if (c === "^" || (c === "*" && src[i + 1] === "*")) {
       i += c === "^" ? 1 : 2;
-      return base ** power(depth + 1); // правоассоциативно
+      return base ** power(depth + 1); // right-associative
     }
     return base;
   };
@@ -225,7 +225,7 @@ export class CalculatorTool extends ToolBlock {
   }
 }
 
-/* ---------------------------------------------------------------- случайные значения */
+/* ---------------------------------------------------------------- random values */
 
 export class RandomTool extends ToolBlock {
   static type = "tool_random";
@@ -257,7 +257,7 @@ export class RandomTool extends ToolBlock {
           if (!Number.isFinite(v)) throw new Error(`"${k}" must be a number`);
           return v;
         };
-        // криптостойкий источник доступен и в браузере, и в Node (globalThis.crypto)
+        // a cryptographically strong source is available both in the browser and in Node (globalThis.crypto)
         const unit = () => globalThis.crypto.getRandomValues(new Uint32Array(1))[0]! / 2 ** 32;
         switch (kind) {
           case "uuid":
@@ -287,13 +287,13 @@ export class RandomTool extends ToolBlock {
   }
 }
 
-/* ---------------------------------------------------------------- свой инструмент на коде */
+/* ---------------------------------------------------------------- custom tool in code */
 
-const TOOL_CODE = `// args — аргументы вызова. Верните { out0: <json> }.
+const TOOL_CODE = `// args are the call arguments. Return { out0: <json> }.
 return { out0: { echo: inputs.in0 } }
 `;
 
-/** Инструмент, который пишете вы: тело функции в той же песочнице `vm`, что и у блока Code; аргументы — `inputs.in0`. */
+/** A tool you write yourself: a function body in the same `vm` sandbox as the Code block; the arguments are `inputs.in0`. */
 export class CodeTool extends ToolBlock {
   static type = "tool_code";
   static label = "Code Tool";
@@ -315,7 +315,7 @@ export class CodeTool extends ToolBlock {
       description: String(params["description"] ?? ""),
       inputSchema: params["inputSchema"] ?? { type: "object", properties: {} },
       call: async (args, signal) => {
-        // отмена хозяина (Code Agent) останавливает и код инструмента — раньше он дожидался собственного таймаута
+        // cancellation of the owner (Code Agent) also stops the tool code: it used to wait for its own timeout
         const ac = new AbortController();
         if (signal?.aborted) throw new Error("Aborted");
         const onAbort = () => ac.abort();

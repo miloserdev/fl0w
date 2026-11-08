@@ -5,8 +5,8 @@ export type TopoResult =
   | { ok: false; cycle: string[] };
 
 /**
- * Алгоритм Кана. Порядок детерминирован: среди готовых нод берём в порядке объявления в `flow.nodes`.
- * При цикле возвращает id нод, которые в него входят или от него зависят.
+  * Kahn's algorithm. The order is deterministic: among ready nodes, take them in the order declared in `flow.nodes`.
+  * On a cycle, returns the ids of the nodes that are part of it or depend on it.
  */
 export function toposort(flow: Pick<Flow, "nodes" | "edges">): TopoResult {
   const ids = new Set(flow.nodes.map((n) => n.id));

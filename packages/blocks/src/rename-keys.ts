@@ -2,7 +2,7 @@ import type { Json, ParamSchema } from "@fl0w/schema";
 import { Block } from "./block";
 import { cloneJson, isPlainObject } from "./json-path";
 
-/** Переименовывает ключ по пути внутри значения, сохраняя порядок полей. */
+/** Renames a key by path inside a value, keeping field order. */
 function renameAt(value: Json, segs: string[], newName: string): Json {
   if (!isPlainObject(value)) return value;
   const [head, ...rest] = segs;
@@ -16,7 +16,7 @@ function renameAt(value: Json, segs: string[], newName: string): Json {
   return out;
 }
 
-/** Rename Keys: переименование полей по карте { "старое": "новое" }; точечный путь меняет вложенное поле. */
+/** Rename Keys: renames fields by a { "old": "new" } map; a dotted path changes a nested field. */
 export class RenameKeys extends Block {
   static type = "rename_keys";
   static label = "Rename Keys";

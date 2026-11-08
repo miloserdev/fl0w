@@ -18,21 +18,21 @@ const twoTriggers = flow(
   [edge("a", "ra"), edge("b", "rb")],
 );
 
-describe("запуск от триггера", () => {
-  it("ручной запуск (без trigger): срабатывают все триггеры", async () => {
+describe("run from a trigger", () => {
+  it("manual run (without trigger): all triggers fire", async () => {
     const { started, done } = await collect(twoTriggers);
     expect(started).toEqual(["a", "b", "ra", "rb"]);
     expect(Object.keys(done?.result as object).sort()).toEqual(["ra", "rb"]);
   });
 
-  it("с trigger: стартует только выбранный, второй молчит", async () => {
+  it("with trigger: only the chosen one starts, the second stays silent", async () => {
     const { started, done } = await collect(twoTriggers, { trigger: "b" });
     expect(started).toEqual(["b", "rb"]);
     const result = done?.result as { triggeredAt: string };
     expect(new Date(result.triggeredAt).toString()).not.toBe("Invalid Date");
   });
 
-  it("trigger указывает на несуществующую или нетриггерную ноду → ошибка до запуска", async () => {
+  it("trigger points to a nonexistent or non-trigger node → error before the run", async () => {
     for (const trigger of ["ghost", "ra"]) {
       const { events, done } = await collect(twoTriggers, { trigger });
       expect(events).toHaveLength(1);
@@ -40,34 +40,34 @@ describe("запуск от триггера", () => {
     }
   });
 
-  it("Every возвращает метку времени срабатывания", async () => {
+  it("Every returns the firing timestamp", async () => {
     const { events } = await collect(flow([node("a", "every")], []));
     const done = events.find((e) => e.event === "node:done");
     expect(done).toMatchObject({ nodeId: "a", output: { out0: { triggeredAt: expect.any(String) } } });
   });
 });
 
-describe("запуск от триггера в отдельном процессе", () => {
+describe("run from a trigger in a separate process", () => {
   const run = async (opts: { trigger?: string }) => {
     const events: RunnerEvent[] = [];
     await runFlowInProcess(twoTriggers, (e) => events.push(e), { timeoutMs: 20000, ...opts });
     return events;
   };
 
-  it("trigger доходит до раннера через IPC", async () => {
+  it("trigger reaches the runner via IPC", async () => {
     const events = await run({ trigger: "a" });
     const started = events.flatMap((e) => (e.event === "node:start" ? [e.nodeId] : []));
     expect(started).toEqual(["a", "ra"]);
   });
 
-  it("без trigger — как ручной запуск", async () => {
+  it("without trigger: like a manual run", async () => {
     const events = await run({});
     const started = events.flatMap((e) => (e.event === "node:start" ? [e.nodeId] : []));
     expect(started).toEqual(["a", "b", "ra", "rb"]);
   });
 });
 
-describe("данные триггера (вебхук) доходят до ноды через процесс", () => {
+describe("trigger data (webhook) reaches the node through the process", () => {
   const hook: Flow = {
     ...flow(
       [
@@ -82,20 +82,20 @@ describe("данные триггера (вебхук) доходят до но�
   };
   const payload: Json = { method: "POST", path: "orders", query: { a: "1" }, headers: {}, body: { customer: "ann", qty: 3 } };
 
-  it("runFlowInProcess: triggerData попадает в ctx.triggerData триггер-ноды", async () => {
+  it("runFlowInProcess: triggerData lands in the trigger node's ctx.triggerData", async () => {
     const events: RunnerEvent[] = [];
     await runFlowInProcess(hook, (e) => void events.push(e), { trigger: "w", triggerData: payload, timeoutMs: 20000 });
     expect(events.at(-1)).toEqual({ event: "flow:done", result: { who: "ann", qty: 3, q: "1" } });
   });
 
-  it("ручной запуск не стартует триггер, ждущий события: никаких выдуманных данных", async () => {
+  it("a manual run does not start a trigger that waits for an event: no made-up data", async () => {
     const events: RunnerEvent[] = [];
     await runFlowInProcess(hook, (e) => void events.push(e), { timeoutMs: 20000 });
     expect(events.some((e) => e.event === "node:start")).toBe(false);
     expect(events.at(-1)).toMatchObject({ event: "flow:done", error: expect.stringMatching(/Nothing to start manually/) });
   });
 
-  it("Scheduler + processSchedulerRun: запрос вебхука проходит весь путь до результата", async () => {
+  it("Scheduler + processSchedulerRun: a webhook request goes the whole way to the result", async () => {
     const hub = new RunHub();
     const scheduler = new Scheduler({
       store: new FlowStore("/nonexistent"),

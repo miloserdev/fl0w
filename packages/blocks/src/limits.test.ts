@@ -14,18 +14,18 @@ import { FILES_DIR_ENV } from "./sandbox";
 
 const ctx = () => ({ signal: new AbortController().signal, log() {} });
 
-describe("HTTP Request: предел размера ответа", () => {
+describe("HTTP Request: response size limit", () => {
   let server: Server;
   let base = "";
   beforeAll(async () => {
     server = createServer((req, res) => {
       if (req.url === "/small") return void res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: 1 }));
       if (req.url === "/declared") {
-        // Content-Length больше предела: ошибка до чтения тела
+        // Content-Length above the limit: an error before reading the body
         res.writeHead(200, { "content-length": String(MAX_RESPONSE_BYTES + 1) });
         return void res.end("x");
       }
-      // без Content-Length (chunked): поток режется по ходу чтения
+      // without Content-Length (chunked): the stream is cut off as it is read
       res.writeHead(200);
       const chunk = Buffer.alloc(1024 * 1024, "a");
       let sent = 0;
@@ -47,17 +47,17 @@ describe("HTTP Request: предел размера ответа", () => {
   });
   const get = (p: string) => new HttpRequest().run({ in0: {} }, { method: "GET", url: `${base}${p}`, timeoutMs: 15_000 }, ctx());
 
-  it("обычный ответ читается", async () => {
+  it("a normal response is read", async () => {
     expect(await get("/small")).toEqual({ out0: { ok: 1 } });
   });
 
-  it("Content-Length сверх предела — ошибка сразу; бесконечный поток без Content-Length обрывается на пределе", async () => {
+  it("Content-Length above the limit is an error at once; an endless stream without Content-Length is cut off at the limit", async () => {
     await expect(get("/declared")).rejects.toThrow(/larger than 10485760 bytes/);
     await expect(get("/stream")).rejects.toThrow(/larger than 10485760 bytes/);
   });
 });
 
-describe("Files: суммарный размер и параллелизм", () => {
+describe("Files: total size and parallelism", () => {
   let dir: string;
   let saved: string | undefined;
   beforeAll(() => {
@@ -71,7 +71,7 @@ describe("Files: суммарный размер и параллелизм", () 
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("чтение по маске: суммарный размер проверяется по метаданным ДО чтения (разреженные файлы по 9 МБ × 6 > 50 МБ)", async () => {
+  it("mask read: the total size is checked by metadata BEFORE reading (sparse files of 9 MB x 6 > 50 MB)", async () => {
     for (let i = 0; i < 6; i++) {
       const f = path.join(dir, `big${i}.txt`);
       writeFileSync(f, "");
@@ -80,7 +80,7 @@ describe("Files: суммарный размер и параллелизм", () 
     await expect(new Files().run({ in0: {} }, { operation: "read", path: "big*.txt", format: "text" })).rejects.toThrow(/in total \(at most 52428800\)/);
   });
 
-  it("небольшие файлы по маске читаются, список по маске и каталога работает", async () => {
+  it("small files by mask are read, listing by mask and of a directory works", async () => {
     for (let i = 0; i < 3; i++) writeFileSync(path.join(dir, `s${i}.json`), JSON.stringify({ i }));
     const read = (await new Files().run({ in0: {} }, { operation: "read", path: "s*.json", format: "json" })) as unknown as { out0: { content: Json }[] };
     expect(read.out0.map((f) => f.content)).toEqual([{ i: 0 }, { i: 1 }, { i: 2 }]);
@@ -90,7 +90,7 @@ describe("Files: суммарный размер и параллелизм", () 
 });
 
 describe("mapLimit", () => {
-  it("не больше N задач одновременно, результаты в порядке списка, ошибка отклоняет", async () => {
+  it("no more than N tasks at once, results in list order, an error rejects", async () => {
     let cur = 0;
     let peak = 0;
     const out = await mapLimit([5, 1, 4, 2, 3, 6, 7, 8], 3, async (n) => {
@@ -107,8 +107,8 @@ describe("mapLimit", () => {
   });
 });
 
-describe("Code: верхняя граница таймаута", () => {
-  it("timeoutMs ограничен 1…300000 у Code, Code Agent и Code Tool", () => {
+describe("Code: upper bound of the timeout", () => {
+  it("timeoutMs is limited to 1...300000 for Code, Code Agent and Code Tool", () => {
     for (const t of ["code", "code_agent", "tool_code"]) {
       const params = registry[t]!.params;
       expect(validateParams(params, { timeoutMs: 300_000 }), t).toEqual([]);

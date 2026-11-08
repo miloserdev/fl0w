@@ -225,7 +225,7 @@ function DropdownMenuSubContent({
   className,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.SubContent>) {
-  // в портал: иначе подменю рисуется внутри родителя с overflow-y-auto и обрезается им
+  // into a portal: otherwise the submenu is drawn inside a parent with overflow-y-auto and gets clipped by it
   return (
     <DropdownMenuPrimitive.Portal>
     <DropdownMenuPrimitive.SubContent

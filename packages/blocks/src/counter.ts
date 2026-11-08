@@ -2,14 +2,14 @@ import type { Json, ParamSchema } from "@fl0w/schema";
 import { Block, type RunContext } from "./block";
 import { createJsonDriver } from "./memory";
 
-/** Банк, в котором лежат значения счётчиков (ключ → число); каталог и песочница — те же, что у блоков памяти. */
+/** Bank holding the counter values (key -> number); the directory and sandbox are the same as for the memory blocks. */
 const COUNTERS_BANK = "counters";
 
 /**
- * Счётчик срабатываний: считает, сколько раз эта нода запускалась, и показывает число на самой ноде вместо иконки.
- * Данные проходят дальше без изменений. Счёт переживает запуски (файл на диске; у песочницы «Запустить» и рабочего
- * опубликованного флоу он свой). `name` пуст — считается именно эта нода; задан — общий счётчик с таким именем у всех
- * нод (поддерживает `{{ inputs… }}`). `operation: reset` обнуляет счёт (число на ноде становится 0).
+ * Trigger counter: counts how many times this node ran and shows the number on the node itself instead of the icon.
+ * Data passes on unchanged. The count survives runs (a file on disk; the "Run" sandbox and a working
+ * published flow each have their own). `name` empty: this very node is counted; set: a shared counter with that name across all
+ * nodes (supports `{{ inputs... }}`). `operation: reset` zeroes the count (the number on the node becomes 0).
  */
 export class Counter extends Block {
   static type = "counter";
@@ -27,7 +27,7 @@ export class Counter extends Block {
     if (name.length > 256) throw new Error("Counter name is too long (max 256 characters)");
     const op = String(params["operation"] ?? "count");
     if (op !== "count" && op !== "reset") throw new Error(`Unknown operation "${op}"`);
-    // свой счётчик у каждой ноды: ключ из флоу и id ноды; общий — по имени (префиксы не пересекаются)
+    // each node has its own counter: key from flow and node id; shared by name (the prefixes do not overlap)
     const key = name !== "" ? `name:${name}` : ctx?.flowId && ctx.nodeId ? `node:${ctx.flowId}/${ctx.nodeId}` : null;
     if (key === null) throw new Error("Counter needs a name when it runs outside of a flow");
 

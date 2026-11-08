@@ -11,7 +11,7 @@ import { validateFlow } from "./validate";
 const dir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../examples");
 const files = readdirSync(dir).filter((f) => f.endsWith(".json"));
 
-// примеры с файлами пишут в каталог файлов — подменяем его временным (процесс-раннер наследует окружение)
+// examples with files write to the files directory, so replace it with a temporary one (the process runner inherits the environment)
 let filesDir: string;
 let savedFilesDir: string | undefined;
 beforeAll(() => {
@@ -43,7 +43,7 @@ const result = (events: RunnerEvent[]) => {
 };
 
 describe("examples/*.json", () => {
-  it("code-agent: инструменты и память, подключённые к ресурсным портам, доступны коду", async () => {
+  it("code-agent: tools and memory attached to resource ports are available to the code", async () => {
     const memDir = mkdtempSync(path.join(tmpdir(), "fl0w-mem-"));
     const saved = process.env["FL0W_MEMORY_DIR"];
     process.env["FL0W_MEMORY_DIR"] = memDir;
@@ -53,7 +53,7 @@ describe("examples/*.json", () => {
       expect(out.now.timezone).toBe("Europe/Berlin");
       expect(out.visits).toBe(1);
       expect(out.history).toHaveLength(1);
-      expect(result(await run("code-agent.json"))).toMatchObject({ visits: 2 }); // память пережила запуск (отдельный процесс)
+      expect(result(await run("code-agent.json"))).toMatchObject({ visits: 2 }); // memory survived the run (a separate process)
     } finally {
       if (saved === undefined) delete process.env["FL0W_MEMORY_DIR"];
       else process.env["FL0W_MEMORY_DIR"] = saved;
@@ -61,11 +61,11 @@ describe("examples/*.json", () => {
     }
   });
 
-  it("loop: тело исполняется на каждый элемент, на выходе done — массив результатов тела", async () => {
+  it("loop: the body runs for each element, and the done output is an array of body results", async () => {
     expect(result(await run("loop.json"))).toEqual({ count: 3, totals: [20, 50, 0] });
   });
 
-  it("набор примеров", () => {
+  it("the set of examples", () => {
     expect([...files].sort()).toEqual([
       "cleanup.json",
       "code-agent.json",
@@ -82,13 +82,13 @@ describe("examples/*.json", () => {
     ]);
   });
 
-  // примеры с внешними сервисами (Telegram) не выполняются тут — токен и сеть; их сквозной путь проверен telegram-e2e.test.ts
-  it.each(files)("%s проходит валидацию и у флоу уникальный id", (file) => {
+  // examples with external services (Telegram) are not executed here (token and network); their end-to-end path is checked by telegram-e2e.test.ts
+  it.each(files)("%s passes validation and the flow has a unique id", (file) => {
     const r = validateFlow(load(file), registry);
     expect(r.ok, r.ok ? "" : r.issues.map((i) => i.message).join("; ")).toBe(true);
   });
 
-  it("id флоу не повторяются между примерами", () => {
+  it("flow ids do not repeat between examples", () => {
     const ids = files.map((f) => (load(f) as { id: string }).id);
     expect(new Set(ids).size).toBe(ids.length);
   });
@@ -100,7 +100,7 @@ describe("examples/*.json", () => {
     });
   });
 
-  it("showcase.json: ветвление, Merge, лог кода; невзятая ветка пропущена", async () => {
+  it("showcase.json: branching, Merge, code log; the branch not taken is skipped", async () => {
     const events = await run("showcase.json");
     expect(events.at(-1)).toEqual({
       event: "flow:done",
@@ -115,9 +115,9 @@ describe("examples/*.json", () => {
     expect(events).toContainEqual({ event: "node:log", nodeId: "totals", message: "orders: 3 sum: 250" });
   });
 
-  it("data-pipeline.json: фильтр, сортировка, лимит, сводки, ветка discarded", async () => {
+  it("data-pipeline.json: filter, sort, limit, summaries, the discarded branch", async () => {
     expect(result(await run("data-pipeline.json"))).toEqual({
-      // оплаченные: 120, 75, 410, 60, 220 → топ-3 по сумме: 410, 220, 120
+      // paid: 120, 75, 410, 60, 220 → top 3 by amount: 410, 220, 120
       res_top: { revenue: 750, average: 250, orders: 3 },
       res_regions: [
         { region: "eu", revenue: 180, orders: 2 },
@@ -128,7 +128,7 @@ describe("examples/*.json", () => {
     });
   });
 
-  it("compare-datasets.json: четыре выхода сравнения", async () => {
+  it("compare-datasets.json: four comparison outputs", async () => {
     expect(result(await run("compare-datasets.json"))).toEqual({
       only_a: [{ id: 1, name: "ann", plan: "free" }],
       same: [{ id: 2, name: "bob", plan: "pro" }],
@@ -137,20 +137,20 @@ describe("examples/*.json", () => {
     });
   });
 
-  it("cleanup.json: дубликаты, переименование, агрегация", async () => {
+  it("cleanup.json: duplicates, renaming, aggregation", async () => {
     expect(result(await run("cleanup.json"))).toEqual({
       emails: ["ann@x.io", "bob@x.io"],
       tags: ["a", "b", "b"],
     });
   });
 
-  it("jwt-and-hash.json: токен подписывается и проверяется", async () => {
+  it("jwt-and-hash.json: the token is signed and verified", async () => {
     const r = result(await run("jwt-and-hash.json")) as { valid: boolean; subject: string; role: string; fingerprint: string };
     expect(r).toMatchObject({ valid: true, subject: "ann", role: "admin" });
     expect(r.fingerprint).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it("file-report.json: сводка пишется в файл и читается обратно", async () => {
+  it("file-report.json: the summary is written to a file and read back", async () => {
     const r = result(await run("file-report.json")) as { path: string; content: Json };
     const expected = [{ rep: "ann", total: 180, deals: 2 }, { rep: "bob", total: 75, deals: 1 }];
     expect(r.path).toBe("reports/summary.json");
@@ -158,7 +158,7 @@ describe("examples/*.json", () => {
     expect(JSON.parse(readFileSync(path.join(filesDir, "reports/summary.json"), "utf8"))).toEqual(expected);
   });
 
-  it("error-handler.json: данные об ошибке дописываются в журнал", async () => {
+  it("error-handler.json: error data is appended to the journal", async () => {
     const data: Json = {
       flow: { id: "flow_x", name: "nightly-sync" },
       run: { id: "run_1", trigger: "t" },
@@ -183,7 +183,7 @@ describe("examples/*.json", () => {
         triggerData: { method: "POST", path: "demo/orders", query: {}, headers: {}, body },
       });
 
-    it("большой заказ → ветка vip", async () => {
+    it("big order → vip branch", async () => {
       const events = await call({ total: 2500 });
       expect(respond(events, "vip")).toMatchObject({ status: 200, body: { tier: "vip", total: 2500 } });
       expect(respond(events, "regular")).toBeUndefined();
@@ -191,11 +191,11 @@ describe("examples/*.json", () => {
       expect(stamp).toMatch(/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/);
     });
 
-    it("обычный заказ → ветка regular", async () => {
+    it("regular order → regular branch", async () => {
       expect(respond(await call({ total: 40 }), "regular")).toMatchObject({ body: { tier: "regular", total: 40 } });
     });
 
-    it("мусор → fallback с 422", async () => {
+    it("garbage → fallback with 422", async () => {
       expect(respond(await call({ total: -5 }), "bad")).toEqual({ status: 422, headers: {}, body: { error: "total must be a positive number" } });
       expect(respond(await call({}), "bad")?.status).toBe(422);
     });

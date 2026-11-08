@@ -2,13 +2,13 @@
 
 import { createContext, useContext } from "react";
 
-/** Запуск одного триггера кнопкой на ноде (Manual): стартует только он, остальные триггеры молчат. */
+/** Running a single trigger with a button on the node (Manual): only it starts, the other triggers stay silent. */
 export type TriggerRunApi = {
   run: (nodeId: string) => void;
   disabled: boolean;
-  /** Идёт пробный запуск (кнопка запуска заменяется паузой и остановкой). */
+  /** A trial run is in progress (the run button is replaced by pause and stop). */
   running: boolean;
-  /** Триггер, запущенный кнопкой на ноде; null — запущен весь флоу (управление на всех Manual). */
+  /** The trigger started by a node button; null — the whole flow was started (controls on all Manual nodes). */
   startedBy: string | null;
   paused: boolean;
   pause: () => void;

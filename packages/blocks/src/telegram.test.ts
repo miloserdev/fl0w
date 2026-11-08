@@ -92,8 +92,8 @@ const run = (params: Record<string, Json>, input: Json | undefined = null, c: Pa
   new (Telegram as unknown as new () => Block)().run({ in0: input }, resolveParams(Telegram.params, { token: TOKEN, ...params }), ctx(c));
 const out = async (...a: Parameters<typeof run>) => (await run(...a))["out0"];
 
-describe("секреты", () => {
-  it("литерал, ссылка env:FL0W_SECRET_*, значение по умолчанию", () => {
+describe("secrets", () => {
+  it("literal, env:FL0W_SECRET_* reference, default value", () => {
     process.env["FL0W_SECRET_OTHER"] = "secret-from-env";
     process.env["FL0W_SECRET_TELEGRAM_BOT_TOKEN"] = "default-token";
     expect(resolveSecret("literal")).toBe("literal");
@@ -101,22 +101,22 @@ describe("секреты", () => {
     expect(resolveSecret("", "FL0W_SECRET_TELEGRAM_BOT_TOKEN")).toBe("default-token");
     expect(resolveSecret(undefined, "FL0W_SECRET_TELEGRAM_BOT_TOKEN")).toBe("default-token");
   });
-  it("читаются только переменные с префиксом FL0W_SECRET_", () => {
+  it("only variables with the FL0W_SECRET_ prefix are read", () => {
     process.env["NOT_A_SECRET"] = "x";
     for (const bad of ["env:PATH", "env:NOT_A_SECRET", "env:fl0w_secret_lower", "env:FL0W_SECRET_", "env:FL0W_SECRET_A B", "env:FL0W_SECRET_OTHER; echo"]) {
       expect(() => resolveSecret(bad), bad).toThrow(/Only server variables named FL0W_SECRET_/);
     }
   });
-  it("не заданная переменная и пустой секрет — понятные ошибки", () => {
+  it("an unset variable and an empty secret give clear errors", () => {
     delete process.env["FL0W_SECRET_OTHER"];
     expect(() => resolveSecret("env:FL0W_SECRET_OTHER")).toThrow("Secret FL0W_SECRET_OTHER is not set on the server");
     expect(() => resolveSecret("")).toThrow(/not set/);
   });
-  it("redact скрывает секрет везде", () => {
+  it("redact hides the secret everywhere", () => {
     expect(redact(`fail at /bot${TOKEN}/send and ${TOKEN}`, [TOKEN])).toBe("fail at /bot***/send and ***");
-    expect(redact("short", ["abc"])).toBe("short"); // слишком короткий «секрет» не трогаем
+    expect(redact("short", ["abc"])).toBe("short"); // a too short "secret" is left alone
   });
-  it("токен проверяется по формату BotFather", () => {
+  it("the token is validated by the BotFather format", () => {
     expect(() => assertToken(TOKEN)).not.toThrow();
     for (const bad of ["", "abc", "123:short", `${TOKEN}/../x`, `${TOKEN}?x=1`, `${TOKEN} `, "1234:" + "A".repeat(29), "bot" + TOKEN]) {
       expect(() => assertToken(bad), bad).toThrow(/invalid format/);
@@ -124,20 +124,20 @@ describe("секреты", () => {
   });
 });
 
-describe("клиент Bot API", () => {
-  it("токен идёт в путь URL, тело — JSON, пустые значения не отправляются", async () => {
+describe("Bot API client", () => {
+  it("the token goes into the URL path, the body is JSON, empty values are not sent", async () => {
     await callTelegram(TOKEN, "sendMessage", { chat_id: 1, text: "hi", skip: undefined, nul: null as unknown as undefined });
     expect(calls[0]).toMatchObject({ method: "sendMessage", path: `/bot${TOKEN}/sendMessage`, json: { chat_id: 1, text: "hi" } });
     expect(calls[0]!.json).not.toHaveProperty("skip");
     expect(calls[0]!.json).not.toHaveProperty("nul");
   });
-  it("ошибка API: код и описание; retry_after", async () => {
+  it("API error: code and description; retry_after", async () => {
     replies.set("sendMessage", { status: 400, body: { ok: false, error_code: 400, description: "Bad Request: chat not found" } });
     await expect(callTelegram(TOKEN, "sendMessage", {})).rejects.toThrow("Telegram error 400: Bad Request: chat not found");
     replies.set("sendMessage", { status: 429, body: { ok: false, error_code: 429, description: "Too Many Requests", parameters: { retry_after: 7 } } });
     await expect(callTelegram(TOKEN, "sendMessage", {})).rejects.toThrow("Telegram error 429: Too Many Requests (retry after 7 s)");
   });
-  it("не-JSON ответ, недоступный сервер, таймаут, отмена", async () => {
+  it("non-JSON response, unavailable server, timeout, cancel", async () => {
     replies.set("a", { status: 502, body: "<html>bad gateway</html>" });
     await expect(callTelegram(TOKEN, "a", {})).rejects.toThrow("Telegram returned HTTP 502 (not JSON)");
     process.env[TELEGRAM_API_ENV] = "http://127.0.0.1:1";
@@ -149,7 +149,7 @@ describe("клиент Bot API", () => {
     setTimeout(() => ac.abort(), 50);
     await expect(callTelegram(TOKEN, "slow", {}, { signal: ac.signal })).rejects.toThrow("Aborted");
   });
-  it("токен не попадает в сообщения об ошибках", async () => {
+  it("the token does not get into error messages", async () => {
     process.env[TELEGRAM_API_ENV] = "http://127.0.0.1:1";
     const e1 = await callTelegram(TOKEN, "a", {}).catch((e: Error) => e);
     expect((e1 as Error).message).not.toContain(TOKEN);
@@ -159,7 +159,7 @@ describe("клиент Bot API", () => {
     expect((e2 as Error).message).not.toContain(TOKEN);
     expect((e2 as Error).message).toContain("***");
   });
-  it("кривые адрес API и имя метода", async () => {
+  it("broken API address and method name", async () => {
     process.env[TELEGRAM_API_ENV] = "ftp://example.com";
     await expect(callTelegram(TOKEN, "a", {})).rejects.toThrow(/http\(s\)/);
     process.env[TELEGRAM_API_ENV] = "not a url";
@@ -170,19 +170,19 @@ describe("клиент Bot API", () => {
   });
 });
 
-describe("Telegram: сообщения", () => {
-  it("sendMessage: поля тела, результат — объект сообщения", async () => {
+describe("Telegram: messages", () => {
+  it("sendMessage: body fields, the result is a message object", async () => {
     replies.set("sendMessage", { body: { ok: true, result: { message_id: 42, text: "hello" } } });
     const r = await out({ operation: "sendMessage", chatId: "-100123", text: "hello" });
     expect(r).toEqual({ message_id: 42, text: "hello" });
     expect(calls[0]!.json).toEqual({ chat_id: -100123, text: "hello" });
   });
-  it("chat_id: число — числом, @канал — строкой", async () => {
+  it("chat_id: a number stays a number, @channel a string", async () => {
     await run({ operation: "sendMessage", chatId: "@mychannel", text: "x" });
     await run({ operation: "sendMessage", chatId: "42", text: "x" });
     expect(calls.map((c) => c.json!["chat_id"])).toEqual(["@mychannel", 42]);
   });
-  it("parse_mode, тихая отправка, превью, ответ на сообщение, ветка форума, reply_markup", async () => {
+  it("parse_mode, silent send, preview, reply to a message, forum thread, reply_markup", async () => {
     const markup = { inline_keyboard: [[{ text: "Да", callback_data: "yes" }]] };
     await run({
       operation: "sendMessage", chatId: "1", text: "*b*", parseMode: "MarkdownV2", disableNotification: true,
@@ -193,26 +193,26 @@ describe("Telegram: сообщения", () => {
       link_preview_options: { is_disabled: true }, reply_parameters: { message_id: 77 }, message_thread_id: 5, reply_markup: markup,
     });
   });
-  it("по умолчанию parse_mode не отправляется (обычный текст)", async () => {
+  it("parse_mode is not sent by default (plain text)", async () => {
     await run({ operation: "sendMessage", chatId: "1", text: "a <b> c" });
     expect(calls[0]!.json).not.toHaveProperty("parse_mode");
   });
-  it("шаблоны берут данные из входа — например, из Telegram Trigger", async () => {
+  it("templates take data from the input, for example from Telegram Trigger", async () => {
     const update = { update_id: 1, message: { message_id: 9, chat: { id: 555 }, from: { first_name: "Ann" }, text: "ping" } };
     await run({ operation: "sendMessage", chatId: "{{ message.chat.id }}", text: "Hi {{ message.from.first_name }}: {{ message.text }}", replyToMessageId: "{{ message.message_id }}" }, update);
     expect(calls[0]!.json).toMatchObject({ chat_id: 555, text: "Hi Ann: ping", reply_parameters: { message_id: 9 } });
   });
-  it("шаблон без значения — ошибка, а не отправка «null»", async () => {
+  it("a template without a value is an error, not sending null", async () => {
     await expect(run({ operation: "sendMessage", chatId: "{{ nope }}", text: "x" }, {})).rejects.toThrow(/chatId resolved to no value/);
     expect(calls).toEqual([]);
   });
-  it("additional: произвольные параметры; они не перекрывают заданные поля", async () => {
+  it("additional: arbitrary parameters; they do not override the set fields", async () => {
     await run({ operation: "sendMessage", chatId: "1", text: "real", additional: { protect_content: true, chat_id: 999, text: "evil" } });
     expect(calls[0]!.json).toEqual({ chat_id: 1, text: "real", protect_content: true });
     await expect(run({ operation: "sendMessage", chatId: "1", text: "x", additional: { "Bad-Key": 1 } })).rejects.toThrow(/invalid additional parameter/);
     await expect(run({ operation: "sendMessage", chatId: "1", text: "x", additional: [1] })).rejects.toThrow(/must be an object/);
   });
-  it("обязательные поля: понятные ошибки до запроса", async () => {
+  it("required fields: clear errors before the request", async () => {
     await expect(run({ operation: "sendMessage", chatId: "1" })).rejects.toThrow("text is required");
     await expect(run({ operation: "sendMessage", text: "x" })).rejects.toThrow("chatId is required");
     await expect(run({ operation: "nope", chatId: "1" })).rejects.toThrow(/Unknown Telegram operation/);
@@ -220,7 +220,7 @@ describe("Telegram: сообщения", () => {
   });
 });
 
-describe("Telegram: остальные операции", () => {
+describe("Telegram: other operations", () => {
   it.each([
     ["getChat", { chatId: "5" }, "getChat", { chat_id: 5 }],
     ["getChatAdministrators", { chatId: "@c" }, "getChatAdministrators", { chat_id: "@c" }],
@@ -243,14 +243,14 @@ describe("Telegram: остальные операции", () => {
     expect(calls[0]).toMatchObject({ method, json: body });
   });
 
-  it("операции с ответом true дают { ok: true }", async () => {
+  it("operations with a true answer give { ok: true }", async () => {
     replies.set("deleteMessage", { body: { ok: true, result: true } });
     expect(await out({ operation: "deleteMessage", chatId: "1", messageId: "2" })).toEqual({ ok: true });
     replies.set("getChatAdministrators", { body: { ok: true, result: [{ user: { id: 1 } }] } });
     expect(await out({ operation: "getChatAdministrators", chatId: "1" })).toEqual([{ user: { id: 1 } }]);
   });
 
-  it("проверки: сообщение 1, число, действие, результаты inline", async () => {
+  it("checks: message 1, number, action, inline results", async () => {
     await expect(run({ operation: "deleteMessage", chatId: "1", messageId: "abc" })).rejects.toThrow("messageId must be a number");
     await expect(run({ operation: "sendLocation", chatId: "1", latitude: "x", longitude: "1" })).rejects.toThrow("latitude must be a number");
     await expect(run({ operation: "sendChatAction", chatId: "1", action: "dancing" })).rejects.toThrow(/Unknown chat action/);
@@ -259,22 +259,22 @@ describe("Telegram: остальные операции", () => {
     expect(calls).toEqual([]);
   });
 
-  it("покрыты все операции из списка", () => {
-    // как в n8n: Chat 6 + Callback 2 + File 1 + Message 14
+  it("all operations from the list are covered", () => {
+    // as in n8n: Chat 6 + Callback 2 + File 1 + Message 14
     expect(TELEGRAM_OPERATIONS).toHaveLength(23);
     expect(new Set(TELEGRAM_OPERATIONS).size).toBe(23);
   });
 });
 
-describe("Telegram: файлы", () => {
-  it("file_id и ссылка отправляются как есть (JSON), подпись и разметка — тоже", async () => {
+describe("Telegram: files", () => {
+  it("file_id and a link are sent as is (JSON), the caption and markup too", async () => {
     await run({ operation: "sendPhoto", chatId: "1", file: "AgACAgIAAxkBAAI", caption: "Фото", parseMode: "HTML" });
     await run({ operation: "sendDocument", chatId: "1", file: "https://example.com/a.pdf" });
     expect(calls[0]!.json).toEqual({ chat_id: 1, photo: "AgACAgIAAxkBAAI", caption: "Фото", parse_mode: "HTML" });
     expect(calls[1]!.json).toEqual({ chat_id: 1, document: "https://example.com/a.pdf" });
   });
 
-  it("file:путь загружает файл из каталога файлов multipart-запросом", async () => {
+  it("file:path uploads a file from the files directory with a multipart request", async () => {
     mkdirSync(path.join(dir, "docs"));
     writeFileSync(path.join(dir, "docs/report.txt"), "содержимое отчёта");
     await run({ operation: "sendDocument", chatId: "7", file: "file:docs/report.txt", caption: "Отчёт", replyMarkup: { inline_keyboard: [] } });
@@ -283,13 +283,13 @@ describe("Telegram: файлы", () => {
     expect(calls[0]!.files).toEqual([{ field: "document", name: "report.txt", text: "содержимое отчёта" }]);
   });
 
-  it("fileName переопределяет имя; путь поддерживает шаблоны", async () => {
+  it("fileName overrides the name; the path supports templates", async () => {
     writeFileSync(path.join(dir, "a.bin"), "x");
     await run({ operation: "sendPhoto", chatId: "1", file: "file:{{ name }}", fileName: "cat.jpg" }, { name: "a.bin" });
     expect(calls[0]!.files![0]).toMatchObject({ field: "photo", name: "cat.jpg" });
   });
 
-  it("файл вне каталога, симлинк наружу и несуществующий файл отвергаются без запроса", async () => {
+  it("a file outside the directory, a symlink outward and a non-existent file are rejected without a request", async () => {
     const outside = mkdtempSync(path.join(tmpdir(), "fl0w-tg-out-"));
     try {
       writeFileSync(path.join(outside, "secret.txt"), "s");
@@ -304,7 +304,7 @@ describe("Telegram: файлы", () => {
     }
   });
 
-  it("sendMediaGroup: смесь file_id, ссылок и загружаемых файлов через attach://", async () => {
+  it("sendMediaGroup: a mix of file_id, links and uploaded files via attach://", async () => {
     writeFileSync(path.join(dir, "one.jpg"), "JPEG1");
     await run({
       operation: "sendMediaGroup", chatId: "1",
@@ -317,29 +317,29 @@ describe("Telegram: файлы", () => {
       { type: "video", media: "AgAD_id" },
     ]);
     expect(calls[0]!.files).toEqual([{ field: "file0", name: "one.jpg", text: "JPEG1" }]);
-    // без файлов — обычный JSON
+    // without files: plain JSON
     await run({ operation: "sendMediaGroup", chatId: "1", media: [{ type: "photo", media: "a" }, { type: "photo", media: "b" }] });
     expect(calls[1]!.json).toMatchObject({ media: [{ type: "photo", media: "a" }, { type: "photo", media: "b" }] });
   });
 
-  it("sendMediaGroup: 2–10 элементов и корректная форма", async () => {
+  it("sendMediaGroup: 2-10 items and the correct shape", async () => {
     await expect(run({ operation: "sendMediaGroup", chatId: "1", media: [{ type: "photo", media: "a" }] })).rejects.toThrow(/2 to 10/);
     await expect(run({ operation: "sendMediaGroup", chatId: "1", media: Array.from({ length: 11 }, () => ({ type: "photo", media: "a" })) })).rejects.toThrow(/2 to 10/);
     await expect(run({ operation: "sendMediaGroup", chatId: "1", media: [{ type: "photo", media: "a" }, { type: "photo" }] })).rejects.toThrow(/media\[1\]/);
   });
 
-  it("getFile + download: содержимое в base64, сохранение в каталог файлов", async () => {
+  it("getFile + download: content in base64, saving to the files directory", async () => {
     replies.set("getFile", { body: { ok: true, result: { file_id: "F", file_size: 5, file_path: "photos/file_1.jpg" } } });
     downloads.set("photos/file_1.jpg", Buffer.from([0, 1, 2, 250, 255]));
     const r = (await out({ operation: "getFile", fileId: "F", download: true, saveTo: "in/photo.jpg" })) as Record<string, Json>;
     expect(r).toMatchObject({ file_id: "F", size: 5, content: Buffer.from([0, 1, 2, 250, 255]).toString("base64"), savedTo: "in/photo.jpg" });
     expect(readFileSync(path.join(dir, "in/photo.jpg"))).toEqual(Buffer.from([0, 1, 2, 250, 255]));
-    // без download — только описание файла
+    // without download: only the file description
     const meta = (await out({ operation: "getFile", fileId: "F" })) as Record<string, Json>;
     expect(meta).not.toHaveProperty("content");
   });
 
-  it("скачивание: небезопасный путь от сервера, 404, saveTo вне каталога", async () => {
+  it("download: an unsafe path from the server, 404, saveTo outside the directory", async () => {
     replies.set("getFile", { body: { ok: true, result: { file_path: "../../etc/passwd" } } });
     await expect(run({ operation: "getFile", fileId: "F", download: true })).rejects.toThrow(/unsafe file path/);
     replies.set("getFile", { body: { ok: true, result: { file_path: "missing/x.jpg" } } });
@@ -351,8 +351,8 @@ describe("Telegram: файлы", () => {
   });
 });
 
-describe("Telegram: токен и безопасность", () => {
-  it("пустой токен берётся из FL0W_SECRET_TELEGRAM_BOT_TOKEN, ссылка env: — из указанной переменной", async () => {
+describe("Telegram: token and security", () => {
+  it("an empty token is taken from FL0W_SECRET_TELEGRAM_BOT_TOKEN, an env: reference from the named variable", async () => {
     process.env["FL0W_SECRET_TELEGRAM_BOT_TOKEN"] = TOKEN;
     process.env["FL0W_SECRET_OTHER"] = "999999:ZZZ-DEF1234ghIkl-zyx57W2v1u123ew11";
     await run({ token: "", operation: "getChat", chatId: "1" });
@@ -360,7 +360,7 @@ describe("Telegram: токен и безопасность", () => {
     expect(calls.map((c) => c.path.split("/")[1])).toEqual([`bot${TOKEN}`, "bot999999:ZZZ-DEF1234ghIkl-zyx57W2v1u123ew11"]);
   });
 
-  it("в ошибке блока токена нет — ни литерального, ни из env", async () => {
+  it("the block's error has no token, neither literal nor from env", async () => {
     process.env[TELEGRAM_API_ENV] = "http://127.0.0.1:1";
     const e = (await run({ operation: "getChat", chatId: "1" }).catch((x: Error) => x)) as Error;
     expect(e.message).toMatch(/Telegram request failed/);
@@ -371,7 +371,7 @@ describe("Telegram: токен и безопасность", () => {
     expect(bad.message).not.toContain("garbage");
   });
 
-  it("отмена запуска прерывает запрос", async () => {
+  it("cancelling the run aborts the request", async () => {
     replies.set("getChat", "hang");
     const ac = new AbortController();
     setTimeout(() => ac.abort(), 60);
@@ -379,11 +379,11 @@ describe("Telegram: токен и безопасность", () => {
   });
 });
 
-describe("Telegram: параметры и видимость", () => {
+describe("Telegram: parameters and visibility", () => {
   const visible = (op: string, name: string, extra: Record<string, Json> = {}) =>
     isParamVisible(Telegram.params.find((p) => p.name === name)!, resolveParams(Telegram.params, { operation: op, ...extra }));
 
-  it("поля показываются только там, где применимы", () => {
+  it("fields are shown only where applicable", () => {
     expect(visible("sendMessage", "text")).toBe(true);
     expect(visible("sendMessage", "file")).toBe(false);
     expect(visible("sendPhoto", "file")).toBe(true);
@@ -401,7 +401,7 @@ describe("Telegram: параметры и видимость", () => {
     expect(visible("sendMessage", "messageId")).toBe(false);
   });
 
-  it("обязательные поля проверяются только у видимых (публикация ловит пропуски)", () => {
+  it("required fields are checked only for visible ones (publishing catches gaps)", () => {
     const issues = (p: Record<string, Json>) => validateParams(Telegram.params, p).map((i) => i.param).sort();
     expect(issues({ operation: "sendMessage" })).toEqual(["chatId"]);
     expect(issues({ operation: "sendMessage", chatId: "1" })).toEqual([]);
@@ -411,7 +411,7 @@ describe("Telegram: параметры и видимость", () => {
     expect(issues({ operation: "sendLocation", chatId: "1" })).toEqual(["latitude", "longitude"]);
   });
 
-  it("мета: приложение, порты, токен не обязателен в схеме (есть значение по умолчанию из окружения)", () => {
+  it("meta: app, ports, the token is not required in the schema (there is a default from the environment)", () => {
     expect(Telegram.category).toBe("app");
     expect(Telegram.ports.inputs).toHaveLength(1);
     expect(Telegram.params.find((p) => p.name === "token")?.required).toBeUndefined();

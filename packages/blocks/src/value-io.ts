@@ -2,9 +2,9 @@ import type { Json } from "@fl0w/schema";
 import { interpolate, isPlainObject, setPath } from "./json-path";
 
 /**
- * Значение, над которым работает блок: параметр `raw` с подстановкой `{{ путь }}` из входа.
- * Пустой параметр означает «взять сам вход». Шаблон, которому нечего подставить (поля нет или оно null),
- * — ошибка: молча обрабатывать `null` вместо данных значило бы скрыть опечатку в пути.
+ * The value a block works on: the `raw` parameter with `{{ path }}` substitution from the input.
+ * An empty parameter means "take the input itself". A template with nothing to substitute (the field is missing or null)
+ * is an error: silently processing `null` instead of data would hide a typo in the path.
  */
 export function valueOf(input: Json | undefined, raw: Json | undefined): Json {
   if (raw === undefined || raw === null || raw === "") return input ?? null;
@@ -13,14 +13,14 @@ export function valueOf(input: Json | undefined, raw: Json | undefined): Json {
   return v;
 }
 
-/** Строковое представление значения (объекты — JSON). */
+/** String representation of a value (objects as JSON). */
 export function textOf(v: Json): string {
   return typeof v === "string" ? v : JSON.stringify(v);
 }
 
 /**
- * Результат блока: `{ [field]: result }`; при `includeInput` поле дописывается к входному объекту.
- * Так в n8n устроены «Output Field Name» и «Include Input Fields».
+ * Block result: `{ [field]: result }`; with `includeInput` the field is appended to the input object.
+ * This is how "Output Field Name" and "Include Input Fields" work in n8n.
  */
 export function withOutputField(
   input: Json | undefined,

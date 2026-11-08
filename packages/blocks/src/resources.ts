@@ -2,8 +2,8 @@ import type { Json } from "@fl0w/schema";
 import { Block, type MemoryHandle, type ToolHandle } from "./block";
 
 /**
- * Инструмент: sub-node с выходным портом вида `tool`. Сам не запускается — хозяин (например, Code Agent) получает
- * `ToolHandle` в `ctx.tools` и вызывает `call(args)`. Параметры уже проверены и с подставленными выражениями.
+ * Tool: a sub-node with an output port of kind `tool`. It does not run by itself: the owner (for example, Code Agent) receives
+ * a `ToolHandle` in `ctx.tools` and calls `call(args)`. Parameters are already validated and have expressions substituted.
  */
 export abstract class ToolBlock extends Block {
   static override resource = "tool" as const;
@@ -17,13 +17,13 @@ export abstract class ToolBlock extends Block {
   }
 }
 
-/** Банк памяти: sub-node с выходным портом вида `memory`; хозяин получает `MemoryHandle` в `ctx.memory`. */
+/** Memory bank: a sub-node with an output port of kind `memory`; the owner receives a `MemoryHandle` in `ctx.memory`. */
 export abstract class MemoryBlock extends Block {
   static override resource = "memory" as const;
   static override category = "memory";
   static override ports = { inputs: [], outputs: [{ id: "memory", kind: "memory" as const }] };
 
-  /** `signal` — отмена запуска хозяина: ожидание замка банка прекращается. */
+  /** `signal`: cancellation of the owner's run; waiting for the bank lock stops. */
   abstract createMemory(params: Record<string, Json>, signal?: AbortSignal): MemoryHandle;
 
   async run(): Promise<Record<string, Json>> {

@@ -11,8 +11,8 @@ import { validateFlow } from "./validate";
 const off = <T extends ReturnType<typeof node>>(n: T): T => ({ ...n, disabled: true });
 const run = (f: Flow, extra: Record<string, unknown> = {}) => collect(f, { registry, ...extra });
 
-describe("отключённая нода", () => {
-  it("в запуске не участвует: не исполняется, ничего не отдаёт — ветка за ней не идёт, соседние ветки идут", async () => {
+describe("disabled node", () => {
+  it("takes no part in the run: not executed, outputs nothing, so the branch behind it does not go while neighbouring branches do", async () => {
     const f = flow(
       [node("s", "source", { json: { v: 1 } }), off(node("mid", "code", { code: "return { out0: 'MID' }" })), node("after", "noop"), node("r1", "result"), node("side", "noop"), node("r2", "result")],
       [edge("s", "mid"), edge("mid", "after"), edge("after", "r1"), edge("s", "side"), edge("side", "r2")],
@@ -22,10 +22,10 @@ describe("отключённая нода", () => {
     expect(r.started).not.toContain("mid");
     expect(r.started).not.toContain("after");
     expect(r.started).toEqual(expect.arrayContaining(["s", "side", "r2"]));
-    expect(r.done?.result).toEqual({ v: 1 }); // единственный Result, до которого данные дошли
+    expect(r.done?.result).toEqual({ v: 1 }); // the only Result the data reached
   });
 
-  it("Merge any получает вход от остальных веток — отключённый источник просто «не пришёл»", async () => {
+  it("Merge any receives input from the other branches; a disabled source simply \"did not arrive\"", async () => {
     const f = flow(
       [node("a", "source", { json: { a: 1 } }), off(node("b", "source", { json: { b: 2 } })), node("m", "merge", { mode: "array", wait: "any" }), node("r", "result")],
       [edge("a", "m", "out0", "in0", "ea"), edge("b", "m", "out0", "in1", "eb"), edge("m", "r")],
@@ -33,7 +33,7 @@ describe("отключённая нода", () => {
     expect((await run(f)).done?.result).toEqual([{ a: 1 }]);
   });
 
-  it("отключённый триггер не стартует; если отключены все — запуск идёт от источников данных; явный запуск отключённого — ошибка", async () => {
+  it("a disabled trigger does not start; if all are disabled the run goes from data sources; an explicit run of a disabled one is an error", async () => {
     const f = flow(
       [off(node("m1", "manual")), node("m2", "manual"), node("c1", "code", { code: "return { out0: 1 }" }), node("c2", "code", { code: "return { out0: 2 }" }), node("r1", "result"), node("r2", "result")],
       [edge("m1", "c1"), edge("c1", "r1"), edge("m2", "c2"), edge("c2", "r2")],
@@ -41,18 +41,18 @@ describe("отключённая нода", () => {
     const r = await run(f);
     expect(r.started).toEqual(["m2", "c2", "r2"]);
     expect((await run(f, { trigger: "m1" })).done?.error).toMatch(/Trigger "m1" is disabled/);
-    // отключён единственный триггер, источников нет — стартовать нечему, это не «запуск без триггеров»
+    // the only trigger is disabled and there are no sources: nothing to start, and this is not a "run without triggers"
     const solo = flow([off(node("m", "manual")), node("c", "noop"), node("r", "result")], [edge("m", "c"), edge("c", "r")]);
     expect((await run(solo)).started).toEqual([]);
   });
 
-  it("параметры отключённой ноды не проверяются (её можно оставить недоделанной); у включённой — проверяются", () => {
-    const broken = node("h", "http_request", {}); // url обязателен
+  it("parameters of a disabled node are not validated (it can be left unfinished); those of an enabled one are", () => {
+    const broken = node("h", "http_request", {}); // url is required
     expect(validateFlow(flow([broken], []), registry).ok).toBe(false);
     expect(validateFlow(flow([off(broken)], []), registry).ok).toBe(true);
   });
 
-  it("отключённый инструмент и банк памяти недоступны хозяину; отключённый вызов не занимает канал", async () => {
+  it("a disabled tool and memory bank are unavailable to the host; a disabled call does not occupy the channel", async () => {
     const f = flow(
       [node("s", "source", { json: { x: 1 } }), node("a", "code_agent", { code: "return { out0: { tools: tools.list().map((t) => t.name), mem: typeof memory } }" }), off(node("t", "tool_calculator")), node("t2", "tool_datetime"), node("r", "result")],
       [edge("s", "a"), edge("a", "r"), edge("t", "a", "tool", "tools", "et1"), edge("t2", "a", "tool", "tools", "et2")],
@@ -60,15 +60,15 @@ describe("отключённая нода", () => {
     expect((await run(f)).done?.result).toEqual({ tools: ["current_datetime"], mem: "undefined" });
     const a: Flow = { ...flow([node("in", "call_trigger", { channelId: "c" })], []), id: "A" };
     const b: Flow = { ...flow([off(node("in", "call_trigger", { channelId: "c" }))], []), id: "B" };
-    expect(validateCallChannels(a, [b])).toEqual([]); // отключённый Collector в другом флоу канал не занимает
+    expect(validateCallChannels(a, [b])).toEqual([]); // a disabled Collector in another flow does not occupy the channel
     expect(findIncoming([a, b], "c").flow.id).toBe("A");
   });
 });
 
-describe("отключённый триггер и планировщик", () => {
+describe("disabled trigger and the scheduler", () => {
   afterEach(() => vi.useRealTimers());
 
-  it("таймер Every и вебхук отключённой ноды не регистрируются; включённые — регистрируются", async () => {
+  it("the Every timer and webhook of a disabled node are not registered; enabled ones are", async () => {
     vi.useFakeTimers();
     const calls: string[] = [];
     const scheduler = new Scheduler({
@@ -92,7 +92,7 @@ describe("отключённый триггер и планировщик", () =
     expect(scheduler.findWebhook("POST", "off-hook")).toBeUndefined();
     expect(scheduler.findWebhook("POST", "on-hook")).toBeDefined();
     await vi.advanceTimersByTimeAsync(2_000);
-    expect(calls).toEqual(["ev2"]); // отключённый Every (1 с) не тикал
+    expect(calls).toEqual(["ev2"]); // the disabled Every (1 s) did not tick
     scheduler.stop();
   });
 });

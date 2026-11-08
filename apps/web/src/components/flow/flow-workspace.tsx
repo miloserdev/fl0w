@@ -28,13 +28,13 @@ import { FlowEditor, type EditorInfo } from "./flow-editor";
 type ServerEntry = { id: string; name: string; status: "draft" | "published" };
 
 /**
- * Рабочее пространство: несколько флоу во вкладках. Каждая вкладка — отдельный смонтированный редактор со своим холстом и запуском;
- * неактивные скрыты, но продолжают жить. Опубликованные флоу работают на сервере независимо от открытых вкладок и вызывают друг друга по каналам.
+ * Workspace: several flows in tabs. Each tab is a separately mounted editor with its own canvas and run;
+ * inactive ones are hidden but stay alive. Published flows run on the server regardless of open tabs and call each other via channels.
  */
 export function FlowWorkspace() {
   const t = useTranslations("tabs");
   const [state, setState] = useState<TabsState | null>(null);
-  /** Версия содержимого вкладки: меняется, когда флоу в ней заменён целиком (открытие файла) — редактор перемонтируется. */
+  /** Tab content version: changes when the flow in it is replaced entirely (opening a file) — the editor is remounted. */
   const [revs, setRevs] = useState<Record<string, number>>({});
   const [infos, setInfos] = useState<Record<string, EditorInfo>>({});
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +42,7 @@ export function FlowWorkspace() {
   const [renaming, setRenaming] = useState<string | null>(null);
   const stateRef = useRef<TabsState | null>(null);
 
-  // Восстановление после гидратации (на сервере localStorage нет): в таймере — не setState внутри эффекта.
+  // Restoring after hydration (there is no localStorage on the server): in a timer — not a setState inside an effect.
   useEffect(() => {
     const timer = setTimeout(() => setState(loadTabs(localStorage, () => ({ id: newFlowId(), name: "flow" }))), 0);
     return () => clearTimeout(timer);
@@ -74,7 +74,7 @@ export function FlowWorkspace() {
 
   const newTab = () => addTab({ id: newFlowId(), name: nextName(stateRef.current?.tabs ?? []) });
 
-  /** Флоу из файла: уже открытый с тем же id заменяется целиком (как раньше), иначе открывается новая вкладка. */
+  /** Flow from a file: an already open one with the same id is replaced entirely (as before), otherwise a new tab opens. */
   const openFile = (flow: Flow) => {
     const cur = stateRef.current;
     if (cur && !cur.tabs.some((x) => x.id === flow.id) && cur.tabs.length >= MAX_TABS) return setError(t("tooMany", { max: MAX_TABS }));
@@ -108,7 +108,7 @@ export function FlowWorkspace() {
 
   const close = (id: string) => {
     const info = infos[id];
-    // несохранённый на сервере флоу с содержимым пропадёт вместе с вкладкой — спрашиваем
+    // a flow not saved on the server with content will vanish with the tab — ask
     if (info && !info.hasServerCopy && info.nodeCount > 0 && !window.confirm(t("confirmClose"))) return;
     removeFlow(localStorage, id);
     setInfos((m) => Object.fromEntries(Object.entries(m).filter(([k]) => k !== id)));

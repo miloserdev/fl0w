@@ -13,7 +13,7 @@ import {
 
 const themes = ["light", "dark", "system"] as const;
 
-/** Подменю «Тема» для меню настроек. */
+/** "Theme" submenu for the settings menu. */
 export function ThemeSubmenu() {
   const t = useTranslations("theme");
   const { theme, setTheme } = useTheme();

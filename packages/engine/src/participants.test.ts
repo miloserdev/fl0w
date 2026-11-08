@@ -6,8 +6,8 @@ import type { RunnerEvent } from "@fl0w/schema";
 
 const part = (f: ReturnType<typeof flow>, trigger?: string) => [...participatingNodes(f, testRegistry, trigger)].sort();
 
-describe("participatingNodes: от каких нод идёт запуск", () => {
-  it("без триггеров стартуют источники данных; всё достижимое участвует", () => {
+describe("participatingNodes: which nodes the run starts from", () => {
+  it("without triggers, data sources start; everything reachable takes part", () => {
     const f = flow(
       [node("s", "source", { json: 1 }), node("t", "transform"), node("r", "result"), node("orphan", "transform"), node("orphanRes", "result")],
       [edge("s", "t"), edge("t", "r")],
@@ -15,7 +15,7 @@ describe("participatingNodes: от каких нод идёт запуск", () 
     expect(part(f)).toEqual(["r", "s", "t"]);
   });
 
-  it("с триггерами стартуют только они: «лишний» Source вне связи с триггером не участвует", () => {
+  it("with triggers only they start: an \"extra\" Source with no link to a trigger does not take part", () => {
     const f = flow(
       [node("m", "manual"), node("r1", "result"), node("s", "source", { json: 1 }), node("r2", "result")],
       [edge("m", "r1"), edge("s", "r2")],
@@ -23,7 +23,7 @@ describe("participatingNodes: от каких нод идёт запуск", () 
     expect(part(f)).toEqual(["m", "r1"]);
   });
 
-  it("Source, питающий ноду после триггера, участвует", () => {
+  it("a Source feeding a node after a trigger takes part", () => {
     const f = flow(
       [node("m", "manual"), node("s", "source", { json: 1 }), node("j", "join"), node("r", "result"), node("other", "source", { json: 2 })],
       [edge("m", "j", "out0", "in0"), edge("s", "j", "out0", "in1"), edge("j", "r")],
@@ -31,7 +31,7 @@ describe("participatingNodes: от каких нод идёт запуск", () 
     expect(part(f)).toEqual(["j", "m", "r", "s"]);
   });
 
-  it("при плановом запуске только выбранный триггер и его ветка", () => {
+  it("in a scheduled run only the chosen trigger and its branch", () => {
     const f = flow(
       [node("a", "every"), node("b", "every"), node("ra", "result"), node("rb", "result")],
       [edge("a", "ra"), edge("b", "rb")],
@@ -40,19 +40,19 @@ describe("participatingNodes: от каких нод идёт запуск", () 
     expect(part(f)).toEqual(["a", "b", "ra", "rb"]);
   });
 
-  it("пустой флоу и флоу без стартовых нод — никто не участвует", () => {
+  it("an empty flow and a flow without start nodes: nobody takes part", () => {
     expect(part(flow([], []))).toEqual([]);
     expect(part(flow([node("t", "transform"), node("r", "result")], [edge("t", "r")]))).toEqual([]);
   });
 });
 
-describe("запуск не трогает ноды без связи со стартом", () => {
-  it("брошенные на холст ноды не выполняются (раньше выполнялась любая нода без подключённых входов)", async () => {
+describe("a run does not touch nodes unconnected to the start", () => {
+  it("nodes dropped onto the canvas are not executed (previously any node without connected inputs was executed)", async () => {
     const f = flow(
       [
         node("s", "source", { json: 5 }),
         node("res", "result"),
-        // «сиротские» ноды: ничего не подключено
+        // "orphan" nodes: nothing is connected
         node("lone", "transform"),
         node("loneBoom", "boom"),
         node("loneRes", "result"),
@@ -62,10 +62,10 @@ describe("запуск не трогает ноды без связи со ст�
     );
     const { started, done } = await collect(f);
     expect(started).toEqual(["s", "res"]);
-    expect(done).toEqual({ event: "flow:done", result: 5 }); // boom не выполнялся — иначе был бы flow:done с ошибкой
+    expect(done).toEqual({ event: "flow:done", result: 5 }); // boom was not executed, otherwise there would be a flow:done with an error
   });
 
-  it("лишний Source не запускается, если во флоу есть триггер", async () => {
+  it("an extra Source does not start if the flow has a trigger", async () => {
     const f = flow(
       [node("m", "manual"), node("r1", "result"), node("s", "source", { json: 1 }), node("r2", "result")],
       [edge("m", "r1"), edge("s", "r2")],
@@ -74,7 +74,7 @@ describe("запуск не трогает ноды без связи со ст�
     expect(started).toEqual(["m", "r1"]);
   });
 
-  it("Source, питающий ветку триггера, выполняется", async () => {
+  it("a Source feeding the trigger's branch is executed", async () => {
     const f = flow(
       [node("m", "manual"), node("s", "source", { json: "B" }), node("j", "join"), node("r", "result")],
       [edge("m", "j", "out0", "in0"), edge("s", "j", "out0", "in1"), edge("j", "r")],
@@ -84,17 +84,17 @@ describe("запуск не трогает ноды без связи со ст�
     expect((done?.result as { b: string }).b).toBe("B");
   });
 
-  it("нода с подключённым ТОЛЬКО частью входов ждёт остальные (wait-all сохранён)", async () => {
+  it("a node with ONLY some of its inputs connected waits for the rest (wait-all is preserved)", async () => {
     const f = flow(
       [node("s", "source", { json: 1 }), node("m", "merge"), node("r", "result")],
-      [edge("s", "m", "out0", "in0"), edge("m", "r")], // из четырёх входов Merge подключён один — ждёт только его
+      [edge("s", "m", "out0", "in0"), edge("m", "r")], // of Merge's four inputs one is connected; it waits only for that one
     );
     const { started, done } = await collect(f);
     expect(started).toEqual(["s", "m", "r"]);
     expect(done?.result).toEqual([1]);
   });
 
-  it("в отдельном процессе правило то же", async () => {
+  it("the same rule in a separate process", async () => {
     const f = flow(
       [node("s", "source", { json: 1 }), node("res", "result"), node("lone", "code", { code: "throw new Error('must not run')" }), node("loneRes", "result")],
       [edge("s", "res"), edge("lone", "loneRes")],

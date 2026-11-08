@@ -1,9 +1,9 @@
-/** Node-only. Серверное хранилище флоу: по JSON-файлу на флоу. */
+/** Node-only. Server-side flow storage: one JSON file per flow. */
 import { mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { flowSchema, type Flow } from "@fl0w/schema";
 
-/** id попадает в имя файла — допускаем только безопасные символы (никаких `..` и `/`). */
+/** The id ends up in a file name, so only safe characters are allowed (no `..` or `/`). */
 const SAFE_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
 export const isSafeFlowId = (id: string): boolean => SAFE_ID.test(id);
@@ -26,7 +26,7 @@ export class FlowStore {
     }
   }
 
-  /** Запись атомарная: во временный файл, затем rename — рестарт посреди записи не оставит битый флоу. */
+  /** Writes are atomic: to a temp file, then rename, so a restart mid-write cannot leave a corrupt flow. */
   async put(flow: Flow): Promise<void> {
     const file = this.file(flow.id);
     await mkdir(this.dir, { recursive: true });
@@ -35,7 +35,7 @@ export class FlowStore {
     await rename(tmp, file);
   }
 
-  /** Все читаемые флоу; битые файлы пропускаются (о них сообщает onCorrupt). */
+  /** All readable flows; corrupt files are skipped (reported through onCorrupt). */
   async list(onCorrupt?: (file: string, error: unknown) => void): Promise<Flow[]> {
     let names: string[];
     try {

@@ -9,9 +9,9 @@ const Monaco = dynamic(() => import("@monaco-editor/react"), {
   loading: () => <div className="text-muted-foreground p-3 text-sm">…</div>,
 });
 
-// Код блока — тело функции: `return` и `await` на верхнем уровне здесь законны.
+// Block code is a function body: `return` and `await` at the top level are legal here.
 const IGNORED_TS_CODES = [1108, 1375, 1378];
-// Фон редактора прозрачный — иначе он закрасит «стекло» окна, в котором лежит.
+// The editor background is transparent — otherwise it would paint over the window's "glass" it sits in.
 const CLEAR = { "editor.background": "#00000000", "editorGutter.background": "#00000000" };
 const ENV_LIB_URI = "inmemory://fl0w/env.d.ts";
 
@@ -24,7 +24,7 @@ export function CodeEditor({
   language: "css" | "javascript";
   value: string;
   onChange: (code: string) => void;
-  /** d.ts окружения (inputs / params / log / fetch) для автокомплита в JS. */
+  /** d.ts of the environment (inputs / params / log / fetch) for JS autocompletion. */
   envTypes?: string;
 }) {
   const { resolvedTheme } = useTheme();
@@ -46,8 +46,8 @@ export function CodeEditor({
   return (
     <Monaco
       language={language}
-      // неуправляемый режим: при быстром наборе prop `value` отстаёт от текста в редакторе, и обёртка
-      // перезаписывала документ целиком — курсор прыгал в конец. Внешняя замена значения — через key у родителя.
+      // uncontrolled mode: with fast typing the `value` prop lags behind the editor text, and the wrapper
+      // overwrote the whole document — the cursor jumped to the end. To replace the value from outside, use a key on the parent.
       defaultValue={value}
       theme={resolvedTheme === "dark" ? "fl0w-dark" : "fl0w-light"}
       beforeMount={beforeMount}

@@ -18,20 +18,20 @@ const sample = (id: string, status?: "draft" | "published") => ({
 });
 
 describe("FlowStore", () => {
-  it("put → get возвращает тот же флоу вместе со статусом", async () => {
+  it("put → get returns the same flow together with its status", async () => {
     const store = new FlowStore(dir);
     await store.put(sample("flow_a", "published"));
     expect(await store.get("flow_a")).toEqual(sample("flow_a", "published"));
   });
 
-  it("создаёт каталог при первой записи; несуществующий флоу → null", async () => {
+  it("creates the directory on first write; a nonexistent flow → null", async () => {
     const store = new FlowStore(path.join(dir, "nested", "deeper"));
     expect(await store.get("nope")).toBeNull();
     await store.put(sample("flow_a"));
     expect(await store.get("flow_a")).not.toBeNull();
   });
 
-  it("put перезаписывает без временных файлов", async () => {
+  it("put overwrites without temp files", async () => {
     const store = new FlowStore(dir);
     await store.put(sample("flow_a", "draft"));
     await store.put(sample("flow_a", "published"));
@@ -39,7 +39,7 @@ describe("FlowStore", () => {
     expect(readdirSync(dir)).toEqual(["flow_a.json"]);
   });
 
-  it("list отдаёт все флоу, пропуская битые и сообщая о них", async () => {
+  it("list returns all flows, skipping corrupt ones and reporting them", async () => {
     const store = new FlowStore(dir);
     await store.put(sample("flow_b"));
     await store.put(sample("flow_a"));
@@ -52,11 +52,11 @@ describe("FlowStore", () => {
     expect(corrupt.sort()).toEqual(["broken.json", "wrong.json"]);
   });
 
-  it("list пустого/отсутствующего каталога → []", async () => {
+  it("list of an empty/missing directory → []", async () => {
     expect(await new FlowStore(path.join(dir, "missing")).list()).toEqual([]);
   });
 
-  it("небезопасные id отвергаются (path traversal)", async () => {
+  it("unsafe ids are rejected (path traversal)", async () => {
     const store = new FlowStore(dir);
     for (const id of ["../evil", "a/b", "a\\b", "", ".", "..", "x".repeat(65), "a b"]) {
       expect(isSafeFlowId(id), id).toBe(false);
@@ -66,7 +66,7 @@ describe("FlowStore", () => {
     expect(readdirSync(dir)).toEqual([]);
   });
 
-  it("безопасные id", () => {
+  it("safe ids", () => {
     for (const id of ["flow_abc123", "a", "A-b_9"]) expect(isSafeFlowId(id)).toBe(true);
   });
 });

@@ -2,9 +2,9 @@ import { z } from "zod";
 import { jsonSchema } from "./json";
 
 /**
- * Вид порта: `data` — обычный порт данных; `tool` и `memory` — порты подключения «ресурсов» (инструментов и памяти) к
- * ноде-хозяину, как sub-nodes у AI Agent в n8n. Соединяются только порты одного вида. Рёбра ресурсов не участвуют в потоке
- * данных (порядок, ожидание входов, циклы): хозяин получает ресурсы в `ctx` при запуске.
+  * Port kind: `data` is a regular data port; `tool` and `memory` are ports that attach "resources" (tools and memory) to
+  * the host node, like the sub-nodes of AI Agent in n8n. Only ports of the same kind connect. Resource edges do not take part in the data
+  * flow (order, input waiting, cycles): the host receives the resources in `ctx` at run time.
  */
 export const PORT_KINDS = ["data", "tool", "memory"] as const;
 export const portKindSchema = z.enum(PORT_KINDS);
@@ -13,9 +13,9 @@ export type PortKind = z.infer<typeof portKindSchema>;
 export const portDefSchema = z.object({
   id: z.string().min(1),
   label: z.string().optional(),
-  /** Нет поля = data. */
+  /** No field = data. */
   kind: portKindSchema.optional(),
-  /** Порт принимает несколько рёбер (инструменты); у остальных — одно. */
+  /** The port accepts several edges (tools); the others accept one. */
   multiple: z.boolean().optional(),
 });
 export type PortDef = z.infer<typeof portDefSchema>;
@@ -32,23 +32,23 @@ const paramBase = {
   required: z.boolean().optional(),
   default: jsonSchema.optional(),
   /**
-   * false — движок НЕ подставляет в значение выражения `{{ inputs… }}` (код пользователя, скрипт Shell:
-   * там `{{` — часть языка, а подстановка в скрипт была бы внедрением команд). По умолчанию подставляет.
+   * false: the engine does NOT substitute `{{ inputs… }}` expressions into the value (user code, Shell script:
+   * there `{{` is part of the language, and substituting into a script would be command injection). Substitutes by default.
    */
   expressions: z.boolean().optional(),
-  /** Подсказка редактору: подсказки из серверных данных — каналы call-пар: "channel-in" (для входящего: занятые) / "channel-out" (для исходящего: доступные входящие). */
+  /** Hint for the editor: hints from server data, the call-pair channels: "channel-in" (for incoming: busy ones) / "channel-out" (for outgoing: available incoming ones). */
   picker: z.enum(["channel-in", "channel-out"]).optional(),
-  /** "code" — параметр редактируется во вкладке кода (Monaco, JS), а не в авто-форме. */
+  /** "code": the parameter is edited in the code tab (Monaco, JS) rather than in the auto-form. */
   editor: z.literal("code").optional(),
   /**
-   * Условная видимость (как displayOptions в n8n): параметр показывается и проверяется, только когда значение
-   * другого параметра (`param`) — одно из `in`. Скрытый параметр не требуется и не валидируется.
+   * Conditional visibility (like displayOptions in n8n): the parameter is shown and validated only when the value
+   * of another parameter (`param`) is one of `in`. A hidden parameter is not required and not validated.
    */
   showWhen: z.object({ param: z.string().min(1), in: z.array(z.string()).min(1) }).optional(),
 };
 
 export const paramSchemaSchema = z.discriminatedUnion("type", [
-  // multiline — многострочное поле (скрипты, шаблоны); иначе однострочное
+  // multiline: multi-line field (scripts, templates); otherwise single-line
   z.object({ ...paramBase, type: z.literal("string"), multiline: z.boolean().optional() }),
   z.object({
     ...paramBase,
@@ -62,7 +62,7 @@ export const paramSchemaSchema = z.discriminatedUnion("type", [
     type: z.literal("enum"),
     options: z.array(z.object({ value: z.string(), label: z.string().optional() })).min(1),
   }),
-  // выбор нескольких значений из списка (галочки); значение — массив строк
+  // choosing several values from a list (checkboxes); the value is an array of strings
   z.object({
     ...paramBase,
     type: z.literal("multienum"),

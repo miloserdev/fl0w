@@ -1,7 +1,7 @@
 import type { Edge } from "@xyflow/react";
 import { getPorts, nodePortKind, type BlockNodeType } from "./flow-convert";
 
-/** true, если из `from` по рёбрам можно дойти до `to` (нужно для запрета циклов). */
+/** true if `to` can be reached from `from` along the edges (needed to forbid cycles). */
 export function reaches(edges: Edge[], from: string, to: string): boolean {
   const seen = new Set<string>();
   const stack = [from];
@@ -18,8 +18,8 @@ export function reaches(edges: Edge[], from: string, to: string): boolean {
 type Conn = { source: string; target: string; sourceHandle?: string | null; targetHandle?: string | null };
 
 /**
- * Можно ли провести ребро: порты существуют и одного вида; порт без `multiple` принимает одно ребро;
- * граф данных остаётся DAG (ресурсные рёбра на циклы не проверяются).
+ * Whether an edge can be drawn: the ports exist and are of the same kind; a port without `multiple` accepts one edge;
+ * the data graph stays a DAG (resource edges are not checked for cycles).
  */
 export function canConnect(nodes: Pick<BlockNodeType, "id" | "data">[], edges: Edge[], c: Conn): boolean {
   if (c.source === c.target) return false;

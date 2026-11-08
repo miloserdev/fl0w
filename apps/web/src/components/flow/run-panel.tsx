@@ -8,14 +8,14 @@ import { FLOATING } from "@/lib/floating";
 import { cn } from "@/lib/utils";
 import type { RunState } from "./use-run";
 
-/** Окно запуска: статус, результат из Result, ошибки нод и логи. Лежит в правой колонке редактора (под ним — данные выбранной ноды). */
+/** Run window: status, the Result output, node errors and logs. Sits in the right column of the editor (the selected node's data is below it). */
 export function RunPanel({
   state,
   live,
   onClose,
 }: {
   state: RunState;
-  /** Включён Watch: окно живёт, пока наблюдение включено, даже когда запусков ещё не было. */
+  /** Watch is on: the window lives as long as watching is on, even when there have been no runs yet. */
   live?: { connected: boolean };
   onClose: () => void;
 }) {

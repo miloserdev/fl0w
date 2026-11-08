@@ -1,15 +1,15 @@
-/** Node-only. Опрос Bot API (getUpdates) для Telegram Trigger. Экспортируется через `@fl0w/engine/server`. */
+/** Node-only. Bot API polling (getUpdates) for Telegram Trigger. Exported via `@fl0w/engine/server`. */
 import { callTelegram, TELEGRAM_OPT_IN_UPDATES, TELEGRAM_UPDATE_TYPES, TelegramError, type TelegramSpec } from "@fl0w/blocks";
 import type { Json } from "@fl0w/schema";
 import type { TelegramPollFactory } from "./scheduler";
 
 export type TelegramPollerOptions = {
-  /** Длительность одного long-poll запроса, с. */
+  /** Duration of one long-poll request, s. */
   pollTimeoutSec?: number;
-  /** Паузы между повторами после сбоя: минимум и максимум, мс (растёт вдвое). */
+  /** Pauses between retries after a failure: minimum and maximum, ms (doubles each time). */
   retryMinMs?: number;
   retryMaxMs?: number;
-  /** Паузы для «известных» отказов: неверный токен (401) и конфликт опроса/вебхука (409), мс. */
+  /** Pauses for "known" refusals: a wrong token (401) and a polling/webhook conflict (409), ms. */
   unauthorizedWaitMs?: number;
   conflictWaitMs?: number;
   log?: (msg: string) => void;
@@ -19,11 +19,11 @@ type Sub = { spec: TelegramSpec; onUpdate: (update: Json) => void };
 type Bot = {
   token: string;
   subs: Set<Sub>;
-  /** Остановка всего опроса (последний подписчик ушёл). */
+  /** Stop the whole polling (the last subscriber left). */
   abort: AbortController;
-  /** Остановка только текущего запроса — когда изменился набор нужных типов обновлений. */
+  /** Stop only the current request, when the set of needed update types changed. */
   restart: AbortController;
-  /** allowed_updates текущего запроса — чтобы заметить, что набор изменился. */
+  /** allowed_updates of the current request, to notice that the set changed. */
   requested?: string;
   offset?: number;
 };
@@ -42,13 +42,13 @@ const sleep = (ms: number, signal: AbortSignal) =>
     signal.addEventListener("abort", done, { once: true });
   });
 
-/** Идентификатор бота для логов (часть токена до двоеточия) — сам токен в логи не попадает. */
+/** Bot identifier for logs (the part of the token before the colon); the token itself never reaches the logs. */
 const botId = (token: string) => token.split(":")[0]!;
 
 const asObject = (v: Json | undefined): { [k: string]: Json } | null =>
   v !== null && typeof v === "object" && !Array.isArray(v) ? v : null;
 
-/** id чата и пользователя из обновления: у разных типов они лежат в разных местах. */
+/** Chat and user id from an update: different update types keep them in different places. */
 function actors(update: { [k: string]: Json }, key: string) {
   const body = asObject(update[key]);
   const inner = asObject(body?.["message"]); // callback_query.message
@@ -57,7 +57,7 @@ function actors(update: { [k: string]: Json }, key: string) {
   return { chatId: chat?.["id"] !== undefined ? String(chat["id"]) : null, userId: user?.["id"] !== undefined ? String(user["id"]) : null };
 }
 
-/** Подходит ли обновление подписке: тип, затем ограничения по чатам и пользователям. */
+/** Whether an update fits a subscription: the type first, then chat and user restrictions. */
 export function updateMatches(spec: TelegramSpec, update: { [k: string]: Json }): boolean {
   const key = Object.keys(update).find((k) => k !== "update_id");
   if (!key) return false;
@@ -71,9 +71,9 @@ export function updateMatches(spec: TelegramSpec, update: { [k: string]: Json })
 }
 
 /**
- * Один опрос на токен, раздача обновлений всем подписчикам этого бота. Telegram позволяет только одному
- * потребителю читать getUpdates, поэтому несколько триггеров с одним токеном делят цикл. Подтверждение обновлений —
- * через offset на следующем запросе (после раздачи), поэтому при падении сервера необработанное не теряется.
+ * One poll per token, distributing updates to all subscribers of that bot. Telegram lets only one
+ * consumer read getUpdates, so several triggers with one token share the loop. Updates are acknowledged
+ * through offset on the next request (after distribution), so unprocessed ones are not lost if the server crashes.
  */
 export function createTelegramPoller(opts: TelegramPollerOptions = {}): TelegramPollFactory {
   const pollSec = opts.pollTimeoutSec ?? 25;
@@ -96,12 +96,12 @@ export function createTelegramPoller(opts: TelegramPollerOptions = {}): Telegram
       try {
         sub.onUpdate(update);
       } catch {
-        // сломанный подписчик не должен останавливать раздачу остальным
+        // a broken subscriber must not stop delivery to the others
       }
     }
   };
 
-  /** Набор типов изменился → висящий запрос (со старым allowed_updates) обрываем и начинаем новый. */
+  /** The set of types changed → abort the hanging request (with the old allowed_updates) and start a new one. */
   const refresh = (bot: Bot) => {
     if (bot.requested !== undefined && bot.requested !== wantedUpdates(bot).sort().join(",")) bot.restart.abort();
   };
@@ -117,7 +117,7 @@ export function createTelegramPoller(opts: TelegramPollerOptions = {}): Telegram
         if (!dropChecked) {
           dropChecked = true;
           if ([...bot.subs].some((s) => s.spec.dropPending)) {
-            // последнее обновление: всё накопленное до него отбрасывается подтверждением offset
+            // the last update: everything accumulated before it is discarded by acknowledging the offset
             const last = await callTelegram(bot.token, "getUpdates", { offset: -1, timeout: 0 }, { signal, timeoutMs: 15_000 });
             const o = Array.isArray(last) ? asObject(last[last.length - 1]) : null;
             if (o && typeof o["update_id"] === "number") bot.offset = o["update_id"] + 1;
@@ -143,7 +143,7 @@ export function createTelegramPoller(opts: TelegramPollerOptions = {}): Telegram
         }
       } catch (e) {
         if (signal.aborted) return;
-        if (bot.restart.signal.aborted) continue; // смена набора типов: сразу новый запрос, без паузы и записи в лог
+        if (bot.restart.signal.aborted) continue; // set of types changed: new request right away, without a pause or log entry
         const message = e instanceof Error ? e.message : String(e);
         let wait = backoff;
         if (e instanceof TelegramError && e.code === 401) wait = opts.unauthorizedWaitMs ?? 60_000;
@@ -154,9 +154,9 @@ export function createTelegramPoller(opts: TelegramPollerOptions = {}): Telegram
           lastError = message;
           const hint =
             e instanceof TelegramError && e.code === 409
-              ? " — у бота активен вебхук или getUpdates уже опрашивает другой клиент"
+              ? " — the bot has a webhook active or another client is already polling getUpdates"
               : e instanceof TelegramError && e.code === 401
-                ? " — токен отклонён"
+                ? " — token rejected"
                 : "";
           log(`telegram bot ${id}: polling failed: ${message}${hint}; retry in ${Math.round(wait / 1000)} s`);
         }
@@ -172,7 +172,7 @@ export function createTelegramPoller(opts: TelegramPollerOptions = {}): Telegram
       bot = { token: spec.token, subs: new Set(), abort: new AbortController(), restart: new AbortController() };
       bots.set(spec.token, bot);
       bot.subs.add(sub);
-      // старт отложен на микрозадачу: подписчики, пришедшие в том же такте, попадут в первый же запрос
+      // start is deferred by a microtask: subscribers arriving in the same tick get into the very first request
       const first = bot;
       queueMicrotask(() => void loop(first));
     } else {
@@ -184,7 +184,7 @@ export function createTelegramPoller(opts: TelegramPollerOptions = {}): Telegram
     return () => {
       mine.subs.delete(sub);
       if (mine.subs.size === 0) {
-        mine.abort.abort(); // обрывает и висящий long-poll запрос
+        mine.abort.abort(); // also aborts the hanging long-poll request
         if (bots.get(spec.token) === mine) bots.delete(spec.token);
       } else refresh(mine);
     };

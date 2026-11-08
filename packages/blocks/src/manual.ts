@@ -1,6 +1,6 @@
 import { Block } from "./block";
 
-/** Manual Trigger: точка старта при ручном запуске. По расписанию и входящим запросам не срабатывает. */
+/** Manual Trigger: the starting point of a manual run. Does not fire on a schedule or incoming requests. */
 export class ManualTrigger extends Block {
   static type = "manual";
   static label = "Manual Trigger";

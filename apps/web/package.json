@@ -1,6 +1,7 @@
 {
   "name": "@fl0w/web",
   "version": "0.1.0",
+  "license": "GPL-2.0-only",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -16,7 +17,6 @@
     "@fl0w/schema": "workspace:*",
     "@monaco-editor/react": "^4.7.0",
     "@xyflow/react": "^12.12.0",
-    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "imapflow": "^2.10.0",
     "lucide-react": "^1.63.0",

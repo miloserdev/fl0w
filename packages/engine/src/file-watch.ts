@@ -1,4 +1,4 @@
-/** Node-only: слежение за файлами для Local File Trigger. Экспортируется через `@fl0w/engine/server`. */
+/** Node-only: file watching for the Local File Trigger. Exported via `@fl0w/engine/server`. */
 import { watch, type FSWatcher } from "node:fs";
 import { lstat, mkdir, readdir, realpath } from "node:fs/promises";
 import path from "node:path";
@@ -7,9 +7,9 @@ import type { Json } from "@fl0w/schema";
 import type { FileWatchFactory } from "./scheduler";
 
 export type FileWatcherOptions = {
-  /** Каталог файлов (`FL0W_FILES_DIR`) — выше него следить нельзя. */
+  /** Files directory (`FL0W_FILES_DIR`); watching above it is not allowed. */
   baseDir: string;
-  /** Пачка событий одного файла (создание + несколько записей) сворачивается в одно срабатывание. */
+  /** A burst of events for one file (create + several writes) is collapsed into one trigger. */
   debounceMs?: number;
   log?: (msg: string) => void;
 };
@@ -17,9 +17,9 @@ export type FileWatcherOptions = {
 const MAX_SCAN_ENTRIES = 20_000;
 
 /**
- * `fs.watch` сообщает только «что-то случилось с X», поэтому тип события определяется по состоянию файла:
- * не было известного → add; подпись (mtime:size) изменилась → change; файла нет, а был → unlink.
- * Уже существующие при старте файлы считаются известными и событий не дают.
+  * `fs.watch` only reports "something happened to X", so the event type is derived from the file state:
+  * no known entry → add; signature (mtime:size) changed → change; file gone but known → unlink.
+  * Files that already exist at start are considered known and produce no events.
  */
 export function createFileWatcher(opts: FileWatcherOptions): FileWatchFactory {
   const debounceMs = opts.debounceMs ?? 100;
@@ -43,7 +43,7 @@ export function createFileWatcher(opts: FileWatcherOptions): FileWatchFactory {
       const recursive = spec.recursive && !isFile;
       const toKey = (abs: string) => path.relative(base, abs).split(path.sep).join("/");
 
-      const known = new Map<string, string>(); // относительный путь → "mtimeMs:size"
+      const known = new Map<string, string>(); // relative path → "mtimeMs:size"
       let scanned = 0;
       const scan = async (dir: string): Promise<void> => {
         for (const e of await readdir(dir, { withFileTypes: true })) {
@@ -81,7 +81,7 @@ export function createFileWatcher(opts: FileWatcherOptions): FileWatchFactory {
           if (known.delete(key)) emit("unlink", key);
           return;
         }
-        if (!s.isFile()) return; // папки и симлинки не наблюдаем
+        if (!s.isFile()) return; // directories and symlinks are not watched
         const sig = `${s.mtimeMs}:${s.size}`;
         const prev = known.get(key);
         known.set(key, sig);

@@ -3,7 +3,7 @@ import { Block } from "./block";
 import { cloneJson, deletePath, getPath, isPlainObject } from "./json-path";
 import { listAt, stableKey, stringList } from "./list-utils";
 
-/** Нестрогое сравнение (fuzzy): 3 и "3" равны; объекты и массивы — рекурсивно. */
+/** Loose comparison (fuzzy): 3 and "3" are equal; objects and arrays are compared recursively. */
 function looseEqual(a: Json | undefined, b: Json | undefined): boolean {
   if (a === b) return true;
   if (a === undefined || b === undefined || a === null || b === null) return false;
@@ -17,8 +17,8 @@ function looseEqual(a: Json | undefined, b: Json | undefined): boolean {
 }
 
 /**
- * Compare Datasets: сравнивает два списка по ключевому полю. Выходы: только в A, одинаковые, различающиеся,
- * только в B. Пустой выход данных не получает. Различия — версия A, версия B или обе (`keys`/`same`/`different`).
+ * Compare Datasets: compares two lists by a key field. Outputs: only in A, same, different,
+ * only in B. An empty output receives no data. Differences are the A version, the B version or both (`keys`/`same`/`different`).
  */
 export class CompareDatasets extends Block {
   static type = "compare_datasets";
@@ -39,7 +39,7 @@ export class CompareDatasets extends Block {
   };
   static params: ParamSchema[] = [
     { name: "fieldA", type: "string", required: true },
-    // пусто — то же поле, что у A
+    // empty means the same field as for A
     { name: "fieldB", type: "string", default: "" },
     { name: "skip", type: "json", default: [] },
     { name: "fuzzy", type: "boolean", default: false },

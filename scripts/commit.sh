@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Коммит от имени владельца (user.name/user.email из git config): без GPG-подписи и без запросов пароля (см. CLAUDE.md, «Git»).
-# Использование: scripts/commit.sh "тема" ["тело"]
-# Глобальные настройки git и ключи не трогаются: подпись отключается только ключами -c на время этой команды.
+# Commit as the owner (user.name/user.email from git config): no GPG signature and no password prompts (see CLAUDE.md, "Git").
+# Usage: scripts/commit.sh "subject" ["body"]
+# Global git settings and keys are left untouched: signing is disabled only via -c flags for the duration of this command.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
@@ -11,7 +11,7 @@ git config user.name >/dev/null && git config user.email >/dev/null || { echo "g
 git add -A
 if git diff --cached --quiet; then echo "nothing to commit"; exit 0; fi
 
-# секреты и данные сервера в коммит не попадают
+# secrets and server data never get into a commit
 if git diff --cached --name-only | grep -E '(^|/)(\.env(\..*)?|\.data/)|\.(pem|key)$' | grep -vE '(^|/)\.env\.example$' >/dev/null; then
   echo "refusing to commit: staged files look like secrets or server data:" >&2
   git diff --cached --name-only | grep -E '(^|/)(\.env(\..*)?|\.data/)|\.(pem|key)$' | grep -vE '(^|/)\.env\.example$' >&2

@@ -3,7 +3,7 @@ import type { Json, RunnerEvent } from "@fl0w/schema";
 import { runFlowInProcess } from "./spawn";
 import { edge, flow, node } from "./test-helpers";
 
-/** Всё через настоящий процесс-раннер и настоящий реестр (6 блоков MVP). */
+/** Everything through a real process runner and the real registry (6 MVP blocks). */
 async function run(f: ReturnType<typeof flow>, timeoutMs = 20000) {
   const events: RunnerEvent[] = [];
   await runFlowInProcess(f, (e) => events.push(e), { timeoutMs });
@@ -24,7 +24,7 @@ const users = [
   { name: "cat", age: 45 },
 ];
 
-describe("MVP-блоки в отдельном процессе", () => {
+describe("MVP blocks in a separate process", () => {
   it("Source → Transform(filter) → Transform(map) → Result", async () => {
     const f = flow(
       [
@@ -39,7 +39,7 @@ describe("MVP-блоки в отдельном процессе", () => {
     expect(done).toEqual({ event: "flow:done", result: [{ who: "ann" }, { who: "cat" }] });
   });
 
-  it("Branch: идёт только взятая ветка, вторая пропускается", async () => {
+  it("Branch: only the taken branch goes, the second is skipped", async () => {
     const f = flow(
       [
         node("src", "source", { json: { n: 10 } }),
@@ -62,7 +62,7 @@ describe("MVP-блоки в отдельном процессе", () => {
     expect(done?.result).toEqual({ size: "big", n: 10 });
   });
 
-  it("Code-блок получает inputs/params и пишет результат", async () => {
+  it("Code block receives inputs/params and writes the result", async () => {
     const f = flow(
       [
         node("src", "source", { json: [1, 2, 3] }),
@@ -74,7 +74,7 @@ describe("MVP-блоки в отдельном процессе", () => {
     expect((await run(f)).done?.result).toEqual({ total: 12 });
   });
 
-  it("Code: require / process недоступны — node:error, раннер жив", async () => {
+  it("Code: require / process are unavailable: node:error, the runner stays alive", async () => {
     for (const body of [`return { out0: require("fs").readdirSync("/") }`, `process.exit(1)`, `return { out0: process.env }`]) {
       const f = flow([node("s", "source", { json: 1 }), code("c", body), node("res", "result")], [edge("s", "c"), edge("c", "res")]);
       const { events, done } = await run(f);
@@ -83,13 +83,13 @@ describe("MVP-блоки в отдельном процессе", () => {
         nodeId: "c",
         error: expect.stringMatching(/(require|process) is not defined/),
       });
-      // flow:done пришёл от самого раннера, а не как «процесс упал»
+      // flow:done came from the runner itself, not as "the process crashed"
       expect(done?.error).toMatch(/^Node "c" failed: /);
       expect(done?.error).not.toMatch(/exited unexpectedly/);
     }
   });
 
-  it("Code: бесконечный цикл обрывается по таймауту, раннер не падает", async () => {
+  it("Code: an infinite loop is cut off by the timeout, the runner does not crash", async () => {
     const f = flow(
       [node("src", "source", { json: 1 }), code("loop", `while (true) {}`, { timeoutMs: 300 }), node("res", "result")],
       [edge("src", "loop"), edge("loop", "res")],
@@ -107,28 +107,28 @@ describe("MVP-блоки в отдельном процессе", () => {
     expect(done?.error).not.toMatch(/exited unexpectedly/);
   });
 
-  it("Code: ошибка кода → node:error вместо падения", async () => {
+  it("Code: a code error → node:error instead of a crash", async () => {
     const f = flow([node("s", "source", { json: 1 }), code("c", `throw new Error("custom failure")`)], [edge("s", "c")]);
     const { events, done } = await run(f);
     expect(events).toContainEqual({ event: "node:error", nodeId: "c", error: "custom failure" });
     expect(done?.error).toBe('Node "c" failed: custom failure');
   });
 
-  it("невалидные params блока отклоняются до запуска", async () => {
+  it("invalid block params are rejected before the run", async () => {
     const f = flow([node("t", "transform", { mode: "zip" })], []);
     const { events, done } = await run(f);
     expect(events).toHaveLength(1);
     expect(done?.error).toMatch(/Invalid flow: .*mode/);
   });
 
-  it("HttpRequest без url отклоняется валидацией (required)", async () => {
+  it("HttpRequest without url is rejected by validation (required)", async () => {
     const { done } = await run(flow([node("h", "http_request", {})], []));
     expect(done?.error).toMatch(/Invalid flow: .*url.*required/);
   });
 });
 
-describe("Merge в отдельном процессе", () => {
-  it("две ветки сводятся в один JSON (assign)", async () => {
+describe("Merge in a separate process", () => {
+  it("two branches merge into one JSON (assign)", async () => {
     const f = flow(
       [
         node("a", "source", { json: { name: "Ann" } }),
@@ -141,7 +141,7 @@ describe("Merge в отдельном процессе", () => {
     expect((await run(f)).done?.result).toEqual({ name: "Ann", visits: 12 });
   });
 
-  it("порядок значений — по номеру входа, а не по порядку рёбер", async () => {
+  it("the order of values follows the input number, not the order of edges", async () => {
     const f = flow(
       [
         node("a", "source", { json: "A" }),
@@ -154,7 +154,7 @@ describe("Merge в отдельном процессе", () => {
     expect((await run(f)).done?.result).toEqual(["A", "B"]);
   });
 
-  it("Merge после Branch: невзятая ветка не даёт данных — Merge не запускается (wait-all)", async () => {
+  it("Merge after Branch: the branch not taken gives no data, so Merge does not run (wait-all)", async () => {
     const f = flow(
       [
         node("s", "source", { json: 5 }),
@@ -169,7 +169,7 @@ describe("Merge в отдельном процессе", () => {
     expect(done).toEqual({ event: "flow:done" });
   });
 
-  it("логи Code-блока приходят событиями node:log из процесса", async () => {
+  it("Code block logs arrive as node:log events from the process", async () => {
     const f = flow(
       [node("s", "source", { json: 1 }), code("c", `log("hello", { a: 1 }); log("second"); return { out0: 1 }`), node("res", "result")],
       [edge("s", "c"), edge("c", "res")],
@@ -180,9 +180,9 @@ describe("Merge в отдельном процессе", () => {
   });
 });
 
-describe("порядок и своевременность событий из процесса", () => {
-  it("события нод доходят ДО окончания долгого синхронного блока", async () => {
-    // Code крутит синхронный цикл ~1.2 с: event loop раннера занят, но start/done предыдущих нод уже должны быть доставлены
+describe("order and timeliness of events from the process", () => {
+  it("node events arrive BEFORE a long synchronous block finishes", async () => {
+    // Code spins a synchronous loop for ~1.2 s: the runner's event loop is busy, but start/done of the previous nodes must already be delivered
     const f = flow(
       [
         node("src", "source", { json: 1 }),
@@ -197,8 +197,8 @@ describe("порядок и своевременность событий из �
     }, { timeoutMs: 20000 });
 
     const blocked = at["node:done:busy"]! - at["node:start:busy"]!;
-    expect(blocked).toBeGreaterThan(1000); // блок действительно работал
-    // src завершился и busy «стартовал» задолго до конца цикла, а не пачкой после него
+    expect(blocked).toBeGreaterThan(1000); // the block really did run
+    // src finished and busy "started" long before the end of the loop, not in a batch after it
     expect(at["node:done:busy"]! - at["node:done:src"]!).toBeGreaterThan(1000);
     expect(at["node:done:busy"]! - at["node:start:busy"]!).toBeGreaterThan(1000);
   });

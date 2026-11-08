@@ -12,7 +12,7 @@ import type { BlockNodeType } from "@/lib/flow-convert";
 const MIN_WIDTH = 80;
 const MIN_HEIGHT = 60;
 
-/** Рамка для изменения размера: видна у выделенной ноды; итоговый размер записывается в params. */
+/** Resize frame: visible on the selected node; the final size is written to params. */
 export function Resizer({ id, selected }: { id: string; selected?: boolean }) {
   const { updateNodeData } = useReactFlow();
   return (
@@ -31,14 +31,14 @@ export function Resizer({ id, selected }: { id: string; selected?: boolean }) {
   );
 }
 
-/** Запись одного параметра в ноду. */
+/** Writing a single parameter to the node. */
 function useSetParam(id: string) {
   const { updateNodeData } = useReactFlow();
   return (name: string, value: Json) =>
     updateNodeData(id, (n) => ({ params: { ...(n.data as BlockNodeType["data"]).params, [name]: value } }));
 }
 
-/** Стикер-заметка: цветная карточка с текстом; двойной клик — правка на месте. */
+/** Sticky note: a coloured card with text; double click edits in place. */
 export function NoteNode({ id, data, selected }: NodeProps<BlockNodeType>) {
   const t = useTranslations("node");
   const setParam = useSetParam(id);
@@ -85,8 +85,8 @@ export function NoteNode({ id, data, selected }: NodeProps<BlockNodeType>) {
 }
 
 /**
- * Группа: пунктирная рамка с заголовком. Тело не ловит мышь (клики идут к блокам внутри и к холсту),
- * группу берут за заголовок (`.fl-group-title` — dragHandle ноды).
+ * Group: a dashed frame with a title. The body does not catch the mouse (clicks go to the blocks inside and to the canvas),
+ * the group is grabbed by the title (`.fl-group-title` is the node's dragHandle).
  */
 export function GroupNode({ id, data, selected }: NodeProps<BlockNodeType>) {
   const t = useTranslations("node");
@@ -96,7 +96,7 @@ export function GroupNode({ id, data, selected }: NodeProps<BlockNodeType>) {
   const [draft, setDraft] = useState<string | null>(null);
   const locked = data.params.locked === true;
   const { setNodes } = useReactFlow();
-  // замок: у ноды React Flow свойство draggable — держим его в согласии с параметром (в том числе при правке из инспектора)
+  // lock: a React Flow node has a draggable property — keep it in sync with the parameter (including edits from the inspector)
   useEffect(() => {
     setNodes((ns) => ns.map((n) => (n.id === id && (n.draggable === false) !== locked ? { ...n, draggable: !locked } : n)));
   }, [id, locked, setNodes]);

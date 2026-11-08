@@ -11,7 +11,7 @@ function isEmpty(v: Json | undefined): boolean {
   return v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0);
 }
 
-/** Значения нода + default'ы из схемы для отсутствующих ключей. */
+/** Node values + defaults from the schema for missing keys. */
 export function resolveParams(
   schema: readonly ParamSchema[],
   values: Record<string, Json>,
@@ -23,7 +23,7 @@ export function resolveParams(
   return out;
 }
 
-/** Виден ли параметр при текущих значениях (`showWhen`); `resolved` — значения вместе с default'ами. */
+/** Whether a parameter is visible with the current values (`showWhen`); `resolved` is the values together with defaults. */
 export function isParamVisible(p: ParamSchema, resolved: Record<string, Json>): boolean {
   if (!p.showWhen) return true;
   const v = resolved[p.showWhen.param];
@@ -31,8 +31,8 @@ export function isParamVisible(p: ParamSchema, resolved: Record<string, Json>): 
 }
 
 /**
- * Значения параметров с подставленными выражениями `{{ inputs… }}` (кроме параметров с `expressions: false`).
- * Вызывается движком перед запуском блока.
+ * Parameter values with the `{{ inputs... }}` expressions substituted (except parameters with `expressions: false`).
+ * Called by the engine before running a block.
  */
 export function resolveParamExpressions(
   schema: readonly ParamSchema[],
@@ -46,13 +46,13 @@ export function resolveParamExpressions(
       out[k] = v;
       continue;
     }
-    // «целое» выражение, чей путь не найден во входе, — почти всегда опечатка: ошибка вместо тихого null/значения по умолчанию
+    // a "whole" expression whose path is not found in the input is almost always a typo: an error instead of a silent null/default value
     const whole = typeof v === "string" ? WHOLE_INPUTS_TEMPLATE.exec(v) : null;
     if (whole && getPath({ inputs } as unknown as Json, whole[1]!) === undefined) {
       throw new Error(`Parameter "${k}": expression ${JSON.stringify(v)} resolved to no value (no such field in the input)`);
     }
     const r = resolveInputsExpressions(v, inputs);
-    // строковый параметр из «целого» выражения: число/булево/объект (id чата, флаг) становятся текстом, а не ошибкой типа
+    // a string parameter from a "whole" expression: a number/boolean/object (chat id, flag) becomes text, not a type error
     out[k] = p?.type === "string" && typeof v === "string" && r !== null && typeof r !== "string" ? (typeof r === "object" ? JSON.stringify(r) : String(r)) : r;
   }
   return out;
@@ -60,13 +60,13 @@ export function resolveParamExpressions(
 
 export type ValidateOptions = {
   /**
-   * Значение-выражение (`{{ … }}`) в числовом, булевом, enum и multienum параметре не проверяется по типу и диапазону:
-   * его значение появится только при запуске, а после подстановки движок проверяет параметры ещё раз.
+   * A value that is an expression (`{{ ... }}`) in a numeric, boolean, enum or multienum parameter is not checked for type and range:
+   * its value appears only at run time, and after substitution the engine checks the parameters again.
    */
   allowExpressions?: boolean;
 };
 
-/** Проверка значений по `class.params`: required, типы, enum-опции. Неизвестные ключи игнорируются. */
+/** Check of values against `class.params`: required, types, enum options. Unknown keys are ignored. */
 export function validateParams(
   schema: readonly ParamSchema[],
   values: Record<string, Json>,
@@ -76,7 +76,7 @@ export function validateParams(
   const issues: ParamIssue[] = [];
 
   for (const p of schema) {
-    if (!isParamVisible(p, resolved)) continue; // скрытый параметр сейчас не используется
+    if (!isParamVisible(p, resolved)) continue; // a hidden parameter is not used now
     const v = resolved[p.name];
     if (isEmpty(v)) {
       if (p.required) {

@@ -7,13 +7,13 @@ import { beginWatchRun, IDLE_RUN, reduceRun, type RunState } from "./use-run";
 const RECONNECT_MS = 2000;
 
 /**
- * Живая лента запусков опубликованного флоу: подписка на /api/flows/:id/watch.
- * Сервер сначала воспроизводит последний запуск, затем шлёт новые; при обрыве — переподключение.
+ * Live feed of a published flow's runs: subscription to /api/flows/:id/watch.
+ * The server first replays the last run, then sends new ones; reconnects on disconnect.
  */
 export function useWatch(flowId: string, enabled: boolean, nodeIds: string[]) {
   const [state, setState] = useState<RunState>(IDLE_RUN);
   const [connected, setConnected] = useState(false);
-  // актуальный список нод нужен редьюсеру в долгоживущем стриме; ref обновляется вне рендера
+  // the reducer in a long-lived stream needs the current node list; the ref is updated outside of render
   const idsRef = useRef(nodeIds);
   useEffect(() => {
     idsRef.current = nodeIds;
@@ -48,7 +48,7 @@ export function useWatch(flowId: string, enabled: boolean, nodeIds: string[]) {
             }
           }
         } catch {
-          // обрыв или остановка — решает проверка ниже
+          // disconnect or stop — decided by the check below
         }
         setConnected(false);
         if (ac.signal.aborted) return;

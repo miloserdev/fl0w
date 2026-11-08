@@ -79,17 +79,17 @@ const nodeTypes = { block: BlockNode, "layout-note": NoteNode, "layout-group": G
 
 const noopSubscribe = () => () => {};
 
-/** Шаг сетки привязки (совпадает с шагом фона). */
+/** Snap-to-grid step (matches the background step). */
 const GRID = 20;
-/** Ключ настройки «привязка к сетке» в localStorage. */
+/** localStorage key of the "snap to grid" setting. */
 const SNAP_KEY = "fl0w:snap-to-grid";
 const AUTOSAVE_DELAY_MS = 400;
-/** Пауза после последней правки, после которой она становится шагом истории (ввод в поле — один шаг, а не по букве). */
+/** Pause after the last edit, after which it becomes a history step (typing in a field is one step, not one per letter). */
 const HISTORY_DELAY_MS = 350;
-/** Примерный размер ноды: чтобы новый блок встал центром, а не углом в центр экрана. */
+/** Approximate node size: so a new block lands centred, not with its corner at the screen centre. */
 const NODE_HALF = { x: 90, y: 40 };
 
-/** Цвет ноды на миникарте: заметки и группы — своим цветом, остальные — стандартным. */
+/** Node colour on the minimap: notes and groups get their own colour, the rest the standard one. */
 function miniMapColor(n: { data: unknown }): string {
   const d = n.data as BlockNodeData;
   return isLayoutBlock(d.blockType) ? layoutPalette(d.params.color).mini : "";
@@ -98,38 +98,38 @@ function miniMapColor(n: { data: unknown }): string {
 export type EditorInfo = { id: string; hasServerCopy: boolean; published: boolean; nodeCount: number; running: boolean };
 
 type EditorProps = {
-  /** Идентификатор флоу этой вкладки: содержимое автосохраняется под ним. */
+  /** Identifier of this tab's flow: the content is autosaved under it. */
   flowId: string;
   name: string;
-  /** Вкладка видна: горячие клавиши и буфер обмена работают только в активной. */
+  /** The tab is visible: hotkeys and the clipboard work only in the active one. */
   active: boolean;
   onRename: (name: string) => void;
   onInfo: (info: EditorInfo) => void;
-  /** Открыть флоу из файла: рабочее пространство решает, в какой вкладке. */
+  /** Open a flow from a file: the workspace decides in which tab. */
   onOpenFile: (flow: Flow) => void;
-  /** Флоу остальных вкладок: пробный запуск находит в них Collector для Emitter. */
+  /** Flows of the other tabs: a trial run finds a Collector for Emitter in them. */
   getOthers: () => Flow[];
 };
 
 function Editor({ flowId, name, active, onRename, onInfo, onOpenFile, getOthers }: EditorProps) {
   const t = useTranslations();
   const { resolvedTheme } = useTheme();
-  // На сервере тема неизвестна: до гидрации рендерим light, иначе class у React Flow расходится с клиентом.
+  // The theme is unknown on the server: render light until hydration, otherwise React Flow's class diverges from the client.
   const hydrated = useSyncExternalStore(noopSubscribe, () => true, () => false);
   const issueText = useIssueText();
   const { screenToFlowPosition, getEdges, getNodes, fitView } = useReactFlow();
   const [nodes, setNodes, onNodesChange] = useNodesState<BlockNodeType>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const meta = useMemo<FlowMeta>(() => ({ id: flowId, name }), [flowId, name]);
-  // привязка к сетке при перетаскивании; настройка запоминается в браузере (читается после гидратации)
+  // snap to grid while dragging; the setting is remembered in the browser (read after hydration)
   const [snap, setSnap] = useState(false);
   useEffect(() => {
-    // в таймере — не setState внутри эффекта
+    // in a timer — not a setState inside an effect
     const timer = setTimeout(() => {
       try {
         if (localStorage.getItem(SNAP_KEY) === "1") setSnap(true);
       } catch {
-        // localStorage недоступен — работаем без запоминания
+        // localStorage is unavailable — work without remembering
       }
     }, 0);
     return () => clearTimeout(timer);
@@ -139,7 +139,7 @@ function Editor({ flowId, name, active, onRename, onInfo, onOpenFile, getOthers 
       try {
         localStorage.setItem(SNAP_KEY, v ? "0" : "1");
       } catch {
-        // не критично
+        // not critical
       }
       return !v;
     });
@@ -152,17 +152,17 @@ function Editor({ flowId, name, active, onRename, onInfo, onOpenFile, getOthers 
   const [watchOn, setWatchOn] = useState(false);
   const { server, busy: publishBusy, save: saveToServer } = usePublish(meta.id);
 
-  /** Камера после программной замены нод: узлы должны успеть измериться. */
+  /** Camera after programmatically replacing nodes: the nodes must have time to be measured. */
   const fitSoon = useCallback(() => {
     setTimeout(() => void fitView({ maxZoom: 1, padding: 0.3 }), 60);
   }, [fitView]);
 
-  // Восстановление автосохранённого флоу. Не в инициализаторе state: на сервере localStorage нет,
-  // и разный первый рендер дал бы hydration mismatch. Отложено в таймер — не setState внутри эффекта.
+  // Restoring the autosaved flow. Not in the state initializer: there is no localStorage on the server,
+  // and a different first render would cause a hydration mismatch. Deferred into a timer — not a setState inside an effect.
   useEffect(() => {
     const timer = setTimeout(() => {
       try {
-        // структурно валидный флоу восстанавливаем и с неверными params — их подсветит живая валидация
+        // a structurally valid flow is restored even with wrong params — live validation will highlight them
         const saved = readFlow(localStorage, flowId);
         if (saved && saved.nodes.every((n) => registry[n.type])) {
           const rf = toReactFlow(saved);
@@ -172,36 +172,36 @@ function Editor({ flowId, name, active, onRename, onInfo, onOpenFile, getOthers 
           if (rf.nodes.length > 0) fitSoon();
         }
       } catch {
-        // нет доступа к хранилищу или битые данные — стартуем с пустого холста
+        // no access to storage or broken data — start from an empty canvas
       }
       setRestored(true);
     }, 0);
     return () => clearTimeout(timer);
-    // восстановление один раз при монтировании вкладки
+    // restore once when the tab mounts
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setNodes, setEdges, fitSoon, flowId]);
 
-  // Автосохранение с задержкой; до восстановления не пишем, иначе затрём сохранённое пустым холстом.
+  // Autosave with a delay; do not write before restoring, otherwise the saved one is overwritten with an empty canvas.
   useEffect(() => {
     if (!restored) return;
     const timer = setTimeout(() => {
-      // квота или приватный режим — автосохранение просто не работает (writeFlow глотает ошибку)
+      // quota or private mode — autosave just does not work (writeFlow swallows the error)
       writeFlow(localStorage, fromReactFlow(nodes, edges, meta));
     }, AUTOSAVE_DELAY_MS);
     return () => clearTimeout(timer);
   }, [restored, nodes, edges, meta]);
 
-  // --- история (Ctrl+Z / Ctrl+Shift+Z), буфер обмена (Ctrl+C / X / V), прочие клавиши ---
+  // --- history (Ctrl+Z / Ctrl+Shift+Z), clipboard (Ctrl+C / X / V), other keys ---
   const history = useRef(new History());
   const latest = useRef({ nodes, edges });
   useEffect(() => {
     latest.current = { nodes, edges };
   });
-  // после восстановления флоу история начинается с него: иначе Ctrl+Z «отменил» бы саму загрузку
+  // after restoring the flow, history starts from it: otherwise Ctrl+Z would "undo" the loading itself
   useEffect(() => {
     if (restored) history.current.reset({ nodes: latest.current.nodes, edges: latest.current.edges });
   }, [restored]);
-  // правка «устоялась» (мышь отпущена, ввод закончен) — в историю уходит один шаг
+  // the edit has "settled" (mouse released, typing finished) — one step goes into history
   useEffect(() => {
     if (!restored || nodes.some((n) => n.dragging)) return;
     const timer = setTimeout(() => history.current.commit({ nodes, edges }), HISTORY_DELAY_MS);
@@ -218,7 +218,7 @@ function Editor({ flowId, name, active, onRename, onInfo, onOpenFile, getOthers 
 
   useEffect(() => {
     if (!active) return;
-    /** Поле ввода, редактор кода и т.п.: там клавиши и буфер обмена принадлежат самому полю. */
+    /** An input field, code editor, etc.: there the keys and clipboard belong to the field itself. */
     const editable = (t: EventTarget | null) =>
       t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.closest(".monaco-editor, [role=dialog], [role=menu]") !== null);
     const removeSelected = () => {
@@ -253,7 +253,7 @@ function Editor({ flowId, name, active, onRename, onInfo, onOpenFile, getOthers 
     const keydown = (e: KeyboardEvent) => {
       if (editable(e.target) || e.defaultPrevented || e.isComposing) return;
       const mod = e.ctrlKey || e.metaKey;
-      // по физической клавише (code): работает и в русской раскладке
+      // by physical key (code): works in a Russian layout too
       if (mod && e.code === "KeyZ") {
         e.preventDefault();
         applyDoc(e.shiftKey ? history.current.redo() : history.current.undo());
@@ -264,7 +264,7 @@ function Editor({ flowId, name, active, onRename, onInfo, onOpenFile, getOthers 
         e.preventDefault();
         setNodes((cur) => cur.map((n) => (n.selected ? n : { ...n, selected: true })));
       } else if (mod && e.code === "KeyD") {
-        // дублировать выделенное: копирование и вставка без участия системного буфера
+        // duplicate the selection: copy and paste without the system clipboard
         e.preventDefault();
         const text = serializeSelection(latest.current.nodes, latest.current.edges);
         if (text) doPaste(text);
@@ -285,7 +285,7 @@ function Editor({ flowId, name, active, onRename, onInfo, onOpenFile, getOthers 
     };
   }, [active, applyDoc, setNodes, setEdges]);
 
-  /** Новый блок встаёт в центр видимой области и сразу выбирается — слева открывается его окно. */
+  /** A new block lands in the centre of the visible area and is selected at once — its window opens on the left. */
   const addBlock = (blockType: string) => {
     if (!registry[blockType]) return;
     const r = wrapper.current?.getBoundingClientRect();
@@ -294,7 +294,7 @@ function Editor({ flowId, name, active, onRename, onInfo, onOpenFile, getOthers 
       ? screenToFlowPosition({ x: r.left + r.width / 2 + jitter, y: r.top + r.height / 2 + jitter })
       : { x: jitter, y: jitter };
     const params = defaultParams(blockType);
-    // блоки оформления центрируются по своему размеру, обычные — по примерному
+    // decoration blocks are centred by their own size, ordinary ones by the approximate one
     const half = isResizableBlock(blockType)
       ? { x: layoutSize(blockType, params).width / 2, y: layoutSize(blockType, params).height / 2 }
       : NODE_HALF;
@@ -319,7 +319,7 @@ function Editor({ flowId, name, active, onRename, onInfo, onOpenFile, getOthers 
 
   const updateNodeData = useCallback(
     (id: string, patch: Partial<BlockNodeData>) => {
-      // порты могут зависеть от параметров (порт err у outgoing call только в режиме await): рёбра к исчезнувшим портам снимаются
+      // ports may depend on parameters (the err port of outgoing call exists only in await mode): edges to vanished ports are removed
       if (patch.params) {
         const cur = (getNodes() as BlockNodeType[]).find((n) => n.id === id);
         if (cur) {
@@ -337,7 +337,7 @@ function Editor({ flowId, name, active, onRename, onInfo, onOpenFile, getOthers 
         ns.map((n) => {
           if (n.id !== id) return n;
           const next = { ...n, data: { ...n.data, ...patch } };
-          // размер блока оформления из окна параметров → в саму ноду (хранится в params, рисуется по node.width/height)
+          // size of a decoration block from the parameters window → into the node itself (stored in params, drawn by node.width/height)
           return patch.params && isResizableBlock(n.data.blockType)
             ? { ...next, ...layoutSize(n.data.blockType, patch.params) }
             : next;
@@ -347,10 +347,10 @@ function Editor({ flowId, name, active, onRename, onInfo, onOpenFile, getOthers 
     [setNodes, setEdges, getNodes],
   );
 
-  // Живая валидация: те же правила, что в движке и API. Проблемные ноды подсвечиваются на холсте.
+  // Live validation: the same rules as in the engine and API. Problem nodes are highlighted on the canvas.
   const liveNodes = useDeferredValue(nodes);
   const liveEdges = useDeferredValue(edges);
-  // перетаскивание меняет только положение — тогда структура (и дорогая валидация всего флоу) остаётся прежней
+  // dragging changes only the position — then the structure (and the expensive validation of the whole flow) stays the same
   const [structure, setStructure] = useState({ nodes: liveNodes, edges: liveEdges });
   if ((structure.nodes !== liveNodes || structure.edges !== liveEdges) && !sameStructure(structure, { nodes: liveNodes, edges: liveEdges })) {
     setStructure({ nodes: liveNodes, edges: liveEdges });
@@ -374,19 +374,19 @@ function Editor({ flowId, name, active, onRename, onInfo, onOpenFile, getOthers 
       });
     }
     return { issues: entries, nodeIssues: byNode };
-    // issueText зависит от локали — при её смене тексты пересобираются
+    // issueText depends on the locale — when it changes the texts are rebuilt
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deferredFlow, t]);
 
-  // Публикация и Watch. Исполняется серверная копия: локальные правки до «Обновить» её не меняют.
+  // Publishing and Watch. The server copy is what runs: local edits do not change it until "Update".
   const published = server?.status === "published";
   const dirty = published && server.fingerprint !== flowFingerprint(deferredFlow);
   const hasTrigger = deferredNodes.some((n) => !n.data.disabled && registry[n.data.blockType]?.autoTrigger);
   const watching = watchOn && published;
   const watch = useWatch(meta.id, watching, server?.nodeIds ?? []);
   const view = watching ? watch.state : runState;
-  // строки лога и подписи по нодам — для терминала (Log) и числа вместо иконки (Counter) на холсте
-  // вкладка сообщает рабочему пространству то, что нужно полосе вкладок и закрытию
+  // log lines and captions per node — for the terminal (Log) and the number instead of the icon (Counter) on the canvas
+  // the tab reports to the workspace what the tab strip and closing need
   const hasServerCopy = server !== null;
   const running = runState.status === "running";
   useEffect(() => {
@@ -406,7 +406,7 @@ function Editor({ flowId, name, active, onRename, onInfo, onOpenFile, getOthers 
 
   const onUnpublish = async () => {
     if (!server) return;
-    // отправляем серверную копию: локальные правки могут быть невалидны, а снять публикацию нужно всегда
+    // send the server copy: local edits may be invalid, but unpublishing must always work
     const failure = await saveToServer(server.flow, "draft");
     if (failure === null) {
       setWatchOn(false);
@@ -421,8 +421,8 @@ function Editor({ flowId, name, active, onRename, onInfo, onOpenFile, getOthers 
     if (id) void fitView({ nodes: [{ id }], duration: 300, maxZoom: 1 });
   };
 
-  // Перенос группы: блоки, чьи центры лежали в рамке на момент начала, сдвигаются на ту же дельту.
-  // То, что React Flow тащит сам (выделенное вместе с группой), — их не трогаем, иначе сдвиг удвоится.
+  // Moving a group: blocks whose centres lay inside the frame at the start are shifted by the same delta.
+  // Whatever React Flow drags itself (the selection together with the group) is left alone, otherwise the shift would double.
   const groupDrag = useRef<{ id: string; origin: { x: number; y: number }; children: Map<string, { x: number; y: number }> } | null>(null);
   const onNodeDragStart = useCallback(
     (_: unknown, node: BlockNodeType, dragged: BlockNodeType[]) => {
@@ -431,7 +431,7 @@ function Editor({ flowId, name, active, onRename, onInfo, onOpenFile, getOthers 
       const all = getNodes() as BlockNodeType[];
       const ids = new Set(nodesInsideGroup(nodeBox(node), all.map(nodeBox)));
       const children = new Map<string, { x: number; y: number }>();
-      // dragged — то, что React Flow тащит сам (группа и выделенное вместе с ней)
+      // dragged — whatever React Flow drags itself (the group and the selection with it)
       const own = new Set(dragged.map((d) => d.id));
       for (const n of all) if (ids.has(n.id) && !own.has(n.id)) children.set(n.id, { ...n.position });
       groupDrag.current = { id: node.id, origin: { ...node.position }, children };
@@ -457,7 +457,7 @@ function Editor({ flowId, name, active, onRename, onInfo, onOpenFile, getOthers 
     groupDrag.current = null;
   }, []);
 
-  // окно данных ноды закрыто крестиком для этой ноды (при выборе другой снова показывается)
+  // the node data window is closed with the cross for this node (when another is selected it shows again)
   const [dataClosedFor, setDataClosedFor] = useState<string | null>(null);
   const selectedNodes = nodes.filter((n) => n.selected);
   const selectedNode = selectedNodes.length === 1 ? selectedNodes[0]! : null;
@@ -478,7 +478,7 @@ function Editor({ flowId, name, active, onRename, onInfo, onOpenFile, getOthers 
     [setEdges, getNodes],
   );
 
-  // какой триггер запустили кнопкой на ноде (null — запуск всего флоу): пауза и стоп показываются только на нём
+  // which trigger was started with the node button (null — the whole flow was started): pause and stop are shown only on it
   const [startedBy, setStartedBy] = useState<string | null>(null);
   const onRun = (from?: string, trigger?: string) => {
     const checked = validateFlow(fromReactFlow(nodes, edges, meta), registry);
@@ -488,12 +488,12 @@ function Editor({ flowId, name, active, onRename, onInfo, onOpenFile, getOthers 
     }
     setError(null);
     setStartedBy(trigger ?? null);
-    // перезапуск с ноды: предшественники берут выходы из последнего запуска
+    // restart from a node: predecessors take outputs from the last run
     void run(checked.flow, { others: getOthers(), ...(from ? { from: { nodeId: from, seeds: collectSeeds(runState.nodeDetails) } } : {}), ...(trigger ? { trigger } : {}) });
   };
 
-  // кнопка запуска на ноде Manual: недоступна, пока идёт запуск или включено наблюдение
-  // значение контекста стабильно, пока не меняется запуск: иначе все ноды перерисовывались бы при каждом движении мыши
+  // the run button on a Manual node: unavailable while a run is in progress or watching is on
+  // the context value is stable until the run changes: otherwise all nodes would re-render on every mouse move
   const onRunRef = useRef(onRun);
   useEffect(() => {
     onRunRef.current = onRun;
@@ -544,7 +544,7 @@ function Editor({ flowId, name, active, onRename, onInfo, onOpenFile, getOthers 
         <NodeLogsProvider value={nodeLogs}>
         <RunStatusProvider value={view.nodes}>
           <ReactFlow
-            // уникальный id на вкладку: у React Flow от него зависят id SVG-паттернов фона и маркеров рёбер — общий давал пустой фон у соседних холстов
+            // unique id per tab: React Flow's SVG background-pattern and edge-marker ids depend on it — a shared one gave an empty background on neighbouring canvases
             id={flowId}
             nodes={nodes}
             edges={edges}
@@ -555,12 +555,12 @@ function Editor({ flowId, name, active, onRename, onInfo, onOpenFile, getOthers 
             onNodeDragStart={onNodeDragStart}
             onNodeDrag={onNodeDrag}
             onNodeDragStop={onNodeDragStop}
-            // выделенная группа не должна всплывать над блоками (у неё zIndex ниже нуля)
+            // a selected group must not float above the blocks (its zIndex is below zero)
             elevateNodesOnSelect={false}
             isValidConnection={isValidConnection}
             colorMode={hydrated && resolvedTheme === "dark" ? "dark" : "light"}
-            // выделение рамкой левой кнопкой по пустому месту (частично попавшие ноды тоже), группа переносится целиком;
-            // панорамирование — средней/правой кнопкой (Space отдан Monaco, см. panActivationKeyCode), Ctrl/Cmd — добавить к выделению
+            // selection by a frame with the left button on empty space (partially covered nodes too), the group is moved as a whole;
+            // panning — with the middle/right button (Space is given to Monaco, see panActivationKeyCode), Ctrl/Cmd — add to the selection
             selectionOnDrag
             selectionMode={SelectionMode.Partial}
             panOnDrag={[1, 2]}
@@ -568,13 +568,13 @@ function Editor({ flowId, name, active, onRename, onInfo, onOpenFile, getOthers 
             snapToGrid={snap}
             snapGrid={[GRID, GRID]}
             deleteKeyCode={["Backspace", "Delete"]}
-            // Space по умолчанию — «панорамирование»: React Flow глушит его и в Monaco (его ввод идёт через
-            // native-edit-context, который React Flow не считает полем ввода). Панорамируем перетаскиванием.
+            // Space is "panning" by default: React Flow swallows it in Monaco too (its input goes through
+            // native-edit-context, which React Flow does not consider an input field). We pan by dragging.
             panActivationKeyCode={null}
             minZoom={0.2}
             maxZoom={2}
             fitView
-            // на больших флоу рисуем только то, что в кадре
+            // on large flows draw only what is in the frame
             onlyRenderVisibleElements
           >
             <Background id={flowId} gap={GRID} />
@@ -651,7 +651,7 @@ function Editor({ flowId, name, active, onRename, onInfo, onOpenFile, getOthers 
       {selectedNode && (
         <Inspector node={selectedNode} onChange={updateNodeData} onClose={() => selectNode(null)} />
       )}
-      {/* правая колонка: общий результат запуска, под ним — данные выбранной ноды (отдельное окно) */}
+      {/* right column: the overall run result, below it — the selected node's data (a separate window) */}
       <div className="pointer-events-none absolute top-[4.25rem] right-3 z-10 flex max-h-[calc(100dvh-18.75rem)] w-96 max-w-[calc(100%-1.5rem)] flex-col gap-3">
   <RunPanel
         state={view}

@@ -17,8 +17,8 @@ function fieldSpecs(raw: Json | undefined): FieldSpec[] {
 }
 
 /**
- * Aggregate: собирает список элементов в один объект. `fields` — значения выбранных полей списками
- * ({ поле: [значения] }); `all` — все элементы целиком в одно поле (можно отобрать поля).
+ * Aggregate: collects a list of items into one object. `fields` puts the values of chosen fields into lists
+ * ({ field: [values] }); `all` puts all items whole into one field (fields can be selected).
  */
 export class Aggregate extends Block {
   static type = "aggregate";

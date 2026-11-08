@@ -4,8 +4,8 @@ import { Block, triggerPayload, type LifecycleSpec, type RunContext } from "./bl
 const payload = (ctx: RunContext, who: string): Json => triggerPayload(ctx, who);
 
 /**
- * Activation Trigger: срабатывает на события жизненного цикла ЭТОГО флоу — публикация, обновление
- * уже опубликованного флоу, старт (или перезапуск) сервера. Выход: { event, at, flow: {id, name} }.
+ * Activation Trigger: fires on lifecycle events of THIS flow: publication, update
+ * of an already published flow, server start (or restart). Output: { event, at, flow: {id, name} }.
  */
 export class ActivationTrigger extends Block {
   static type = "activation_trigger";
@@ -36,8 +36,8 @@ export class ActivationTrigger extends Block {
 }
 
 /**
- * Workflow Trigger: как в n8n (устаревшая нода, сохранена для совместимости) — публикация и обновление
- * опубликованного флоу, без старта сервера. Для всех трёх событий используйте Activation Trigger.
+ * Workflow Trigger: as in n8n (a deprecated node, kept for compatibility): publication and update
+ * of a published flow, without server start. For all three events use Activation Trigger.
  */
 export class WorkflowTrigger extends Block {
   static type = "workflow_trigger";

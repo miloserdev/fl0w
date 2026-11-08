@@ -7,7 +7,7 @@ import { ThemeSubmenu } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
-/** Настройки интерфейса одним меню: язык и тема. */
+/** Interface settings in one menu: language and theme. */
 export function SettingsMenu() {
   const t = useTranslations("topbar");
   return (

@@ -4,7 +4,7 @@ import { conditionParams, evalCondition } from "./conditions";
 import { getPath } from "./json-path";
 import { listAt } from "./list-utils";
 
-/** Filter: оставляет элементы, проходящие условие; не прошедшие уходят на второй выход. Пустой выход данных не получает. */
+/** Filter: keeps the items that pass the condition; the others go to the second output. An empty output receives no data. */
 export class Filter extends Block {
   static type = "filter";
   static label = "Filter";
@@ -26,7 +26,7 @@ export class Filter extends Block {
     const op = String(params["operator"] ?? "truthy");
     const passes = (item: Json) => evalCondition(getPath(item, field), op, params["value"]);
 
-    // не массив и путь пуст — одиночное значение уходит целиком на один из выходов
+    // not an array and the path is empty: a single value goes whole to one of the outputs
     if (path.trim() === "" && !Array.isArray(input)) return passes(input) ? { out0: input } : { out1: input };
 
     const kept: Json[] = [];

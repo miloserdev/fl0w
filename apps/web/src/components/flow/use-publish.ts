@@ -5,9 +5,9 @@ import type { Flow, FlowStatus } from "@fl0w/schema";
 import { useCallback, useEffect, useState } from "react";
 import { flowFingerprint } from "@/lib/flow-convert";
 
-/** Серверная копия флоу: что именно опубликовано и исполняется по расписанию. */
+/** Server copy of the flow: exactly what is published and runs on schedule. */
 export type ServerFlow = {
-  /** Серверная копия целиком: снятие с публикации отправляет её, а не локальные (возможно невалидные) правки. */
+  /** The whole server copy: unpublishing sends it, not the local (possibly invalid) edits. */
   flow: Flow;
   id: string;
   status: FlowStatus;
@@ -25,11 +25,11 @@ const toServerFlow = (flow: Flow): ServerFlow => ({
   nodeIds: flow.nodes.filter((n) => !isLayoutBlock(n.type)).map((n) => n.id),
 });
 
-/** Публикация флоу на сервере: включает/выключает расписание его триггеров. */
+/** Publishing a flow on the server: turns the schedule of its triggers on/off. */
 export function usePublish(flowId: string) {
   const [loaded, setLoaded] = useState<ServerFlow | null>(null);
   const [busy, setBusy] = useState(false);
-  // состояние привязано к id: после смены флоу чужая копия не показывается
+  // the state is bound to the id: after the flow changes, someone else's copy is not shown
   const server = loaded?.id === flowId ? loaded : null;
 
   useEffect(() => {
@@ -39,13 +39,13 @@ export function usePublish(flowId: string) {
         const res = await fetch(`/api/flows/${flowId}`, { signal: ac.signal });
         if (res.ok) setLoaded(toServerFlow(((await res.json()) as ApiFlow).flow));
       } catch {
-        // сервер недоступен или запрос отменён — остаёмся без серверной копии
+        // the server is unavailable or the request was cancelled — stay without a server copy
       }
     })();
     return () => ac.abort();
   }, [flowId]);
 
-  /** Сохраняет флоу на сервере с нужным статусом. Возвращает текст ошибки или null. */
+  /** Saves the flow on the server with the required status. Returns the error text or null. */
   const save = useCallback(
     async (flow: Flow, status: FlowStatus): Promise<string | null> => {
       setBusy(true);

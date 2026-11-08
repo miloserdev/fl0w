@@ -3,7 +3,7 @@ import { isRunId, runControls } from "@/server/run-controls";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** POST /api/run/control { runId, action: "pause" | "resume" } — пауза идущего пробного запуска. Остановка — обрыв соединения /api/run. */
+/** POST /api/run/control { runId, action: "pause" | "resume" } — pauses a running trial run. Stopping is done by dropping the /api/run connection. */
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as { runId?: unknown; action?: unknown } | null;
   if (!isRunId(body?.runId) || (body?.action !== "pause" && body?.action !== "resume")) {

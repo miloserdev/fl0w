@@ -19,7 +19,7 @@ export class HttpRequest extends Block {
     },
     { name: "url", type: "string", required: true },
     { name: "headers", type: "json", default: {} },
-    // тело POST; если null — отправляется вход in0 (когда он подключён)
+    // POST body; if null, the in0 input is sent (when it is connected)
     { name: "body", type: "json", default: null },
     { name: "timeoutMs", type: "number", default: 15000 },
   ];
@@ -77,7 +77,7 @@ export class HttpRequest extends Block {
       throw new Error("Response is not valid JSON");
     }
   }
-}/** Предел размера тела ответа: больше — ошибка, а не память процесса (`Content-Length` проверяется сразу, поток режется по ходу чтения). */
+}/** Response body size limit: above it is an error, not process memory (`Content-Length` is checked at once, the stream is cut off as it is read). */
 export const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 
 export async function readCapped(res: Response, limit: number): Promise<string> {

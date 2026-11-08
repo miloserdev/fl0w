@@ -40,5 +40,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# данные сервера (опубликованные флоу)
+# server data (published flows)
 .data

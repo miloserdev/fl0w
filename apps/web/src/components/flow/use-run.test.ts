@@ -3,8 +3,8 @@ import { beginWatchRun, IDLE_RUN, reduceRun } from "./use-run";
 
 const ids = ["a", "b"];
 
-describe("reduceRun: данные нод", () => {
-  it("собирает вход, параметры, лог, выход и ошибку по ноде", () => {
+describe("reduceRun: node data", () => {
+  it("collects input, params, log, output and error per node", () => {
     let s = reduceRun(IDLE_RUN, { event: "node:start", nodeId: "a", input: { in0: 1 }, params: { p: "x" } }, ids);
     s = reduceRun(s, { event: "node:log", nodeId: "a", message: "hi" }, ids);
     s = reduceRun(s, { event: "node:done", nodeId: "a", output: { out0: 2 } }, ids);
@@ -14,7 +14,7 @@ describe("reduceRun: данные нод", () => {
     expect(s.nodeDetails["b"]?.error).toBe("boom");
   });
 
-  it("повторный старт ноды стирает данные прошлого запуска этой ноды, чужие остаются", () => {
+  it("a repeated node start erases the previous run's data for that node, others stay", () => {
     let s = reduceRun(IDLE_RUN, { event: "node:start", nodeId: "a", input: { in0: 1 }, params: {} }, ids);
     s = reduceRun(s, { event: "node:log", nodeId: "a", message: "old" }, ids);
     s = reduceRun(s, { event: "node:start", nodeId: "b", input: {}, params: {} }, ids);
@@ -23,7 +23,7 @@ describe("reduceRun: данные нод", () => {
     expect(s.nodeDetails["b"]).toBeDefined();
   });
 
-  it("держит не больше 200 строк лога на ноду", () => {
+  it("keeps at most 200 log lines per node", () => {
     let s = reduceRun(IDLE_RUN, { event: "node:start", nodeId: "a" }, ids);
     for (let i = 0; i < 250; i++) s = reduceRun(s, { event: "node:log", nodeId: "a", message: String(i) }, ids);
     expect(s.nodeDetails["a"]!.logs).toHaveLength(200);
@@ -31,8 +31,8 @@ describe("reduceRun: данные нод", () => {
   });
 });
 
-describe("Watch: новый запуск обновляет только задействованные ноды", () => {
-  it("статусы, ошибки и данные прошлого запуска сохраняются, затронутая нода начинается заново", () => {
+describe("Watch: a new run updates only the nodes involved", () => {
+  it("statuses, errors and data of the previous run are kept, the affected node starts anew", () => {
     let s = reduceRun(IDLE_RUN, { event: "node:start", nodeId: "a", input: { in0: 1 } }, ids);
     s = reduceRun(s, { event: "node:done", nodeId: "a", output: { out0: 1 } }, ids);
     s = reduceRun(s, { event: "node:start", nodeId: "b" }, ids);
@@ -48,11 +48,11 @@ describe("Watch: новый запуск обновляет только зад�
 
     s = reduceRun(s, { event: "node:start", nodeId: "b" }, ids);
     expect(s.nodes["b"]).toBe("running");
-    expect(s.nodeErrors["b"]).toBeUndefined(); // ошибка прошлого запуска этой ноды снята
-    expect(s.nodes["a"]).toBe("done"); // не затронутая нода не «гаснет»
+    expect(s.nodeErrors["b"]).toBeUndefined(); // the previous run's error of this node is cleared
+    expect(s.nodes["a"]).toBe("done"); // an unaffected node does not "go dark"
   });
 
-  it("flow:done не помечает пропущенными ноды, у которых уже есть статус из прошлых запусков", () => {
+  it("flow:done does not mark as skipped nodes that already have a status from previous runs", () => {
     let s = reduceRun(IDLE_RUN, { event: "node:start", nodeId: "a" }, ids);
     s = reduceRun(s, { event: "node:done", nodeId: "a", output: {} }, ids);
     s = reduceRun(s, { event: "flow:done", result: null }, ids);
@@ -64,8 +64,8 @@ describe("Watch: новый запуск обновляет только зад�
   });
 });
 
-describe("Watch: сброс ветки запуска", () => {
-  it("ноды ветки (involved) начинают с чистого листа, остальные сохраняют статус и ошибку", () => {
+describe("Watch: resetting a run branch", () => {
+  it("branch nodes (involved) start from a clean slate, the rest keep status and error", () => {
     let s = reduceRun(IDLE_RUN, { event: "node:start", nodeId: "a" }, ids);
     s = reduceRun(s, { event: "node:done", nodeId: "a", output: {} }, ids);
     s = reduceRun(s, { event: "node:start", nodeId: "b" }, ids);
@@ -73,12 +73,12 @@ describe("Watch: сброс ветки запуска", () => {
     const next = beginWatchRun(s, ["a"]);
     expect(next.nodes).toEqual({ b: "error" });
     expect(next.nodeErrors).toEqual({ b: "boom" });
-    expect(next.nodeDetails["a"]).toBeDefined(); // данные нод не стираются
+    expect(next.nodeDetails["a"]).toBeDefined(); // node data is not erased
   });
 });
 
 describe("reduceRun: node:killed", () => {
-  it("оборванный shoot-вызов виден в ошибках и логе, статус ноды не меняется", () => {
+  it("an aborted shoot call is visible in errors and log, the node status does not change", () => {
     let s = reduceRun(IDLE_RUN, { event: "node:start", nodeId: "p" }, ids);
     s = reduceRun(s, { event: "node:done", nodeId: "p", output: { out0: { ok: true } } }, ids);
     s = reduceRun(s, { event: "node:killed", nodeId: "p", reason: "caller finished" }, ids);
@@ -88,8 +88,8 @@ describe("reduceRun: node:killed", () => {
   });
 });
 
-describe("reduceRun: flow:done и оборванные ноды", () => {
-  it("нода, оборванная к концу запуска (осталась running), не пульсирует вечно — становится skipped; завершённые не трогаем", () => {
+describe("reduceRun: flow:done and aborted nodes", () => {
+  it("a node aborted by the end of the run (left running) does not pulse forever — it becomes skipped; finished ones are untouched", () => {
     let s = reduceRun(IDLE_RUN, { event: "node:start", nodeId: "a" }, ids);
     s = reduceRun(s, { event: "node:done", nodeId: "a", output: {} }, ids);
     s = reduceRun(s, { event: "node:start", nodeId: "b" }, ids);
@@ -100,8 +100,8 @@ describe("reduceRun: flow:done и оборванные ноды", () => {
   });
 });
 
-describe("пауза запуска", () => {
-  it("run:paused включает и снимает флаг, flow:done не оставляет запуск на паузе", () => {
+describe("run pause", () => {
+  it("run:paused sets and clears the flag, flow:done does not leave the run paused", () => {
     const running = { ...IDLE_RUN, status: "running" as const };
     const paused = reduceRun(running, { event: "run:paused", paused: true }, []);
     expect(paused.paused).toBe(true);

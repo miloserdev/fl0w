@@ -5,11 +5,11 @@ const isPlainObject = (v: Json | undefined): v is { [key: string]: Json } =>
   v !== null && typeof v === "object" && !Array.isArray(v);
 
 /**
- * Объединитель: собирает данные со всех ПОДКЛЮЧЁННЫХ входов в один JSON.
- * В один вход идёт одно ребро (SPEC §4), поэтому несколько веток сводятся здесь.
- * Параметр `wait` — когда запускаться: `all` (по умолчанию, как у любой ноды) — когда данные пришли по ВСЕМ подключённым входам
- * (если ветка не пошла, Merge не запускается); `any` — когда пришёл хотя бы один вход: объединяются те, что пришли, остальные
- * (не пошедшие ветки, например после Branch) пропускаются.
+ * Merger: collects data from all CONNECTED inputs into one JSON.
+ * One input takes one edge, so several branches are joined here.
+ * The `wait` parameter says when to run: `all` (default, like any node) when data has arrived on ALL connected inputs
+ * (if a branch did not fire, Merge does not run); `any` when at least one input has arrived: those that arrived are merged, the others
+ * (branches that did not fire, for example after Branch) are skipped.
  */
 export class Merge extends Block {
   static type = "merge";
@@ -40,7 +40,7 @@ export class Merge extends Block {
   ];
 
   async run(inputs: Record<string, Json>, params: Record<string, Json>) {
-    // порядок входов — по номеру порта, а не по порядку рёбер
+    // input order follows the port number, not the edge order
     const ids = Object.keys(inputs).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
     const values = ids.map((id) => inputs[id]!);
 
@@ -54,7 +54,7 @@ export class Merge extends Block {
         for (const id of ids) {
           const v = inputs[id]!;
           if (!isPlainObject(v)) throw new Error(`Input "${id}" is not an object`);
-          Object.assign(out, v); // позднее перекрывает раннее
+          Object.assign(out, v); // a later one overrides an earlier one
         }
         return { out0: out };
       }

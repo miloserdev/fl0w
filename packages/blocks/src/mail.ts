@@ -16,7 +16,7 @@ const MAX_RECIPIENTS = 100;
 const on = (param: string, ...values: string[]) => ({ param, in: values });
 const op = (...ops: string[]) => on("operation", ...ops);
 
-/** Адреса из строки «a@x, b@y; c@z» (запятая, точка с запятой, перенос строки). Любой мусор — ошибка: письмо не уйдёт «куда-нибудь». */
+/** Addresses from the string "a@x, b@y; c@z" (comma, semicolon, newline). Any garbage is an error: a message must not go "somewhere". */
 function addresses(raw: string, field: string): string[] {
   const list = raw.split(/[,;\n]/).map((a) => a.trim()).filter(Boolean);
   if (list.length > MAX_RECIPIENTS) throw new Error(`Mail: too many recipients in "${field}" (max ${MAX_RECIPIENTS})`);
@@ -24,21 +24,21 @@ function addresses(raw: string, field: string): string[] {
   return list;
 }
 
-/** Строка без переводов строк: тема и адрес — заголовки письма, перевод строки в них — подмена заголовков. */
+/** A string without line breaks: the subject and address are message headers, and a line break in them is header spoofing. */
 function oneLine(s: string, field: string): string {
   if (/[\r\n\0]/.test(s)) throw new Error(`Mail: "${field}" must be a single line`);
   return s;
 }
 
 /**
- * Mail: почта без привязки к конкретному сервису. Операции — отправить, список писем (фильтры), прочитать письмо (с сохранением
- * вложений), пометить прочитанным, ответить, переместить; их выполняет драйвер провайдера:
- *  • `imap` — любой почтовый сервер по IMAP (чтение) и SMTP (отправка): Exchange/Outlook, Gmail, Yandex, свой сервер;
- *  • `graph` — Microsoft Graph (Outlook / Microsoft 365) через приложение Azure AD, без дополнительных библиотек.
- * Новый провайдер добавляется драйвером (`MailDriver`) без изменения блока и флоу.
+ * Mail: mail not tied to a specific service. Operations: send, list messages (filters), read a message (saving
+ * attachments), mark read, reply, move; the provider driver performs them:
+ *  * `imap`: any mail server over IMAP (reading) and SMTP (sending): Exchange/Outlook, Gmail, Yandex, your own server;
+ *  * `graph`: Microsoft Graph (Outlook / Microsoft 365) through an Azure AD application, with no extra libraries.
+ * A new provider is added as a driver (`MailDriver`) without changing the block and flows.
  *
- * Пароль — текстом в параметре либо ссылкой `env:FL0W_SECRET_…`; в логи, события и ошибки он не попадает. Поля `to`, `subject`,
- * `body` и т.п. поддерживают `{{ путь }}` из входа. Получатели проверяются; тема и адреса — одна строка (защита от подмены заголовков).
+ * The password is plain text in the parameter or a reference `env:FL0W_SECRET_...`; it never reaches logs, events or errors. The fields `to`, `subject`,
+ * `body` and the like support `{{ path }}` from the input. Recipients are validated; the subject and addresses are a single line (protection against header spoofing).
  */
 export class Mail extends Block {
   static type = "mail";
@@ -53,34 +53,34 @@ export class Mail extends Block {
     { name: "host", type: "string", expressions: false, showWhen: on("provider", "imap") },
     { name: "port", type: "number", default: 993, min: 1, max: 65535, showWhen: on("provider", "imap") },
     { name: "secure", type: "boolean", default: true, showWhen: on("provider", "imap") },
-    // пусто — тот же сервер, что и для IMAP
+    // empty means the same server as for IMAP
     { name: "smtpHost", type: "string", default: "", expressions: false, showWhen: on("provider", "imap") },
     { name: "smtpPort", type: "number", default: 465, min: 1, max: 65535, showWhen: on("provider", "imap") },
-    // true — TLS сразу (порт 465), false — STARTTLS (порт 587)
+    // true: TLS right away (port 465), false: STARTTLS (port 587)
     { name: "smtpSecure", type: "boolean", default: true, showWhen: on("provider", "imap") },
-    // не проверять сертификат сервера (внутренние серверы с самоподписанным сертификатом)
+    // do not verify the server certificate (internal servers with a self-signed certificate)
     { name: "tlsInsecure", type: "boolean", default: false, showWhen: on("provider", "imap") },
     // --- Microsoft Graph ---
     { name: "tenantId", type: "string", expressions: false, showWhen: on("provider", "graph") },
     { name: "clientId", type: "string", expressions: false, showWhen: on("provider", "graph") },
-    // --- общее: логин (адрес ящика) и пароль / client secret ---
+    // --- common: login (mailbox address) and password / client secret ---
     { name: "username", type: "string", required: true, expressions: false },
     { name: "password", type: "string", required: true, expressions: false },
-    // --- операции ---
+    // --- operations ---
     { name: "folder", type: "string", default: "INBOX", showWhen: op("listMail", "getMail", "markMailRead", "replyMail", "moveMail") },
     { name: "unreadOnly", type: "boolean", default: false, showWhen: op("listMail") },
     { name: "fromFilter", type: "string", default: "", showWhen: op("listMail") },
     { name: "subjectFilter", type: "string", default: "", showWhen: op("listMail") },
-    // с какой даты (ISO, например 2026-01-31); пусто — без ограничения
+    // from which date (ISO, for example 2026-01-31); empty means no limit
     { name: "since", type: "string", default: "", showWhen: op("listMail") },
     { name: "limit", type: "number", default: 20, min: 1, max: MAX_LIST, showWhen: op("listMail") },
     { name: "messageId", type: "string", default: "", showWhen: op("getMail", "markMailRead", "replyMail", "moveMail") },
     { name: "read", type: "boolean", default: true, showWhen: op("markMailRead") },
-    // сохранить вложения в каталог файлов: <attachmentsDir>/<id письма>/<имя>; в результате у вложений появится path
+    // save attachments into the files directory: <attachmentsDir>/<message id>/<name>; the attachments will get a path in the result
     { name: "saveAttachments", type: "boolean", default: false, showWhen: op("getMail") },
     { name: "attachmentsDir", type: "string", default: "mail", expressions: false, showWhen: op("getMail") },
     { name: "replyAll", type: "boolean", default: false, showWhen: op("replyMail") },
-    // куда переместить: папка IMAP (например Archive) или у Graph — archive, trash, junk, drafts, sent либо id папки
+    // where to move: an IMAP folder (for example Archive) or, for Graph, archive, trash, junk, drafts, sent or a folder id
     { name: "destination", type: "string", default: "", showWhen: op("moveMail") },
     { name: "to", type: "string", default: "", showWhen: op("sendMail") },
     { name: "cc", type: "string", default: "", showWhen: op("sendMail") },
@@ -101,7 +101,7 @@ export class Mail extends Block {
     if (!(MAIL_PROVIDERS as readonly string[]).includes(provider)) throw new Error(`Unknown provider "${provider}"`);
     const timeoutMs = Math.min(Math.max(Math.trunc(Number(params["timeoutMs"] ?? 30_000)) || 30_000, 1000), 300_000);
 
-    // входные данные проверяем до подключения: ошибка в параметрах не должна открывать соединение с сервером
+    // we validate input data before connecting: an error in the parameters must not open a connection to the server
     const folder = text("folder") || "INBOX";
     const messageId = text("messageId");
     if (["getMail", "markMailRead", "replyMail", "moveMail"].includes(operation) && messageId === "") throw new Error('Mail: "messageId" is empty');

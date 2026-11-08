@@ -1,9 +1,9 @@
-/** Предел тела запроса вебхука. */
+/** Limit of the webhook request body. */
 const MAX_BODY_BYTES = 1024 * 1024;
 
 export class PayloadTooLarge extends Error {}
 
-/** Читает тело с жёстким пределом — не доверяя Content-Length. */
+/** Reads the body with a hard limit — not trusting Content-Length. */
 export async function readBody(req: Request): Promise<string> {
   const declared = Number(req.headers.get("content-length") ?? 0);
   if (declared > MAX_BODY_BYTES) throw new PayloadTooLarge();

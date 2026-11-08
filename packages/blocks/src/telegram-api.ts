@@ -1,12 +1,12 @@
 import type { Json } from "@fl0w/schema";
 import { redact } from "./secrets";
 
-/** Адрес Bot API; переменная нужна для собственного сервера Bot API и для тестов (настоящий Telegram в тестах не вызывается). */
+/** Bot API address; the variable is needed for a self-hosted Bot API server and for tests (real Telegram is not called in tests). */
 export const TELEGRAM_API_ENV = "FL0W_TELEGRAM_API";
 const DEFAULT_API = "https://api.telegram.org";
-/** Формат токена BotFather: `123456789:AA…`. Токен попадает в путь URL — только строгий формат, иначе можно подменить путь. */
+/** BotFather token format: `123456789:AA...`. The token goes into the URL path, so only the strict format is accepted; otherwise the path could be spoofed. */
 const TOKEN_RE = /^\d{5,20}:[A-Za-z0-9_-]{30,}$/;
-const MAX_DOWNLOAD_BYTES = 20 * 1024 * 1024; // предел getFile в Bot API
+const MAX_DOWNLOAD_BYTES = 20 * 1024 * 1024; // getFile limit in the Bot API
 
 export class TelegramError extends Error {
   constructor(
@@ -43,7 +43,7 @@ function signalFor(opts: CallOptions, fallbackMs: number): AbortSignal {
   return opts.signal ? AbortSignal.any([opts.signal, timeout]) : timeout;
 }
 
-/** Вызов метода Bot API. Возвращает `result`; ошибка API — `TelegramError` с описанием; токен в сообщениях скрыт. */
+/** Call a Bot API method. Returns `result`; an API error is a `TelegramError` with a description; the token is hidden in messages. */
 export async function callTelegram(
   token: string,
   method: string,
@@ -57,7 +57,7 @@ export async function callTelegram(
 
   let init: RequestInit;
   if (uploads.length > 0) {
-    // multipart: не-файловые параметры — строки, объекты — JSON-строкой (правило Bot API)
+    // multipart: non-file parameters are strings, objects are a JSON string (a Bot API rule)
     const form = new FormData();
     for (const [k, v] of clean) form.append(k, typeof v === "string" ? v : JSON.stringify(v));
     for (const u of uploads) form.append(u.field, new Blob([u.bytes as BlobPart]), u.fileName);
@@ -75,9 +75,9 @@ export async function callTelegram(
     if (opts.signal?.aborted) throw new Error("Aborted", { cause: e });
     const name = e instanceof Error ? e.name : "";
     if (name === "TimeoutError") throw new Error("Telegram request timed out", { cause: e });
-    // в причину кладём уже очищенную копию: исходная ошибка могла бы содержать URL с токеном
+    // put an already sanitised copy into the cause: the original error could contain a URL with the token
     const safe = redact(e instanceof Error ? e.message : String(e), [token]);
-    // eslint-disable-next-line preserve-caught-error -- причина очищена намеренно: оригинал мог содержать URL с токеном
+    // eslint-disable-next-line preserve-caught-error -- the cause is sanitised deliberately: the original could contain a URL with the token
     throw new Error(`Telegram request failed: ${safe}`, { cause: new Error(safe) });
   }
 
@@ -95,7 +95,7 @@ export async function callTelegram(
   return body.result ?? null;
 }
 
-/** Скачивает файл по `file_path` из getFile (до 20 МБ). */
+/** Downloads a file by `file_path` from getFile (up to 20 MB). */
 export async function downloadTelegramFile(token: string, filePath: string, opts: CallOptions = {}): Promise<Uint8Array> {
   assertToken(token);
   if (!/^[A-Za-z0-9_\-./]+$/.test(filePath) || filePath.split("/").includes("..")) throw new Error("Telegram returned an unsafe file path");
@@ -105,7 +105,7 @@ export async function downloadTelegramFile(token: string, filePath: string, opts
   } catch (e) {
     if (opts.signal?.aborted) throw new Error("Aborted", { cause: e });
     const safe = redact(e instanceof Error ? e.message : String(e), [token]);
-    // eslint-disable-next-line preserve-caught-error -- причина очищена намеренно: оригинал мог содержать URL с токеном
+    // eslint-disable-next-line preserve-caught-error -- the cause is sanitised deliberately: the original could contain a URL with the token
     throw new Error(`Telegram download failed: ${safe}`, { cause: new Error(safe) });
   }
   if (!res.ok) throw new TelegramError(`Telegram file download failed: HTTP ${res.status}`, res.status);

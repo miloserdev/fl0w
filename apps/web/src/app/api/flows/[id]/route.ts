@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ id: string }> };
 
-/** GET /api/flows/:id — серверная копия флоу (статус draft/published) и сводка последнего запуска. */
+/** GET /api/flows/:id — the server copy of the flow (draft/published status) and a summary of the last run. */
 export async function GET(_req: Request, { params }: Ctx) {
   const { id } = await params;
   const rt = getRuntime();
@@ -24,8 +24,8 @@ export async function GET(_req: Request, { params }: Ctx) {
 
 /**
  * PUT /api/flows/:id  { flow }
- * Сохраняет серверную копию. `flow.status: "published"` включает расписание триггеров,
- * "draft" — выключает. 400 при невалидном флоу или публикации без триггера.
+ * Saves the server copy. `flow.status: "published"` turns on the trigger schedule,
+ * "draft" turns it off. 400 for an invalid flow or for publishing without a trigger.
  */
 export async function PUT(req: Request, { params }: Ctx) {
   const { id } = await params;
@@ -52,7 +52,7 @@ export async function PUT(req: Request, { params }: Ctx) {
 
   const rt = getRuntime();
   await rt.start();
-  // пара вызовов: канал связывает ровно один входящий и один исходящий телефон — и среди остальных сохранённых флоу
+  // call pair: a channel links exactly one incoming and one outgoing phone, including among the other saved flows
   const clashes = validateCallChannels(flow, await rt.store.list());
   if (clashes.length > 0) {
     return Response.json(
@@ -66,7 +66,7 @@ export async function PUT(req: Request, { params }: Ctx) {
       return Response.json({ error: problems.join("; "), code: "bad_trigger", problems }, { status: 409 });
     }
   }
-  // повод для триггеров жизненного цикла: первая публикация или обновление уже опубликованного флоу
+  // reason for lifecycle triggers: first publication or an update of an already published flow
   const previous = await rt.store.get(id);
   await rt.store.put(flow);
   rt.scheduler.sync(flow, flow.status === "published" ? (previous?.status === "published" ? "update" : "publish") : undefined);

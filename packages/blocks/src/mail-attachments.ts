@@ -2,7 +2,7 @@ import type { Json } from "@fl0w/schema";
 import { filesBaseDir, resolveInside } from "./sandbox";
 import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TOTAL, MAX_ATTACHMENTS, type MailAttachment } from "./mail-types";
 
-/** Безопасное имя файла/папки: без путей, управляющих символов и ведущих точек. */
+/** Safe file/folder name: no paths, control characters or leading dots. */
 export function safeName(name: string, fallback: string): string {
   const base = name.replace(/\\/g, "/").split("/").pop() ?? "";
   const cleaned = base.replace(/[^\p{L}\p{N}._ -]/gu, "_").replace(/^[.\s]+/, "").trim().slice(0, 120);
@@ -10,8 +10,8 @@ export function safeName(name: string, fallback: string): string {
 }
 
 /**
- * Сохраняет вложения письма внутри каталога файлов: `<dir>/<id письма>/<имя>`. Выход за каталог невозможен (`resolveInside`),
- * имена очищаются, одинаковые получают суффикс, число и размер ограничены. Возвращает метаданные и путь (относительно каталога файлов).
+ * Saves a message's attachments inside the files directory: `<dir>/<message id>/<name>`. Escaping the directory is impossible (`resolveInside`),
+ * names are sanitised, identical ones get a suffix, count and size are limited. Returns metadata and the path (relative to the files directory).
  */
 export async function saveAttachments(dir: string, messageId: string, items: MailAttachment[]): Promise<Json[]> {
   if (items.length > MAX_ATTACHMENTS) throw new Error(`Mail: too many attachments (${items.length}, max ${MAX_ATTACHMENTS})`);
@@ -46,8 +46,8 @@ export async function saveAttachments(dir: string, messageId: string, items: Mai
 }
 
 /**
- * Дописывает `path` к метаданным вложений письма. Сопоставление — по имени, по порядку: одноимённые вложения получают свои файлы
- * («a.txt», «a (2).txt»); вложения, которых нет среди сохранённых (вложенные письма, ссылки), остаются без `path`.
+ * Appends `path` to the metadata of a message's attachments. Matching is by name, in order: same-named attachments get their own files
+ * ("a.txt", "a (2).txt"); attachments that are not among the saved ones (nested messages, links) stay without `path`.
  */
 export function withAttachmentPaths(meta: Json[], saved: Json[]): Json[] {
   const queues = new Map<Json, Json[]>();

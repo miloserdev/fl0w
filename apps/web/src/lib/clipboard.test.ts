@@ -22,22 +22,22 @@ const select = (ids: string[]) => {
   return { nodes: rf.nodes.map((n) => ({ ...n, selected: ids.includes(n.id) })), edges: rf.edges };
 };
 
-describe("буфер обмена нод", () => {
-  it("копирует выделенное и только рёбра между выделенными", () => {
+describe("node clipboard", () => {
+  it("copies the selection and only the edges between selected nodes", () => {
     const { nodes, edges } = select(["a", "b"]);
     const text = serializeSelection(nodes, edges)!;
     const clip = parseClipboard(text)!;
     expect(clip.nodes.map((n) => n.id)).toEqual(["a", "b"]);
-    expect(clip.edges.map((e) => e.id)).toEqual(["e1"]); // e2 уходит в невыделенную c
+    expect(clip.edges.map((e) => e.id)).toEqual(["e1"]); // e2 goes to the unselected c
     expect(clip.nodes[1]).toMatchObject({ disabled: true, pinData: { out0: { x: 1 } }, params: { amount: 2, unit: "seconds" } });
   });
 
-  it("нет выделения — ничего не копируется", () => {
+  it("no selection — nothing is copied", () => {
     const { nodes, edges } = select([]);
     expect(serializeSelection(nodes, edges)).toBeNull();
   });
 
-  it("чужой текст, битый JSON, неизвестный блок и огромный ввод не принимаются", () => {
+  it("foreign text, broken JSON, an unknown block and huge input are rejected", () => {
     expect(parseClipboard("просто текст")).toBeNull();
     expect(parseClipboard(`{"${CLIP_MARK}":1,`)).toBeNull();
     expect(parseClipboard(JSON.stringify({ [CLIP_MARK]: 1, nodes: [{ id: "x", type: "no_such_block", position: { x: 0, y: 0 }, params: {}, portsOverride: null, cssOverride: null }], edges: [] }))).toBeNull();
@@ -46,7 +46,7 @@ describe("буфер обмена нод", () => {
     expect(parseClipboard(`${CLIP_MARK}${"x".repeat(5_000_001)}`)).toBeNull();
   });
 
-  it("вставка: новые id, рёбра переподключены, выделены только новые, копия смещена от оригинала", () => {
+  it("paste: new ids, edges reconnected, only the new ones selected, the copy offset from the original", () => {
     const { nodes, edges } = select(["a", "b"]);
     const clip = parseClipboard(serializeSelection(nodes, edges)!)!;
     const pasted = pasteNodes(clip, nodes);
@@ -54,13 +54,13 @@ describe("буфер обмена нод", () => {
     expect(pasted.nodes.every((n) => n.selected)).toBe(true);
     expect(new Set(pasted.nodes.map((n) => n.id)).size).toBe(2);
     expect(pasted.nodes.some((n) => ["a", "b"].includes(n.id))).toBe(false);
-    expect(pasted.nodes[0]!.position).toEqual({ x: 140, y: 140 }); // оригинал в (100,100) занят
+    expect(pasted.nodes[0]!.position).toEqual({ x: 140, y: 140 }); // the original at (100,100) is occupied
     expect(pasted.edges).toHaveLength(1);
     expect(pasted.edges[0]).toMatchObject({ source: pasted.nodes[0]!.id, target: pasted.nodes[1]!.id });
     expect(pasted.nodes[1]!.data).toMatchObject({ disabled: true, pinData: { out0: { x: 1 } } });
   });
 
-  it("вставка в пустой холст сохраняет положение; повторная вставка уходит ещё дальше", () => {
+  it("paste into an empty canvas keeps the position; a repeated paste goes even further", () => {
     const { nodes, edges } = select(["a"]);
     const clip = parseClipboard(serializeSelection(nodes, edges)!)!;
     const first = pasteNodes(clip, []);

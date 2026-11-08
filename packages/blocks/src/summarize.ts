@@ -57,8 +57,8 @@ function compute(items: Json[], a: Agg): Json {
 }
 
 /**
- * Summarize: сводка по списку, как в сводных таблицах — count, countUnique, sum, average, min, max,
- * append, concatenate; с группировкой по полям (`groupBy`) получается строка на каждую группу.
+ * Summarize: a summary over a list, like pivot tables: count, countUnique, sum, average, min, max,
+ * append, concatenate; with grouping by fields (`groupBy`) you get a row per group.
  */
 export class Summarize extends Block {
   static type = "summarize";
@@ -94,7 +94,7 @@ export class Summarize extends Block {
     const groups = new Map<string, { keys: { [key: string]: Json }; items: Json[] }>();
     for (const item of list) {
       const values = groupBy.map((g) => getPath(item, g));
-      if (values.some((v) => v === undefined)) continue; // нет поля группировки — элемент пропускаем
+      if (values.some((v) => v === undefined)) continue; // no grouping field: skip the element
       const id = stableKey(values.map((v) => v ?? null));
       let g = groups.get(id);
       if (!g) {

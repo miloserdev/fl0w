@@ -22,7 +22,7 @@ export type FlowIssueCode =
   | "param_enum"
   | "param_range";
 
-/** Структурированная ошибка: UI локализует по `code`, `message` — запасной текст на английском. */
+/** Structured error: the UI localises by `code`; `message` is a fallback text in English. */
 export type FlowIssue = {
   code: FlowIssueCode;
   message: string;
@@ -30,9 +30,9 @@ export type FlowIssue = {
   edgeId?: string;
   port?: string;
   param?: string;
-  /** unknown_type: запрошенный тип блока. */
+  /** unknown_type: the requested block type. */
   blockType?: string;
-  /** cycle: ноды, участвующие в цикле или зависящие от него. */
+  /** cycle: nodes that take part in the cycle or depend on it. */
   nodeIds?: string[];
 };
 
@@ -43,8 +43,8 @@ export type ValidationResult =
 export type Registry = Record<string, BlockClass>;
 
 /**
- * Валидация флоу: zod-схема + инварианты (SPEC §4) + DAG.
- * Принимает `unknown`, чтобы годиться и для файла с диска, и для тела API-запроса.
+ * Flow validation: zod schema + invariants + DAG.
+ * Accepts `unknown` so it suits both a file from disk and an API request body.
  */
 export function validateFlow(input: unknown, registry: Registry): ValidationResult {
   const parsed = flowSchema.safeParse(input);
@@ -79,7 +79,7 @@ export function validateFlow(input: unknown, registry: Registry): ValidationResu
       });
       continue;
     }
-    // у отключённой ноды параметры не проверяются: её можно оставить недоделанной
+    // a disabled node's parameters are not validated: it can be left unfinished
     for (const p of node.disabled ? [] : validateParams(cls.params, node.params, { allowExpressions: true })) {
       issues.push({
         code: `param_${p.code}`,
@@ -118,7 +118,7 @@ export function validateFlow(input: unknown, registry: Registry): ValidationResu
     }
     if (!ok) continue;
 
-    // порты проверяем только у нод с известным типом — иначе ошибка уже есть (unknown_type)
+    // ports are checked only for nodes with a known type, otherwise the error already exists (unknown_type)
     const src = portsOf(e.source);
     const dst = portsOf(e.target);
     if (src && !src.outputs.some((p) => p.id === e.sourcePort)) {
@@ -140,7 +140,7 @@ export function validateFlow(input: unknown, registry: Registry): ValidationResu
       });
     }
 
-    // соединяются только порты одного вида: данные с данными, инструмент с инструментом, память с памятью
+    // only ports of the same kind connect: data to data, tool to tool, memory to memory
     const srcPort = src?.outputs.find((p) => p.id === e.sourcePort);
     const dstPort = dst?.inputs.find((p) => p.id === e.targetPort);
     if (srcPort && dstPort && portKind(srcPort) !== portKind(dstPort)) {
@@ -166,12 +166,12 @@ export function validateFlow(input: unknown, registry: Registry): ValidationResu
     usedInputs.add(key);
   }
 
-  // пара вызовов: один входящий и один исходящий на канал (проверка между флоу — при сохранении на сервере)
+  // call pair: one incoming and one outgoing per channel (cross-flow check happens on save on the server)
   for (const p of validateCallChannels(flow)) issues.push({ code: "call_channel", nodeId: p.nodeId, message: p.message });
-  // вызовы не порождают рекурсию: Emitter/Loop и Collector не в одном графе
+  // calls do not cause recursion: Emitter/Loop and Collector are not in the same graph
   for (const p of validateCallGraph(flow)) issues.push({ code: p.code, nodeId: p.nodeId, message: p.message });
 
-  // цикл: тело (достижимое от порта `body`) не должно пересекаться с продолжением после цикла (достижимым от остальных выходов)
+  // loop: the body (reachable from the `body` port) must not overlap with the continuation after the loop (reachable from the other outputs)
   {
     const data = dataView(flow, registry);
     const out = new Map<string, { port: string; target: string }[]>();

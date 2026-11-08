@@ -6,19 +6,19 @@ import { engineDir } from "@/server/engine-dir";
 import { getRuntime, RUN_TIMEOUT_MS } from "@/server/runtime";
 import { isRunId, runControls } from "@/server/run-controls";
 
-/** Сколько флоу других вкладок учитываем при вызовах. */
+/** How many flows from other tabs are taken into account for calls. */
 const MAX_OTHER_FLOWS = 20;
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * POST /api/run  { flow, from?, seeds? } — from/seeds: перезапуск с ноды (данные предшественников из прошлого запуска)
- * runId?: идентификатор для паузы через POST /api/run/control.
- * others?: флоу остальных вкладок редактора (до 20): среди них Emitter ищет Collector раньше сохранённых копий.
- * 400 { error, issues }  — флоу не прошёл валидацию (до запуска процесса).
- * 200 application/x-ndjson — по строке JSON на событие `RunnerEvent`; последняя — `flow:done`.
- * Разрыв соединения клиентом убивает процесс-раннер.
+ * POST /api/run  { flow, from?, seeds? } — from/seeds: restart from a node (predecessors' data from the previous run)
+ * runId?: identifier for pausing via POST /api/run/control.
+ * others?: flows of the other editor tabs (up to 20): Emitter looks for a Collector among them before the saved copies.
+ * 400 { error, issues }  — the flow failed validation (before the process starts).
+ * 200 application/x-ndjson — one JSON line per `RunnerEvent`; the last one is `flow:done`.
+ * If the client drops the connection, the runner process is killed.
  */
 export async function POST(req: Request) {
   const body: unknown = await req.json().catch(() => null);
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
   }
 
   const { from, seeds, trigger, runId, others } = (body ?? {}) as { from?: unknown; seeds?: unknown; trigger?: unknown; runId?: unknown; others?: unknown };
-  // чужие вкладки — только кандидаты для вызова: невалидные по схеме пропускаем, число ограничиваем
+  // other tabs are only call candidates: those invalid against the schema are skipped, the count is capped
   const otherFlows: Flow[] = Array.isArray(others)
     ? others.slice(0, MAX_OTHER_FLOWS).flatMap((f) => {
         const p = flowSchema.safeParse(f);
@@ -55,24 +55,24 @@ export async function POST(req: Request) {
         try {
           controller.enqueue(encoder.encode(`${JSON.stringify(e)}\n`));
         } catch {
-          // клиент уже ушёл — поток закрыт
+          // the client is gone — the stream is closed
         }
       };
       runFlowInProcess(checked.flow, emit, {
         engineDir: engineDir(),
         signal: abort.signal,
         timeoutMs: RUN_TIMEOUT_MS,
-        // «Запустить» — песочница: отдельная память, вызовы других флоу не затрагивают рабочие (опубликованные) копии
+        // "Run" is a sandbox: separate memory, calls to other flows do not touch the working (published) copies
         sandbox: true,
-        // outgoing call в песочнице находит incoming call среди СОХРАНЁННЫХ копий (публикация не нужна); этот флоу — по версии
-        // из редактора, а не сохранённой. Рабочие (опубликованные) запуски не затрагиваются.
+        // in the sandbox, outgoing call finds incoming call among the SAVED copies (no publishing needed); this flow is taken as
+        // edited in the editor, not as saved. Working (published) runs are not affected.
         onResolveCall: async (channelId) => {
           const saved = await getRuntime().store.list();
           const open = otherFlows.filter((f) => f.id !== checked.flow.id);
           const taken = new Set([checked.flow.id, ...open.map((f) => f.id)]);
           return findIncoming([checked.flow, ...open, ...saved.filter((f) => !taken.has(f.id))], channelId);
         },
-        // кнопка «запустить» на ноде Manual: стартует только этот триггер, закрепления песочницы при этом действуют
+        // the "run" button on a Manual node: starts only this trigger, sandbox pins still apply
         trigger: trigger as string | undefined,
         pins: true,
         onControl: (c) => {
@@ -86,7 +86,7 @@ export async function POST(req: Request) {
         try {
           controller.close();
         } catch {
-          // уже закрыт
+          // already closed
         }
       });
     },

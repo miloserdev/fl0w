@@ -1,6 +1,6 @@
 /**
- * Родительская сторона process-runner. Node-only: импортируется ТОЛЬКО на сервере
- * (`@fl0w/engine/process`), основной вход `@fl0w/engine` остаётся изоморфным.
+ * Parent side of the process runner. Node-only: imported ONLY on the server
+ * (`@fl0w/engine/process`); the main `@fl0w/engine` entry stays isomorphic.
  */
 import { fork, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -9,38 +9,38 @@ import { callResolveRequestSchema, runnerEventSchema, type CallResolveReply, typ
 import type { SchedulerRun } from "./scheduler";
 
 export type ProcessRunOptions = {
-  /** Каталог пакета engine (cwd процесса, откуда резолвится tsx). По умолчанию — рядом с этим файлом. */
+  /** Directory of the engine package (the process cwd, where tsx is resolved from). Defaults to next to this file. */
   engineDir?: string;
-  /** Скрипт раннера. По умолчанию `<engineDir>/src/runner.ts`. */
+  /** Runner script. Defaults to `<engineDir>/src/runner.ts`. */
   runnerPath?: string;
-  /** Флаги node для процесса. По умолчанию `--import tsx` — исполнение TS-исходников без сборки. */
+  /** Node flags for the process. Defaults to `--import tsx`, running TS sources without a build. */
   execArgv?: string[];
   /**
-   * Предел времени всего запуска: по истечении процесс убивается. Страховка для кода, который
-   * `vm` не прерывает сам (бесконечный цикл после `await`). По умолчанию без ограничения.
+   * Time limit for the whole run: when it expires the process is killed. A safety net for code that
+   * `vm` cannot interrupt on its own (an infinite loop after `await`). No limit by default.
    */
   timeoutMs?: number;
-  /** Триггер-нода, от которой стартует запуск (плановый запуск); без неё срабатывают все триггеры. */
+  /** Trigger node the run starts from (a scheduled run); without it all triggers fire. */
   trigger?: string;
-  /** Данные срабатывания триггера (тело вебхука и т.п.). */
+  /** Trigger firing data (webhook body, etc.). */
   triggerData?: Json;
-  /** Перезапуск с ноды и данные прошлого запуска для её предшественников (см. RunOptions.from). */
+  /** Restart from a node, with data from the previous run for its predecessors (see RunOptions.from). */
   from?: string;
   seeds?: Record<string, Record<string, Json>>;
-  /** Закрепления действуют и при заданном `trigger` (песочница запускает один триггер кнопкой на ноде). */
+  /** Pins apply even when `trigger` is set (the sandbox runs a single trigger with a button on the node). */
   pins?: boolean;
   /**
-   * Найти флоу с incoming call на канале (по просьбе блока outgoing call): раннер исполняет его вложенным запуском в своём
-   * процессе, поэтому ему нужно само определение. Отказ — исключение (текст увидит блок). Без него outgoing call падает с понятной ошибкой.
+   * Find a flow with an incoming call on a channel (at the request of an outgoing call block): the runner executes it as a nested run in its own
+   * process, so it needs the definition itself. A refusal is an exception (the block sees its text). Without it, outgoing call fails with a clear error.
    */
   onResolveCall?: (channelId: string) => Promise<{ flow: Flow; triggerId: string }>;
-  /** Пробный запуск из редактора (песочница): отдельный каталог памяти. Плановые запуски опубликованных флоу — без флага. */
+  /** Trial run from the editor (sandbox): a separate memory directory. Scheduled runs of published flows have no flag. */
   sandbox?: boolean;
-  /** Отмена: убивает процесс и завершает запуск событием `flow:done` с ошибкой. */
+  /** Cancel: kills the process and finishes the run with a `flow:done` event carrying an error. */
   signal?: AbortSignal;
-  /** Получает управление идущим запуском: пауза/продолжение (после старта процесса; после завершения — no-op). */
+  /** Receives control of the running run: pause/resume (after the process starts; a no-op after it finishes). */
   onControl?: (control: { pause: () => void; resume: () => void }) => void;
-  /** stderr процесса (лог блоков, падения). */
+  /** The process's stderr (block logs, crashes). */
   onStderr?: (chunk: string) => void;
 };
 
@@ -50,8 +50,8 @@ const STDERR_TAIL = 2000;
 const KILL_GRACE_MS = 1000;
 
 /**
- * Запускает флоу в отдельном Node.js-процессе и стримит события в `onEvent`.
- * Гарантии: ровно один `flow:done` в конце; промис не отклоняется; процесс не переживает запуск.
+ * Runs a flow in a separate Node.js process and streams events to `onEvent`.
+ * Guarantees: exactly one `flow:done` at the end; the promise never rejects; the process does not outlive the run.
  */
 export function runFlowInProcess(
   flow: Flow,
@@ -77,7 +77,7 @@ export function runFlowInProcess(
       opts.signal?.removeEventListener("abort", onAbort);
       onEvent({ event: "flow:done", ...e });
       resolve();
-      // процесс должен выйти сам; если завис — добиваем
+      // the process should exit by itself; if it hangs, finish it off
       const proc = child;
       if (proc && proc.exitCode === null && proc.signalCode === null) {
         setTimeout(() => proc.kill("SIGKILL"), KILL_GRACE_MS).unref();
@@ -98,7 +98,7 @@ export function runFlowInProcess(
       child = fork(/* turbopackIgnore: true */ runnerPath, [], {
         cwd: engineDir,
         execArgv: opts.execArgv ?? ["--import", "tsx"],
-        // песочница («Запустить»): банки памяти отдельные от рабочих (опубликованных) флоу — пробные запуски не портят их данные
+        // sandbox ("Run"): memory banks are separate from those of working (published) flows, so trial runs do not corrupt their data
         env: opts.sandbox ? sandboxEnv() : process.env,
         serialization: "json",
         stdio: ["ignore", "ignore", "pipe", "ipc"],
@@ -159,7 +159,7 @@ export function runFlowInProcess(
 
     proc.on("error", (e) => finish({ error: `Runner process error: ${e.message}` }));
 
-    // 'close' приходит после того, как процесс завершился и все потоки/IPC дочитаны
+    // 'close' arrives after the process has exited and all streams/IPC have been drained
     proc.on("close", (code, signal) => {
       const how = signal ? `signal ${signal}` : `code ${code}`;
       const tail = stderrTail.trim();
@@ -173,10 +173,10 @@ export function runFlowInProcess(
 }
 
 /**
- * Исполнитель для планировщика: каждый запуск — отдельный процесс-раннер (SPEC §2.1).
- * Передаёт триггер И его данные целиком — планировщик и раннер не должны расходиться в наборе полей.
+ * Executor for the scheduler: every run is a separate runner process.
+ * Passes the trigger AND its data in full, so the scheduler and the runner cannot diverge on the set of fields.
  */
-/** Окружение раннера песочницы: тот же, но каталог банков памяти — вложенная папка `_sandbox`. */
+/** Sandbox runner environment: the same, but the memory banks directory is the nested `_sandbox` folder. */
 export function sandboxEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   const dir = base["FL0W_MEMORY_DIR"];
   return dir ? { ...base, FL0W_MEMORY_DIR: `${dir.replace(/[\\/]+$/, "")}/_sandbox` } : base;

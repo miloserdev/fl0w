@@ -1,17 +1,17 @@
-/** Node-only. Опрос почтового ящика для Mail Trigger. Экспортируется через `@fl0w/engine/server`. */
+/** Node-only. Mailbox polling for Mail Trigger. Exported via `@fl0w/engine/server`. */
 import { buildMailDriver, redactSecrets, saveMailAttachments, withAttachmentPaths, type MailDriver, type MailWatchSpec } from "@fl0w/blocks";
 import type { Json } from "@fl0w/schema";
 import type { MailPollFactory } from "./scheduler";
 
 export type MailPollerOptions = {
-  /** Паузы между повторами после сбоя: минимум и максимум, мс (растёт вдвое). */
+  /** Pauses between retries after a failure: minimum and maximum, ms (doubles each time). */
   retryMinMs?: number;
   retryMaxMs?: number;
-  /** Сколько писем обрабатывать за один опрос (остальные — в следующем). */
+  /** How many messages to process per poll (the rest go to the next one). */
   batch?: number;
-  /** Сколько идентификаторов «уже видел» помнить. */
+  /** How many "already seen" identifiers to remember. */
   seenLimit?: number;
-  /** Для тестов: свой драйвер вместо настоящего. */
+  /** For tests: your own driver instead of the real one. */
   makeDriver?: (spec: MailWatchSpec, signal: AbortSignal) => MailDriver;
   log?: (msg: string) => void;
 };
@@ -29,10 +29,10 @@ const sleep = (ms: number, signal: AbortSignal) =>
   });
 
 /**
- * Один опрос ящика на триггер: раз в `intervalSec` берёт письма по фильтрам, для ещё не виденных запускает флоу (по письму — один запуск,
- * старые первыми) и, если задано `action: markRead`, помечает письмо прочитанным. Уже лежащие на момент старта письма пропускаются,
- * кроме режима `markRead` или `processExisting` — их обрабатываем (иначе почта «не пришла» бы). При сбое (нет сети, неверный пароль)
- * повторяет с растущей паузой; пароль в сообщениях вырезается.
+ * One mailbox poll per trigger: every `intervalSec` it fetches messages by the filters and starts the flow for ones not yet seen (one run per message,
+ * oldest first) and, if `action: markRead` is set, marks the message as read. Messages already present at start are skipped,
+ * except in `markRead` or `processExisting` mode, where we process them (otherwise mail would "not arrive"). On a failure (no network, wrong password)
+ * it retries with a growing pause; the password is stripped from messages.
  */
 export function createMailPoller(opts: MailPollerOptions = {}): MailPollFactory {
   const retryMin = opts.retryMinMs ?? 5000;
@@ -57,11 +57,11 @@ export function createMailPoller(opts: MailPollerOptions = {}): MailPollFactory 
         : buildMailDriver(String(spec.connection["provider"] ?? "imap"), spec.connection, { username: spec.username, password: spec.password, timeoutMs: 30_000, signal: abort.signal });
       try {
         const listed = await driver.list({ folder: spec.folder, unreadOnly: spec.unreadOnly, from: spec.fromFilter, subject: spec.subjectFilter, since: null, limit: 100 });
-        // письмо уже обработано, но осталось непрочитанным (пометка не удалась) — повторяем только пометку, флоу не запускаем
+        // the message was already processed but stayed unread (marking failed): repeat only the marking, do not start the flow
         if (spec.action === "markRead") {
           for (const m of listed) if (seen.has(m.id) && m.unread) await driver.markRead(spec.folder, m.id, true);
         }
-        // старые первыми: порядок обработки — порядок прихода
+        // oldest first: processing order is arrival order
         const fresh = listed.filter((m) => !seen.has(m.id)).reverse();
         if (first) {
           first = false;

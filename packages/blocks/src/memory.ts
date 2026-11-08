@@ -2,30 +2,30 @@ import type { Json, ParamSchema } from "@fl0w/schema";
 import type { MemoryHandle } from "./block";
 import { MemoryBlock } from "./resources";
 
-/** Каталог банков памяти (драйвер json). Сервер выставляет его в окружение, оно наследуется процессами-раннерами. */
+/** Directory of memory banks (json driver). The server puts it into the environment, and runner processes inherit it. */
 export const MEMORY_DIR_ENV = "FL0W_MEMORY_DIR";
 
-/** Пределы банка: значение, число ключей, размер файла. */
+/** Bank limits: value, number of keys, file size. */
 export const MEMORY_LIMITS = { valueBytes: 1024 * 1024, keys: 10_000, fileBytes: 10 * 1024 * 1024 } as const;
 
 const LOCK_STALE_MS = 15_000;
 const LOCK_WAIT_MS = 10_000;
 
-/** Драйвер хранения: все операции атомарны относительно друг друга (в том числе между процессами-раннерами). */
+/** Storage driver: all operations are atomic relative to each other (including between runner processes). */
 export interface MemoryDriver {
-  /** Выполнить изменение над копией данных банка и сохранить результат; читающие видят либо старое, либо новое состояние. */
+  /** Run a change over a copy of the bank data and save the result; readers see either the old or the new state. */
   read(signal?: AbortSignal): Promise<Record<string, Json>>;
   update<T>(fn: (data: Record<string, Json>) => T, signal?: AbortSignal): Promise<T>;
 }
 
-/** Имя банка: безопасное имя файла — без путей, точек и регистра-зависимых сюрпризов. */
+/** Bank name: a safe file name, with no paths, dots or case-dependent surprises. */
 export function assertBankName(name: string): void {
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(name)) throw new Error(`Invalid memory bank name "${name}": use letters, digits, - and _ (up to 64)`);
 }
 
 const queues = new Map<string, Promise<unknown>>();
 
-/** Драйвер json: один файл `<имя>.json`, запись через временный файл и rename, блокировка lock-файлом между процессами. */
+/** json driver: one file `<name>.json`, writes via a temp file and rename, locking by a lock file between processes. */
 export function createJsonDriver(bank: string): MemoryDriver {
   assertBankName(bank);
 
@@ -68,8 +68,8 @@ export function createJsonDriver(bank: string): MemoryDriver {
         break;
       } catch (e) {
         if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
-        if (signal?.aborted) throw new Error("Aborted", { cause: e }); // ждать замок дальше нет смысла: запуск отменён
-        // «мёртвый» замок (процесс убит посреди записи) снимаем по давности
+        if (signal?.aborted) throw new Error("Aborted", { cause: e }); // no point waiting for the lock any longer: the run is cancelled
+        // a "dead" lock (the process was killed mid-write) is removed by age
         const st = await fs.stat(lock).catch(() => null);
         if (st && Date.now() - st.mtimeMs > LOCK_STALE_MS) await fs.rm(lock, { force: true });
         else if (Date.now() - start > LOCK_WAIT_MS) throw new Error(`Memory bank "${bank}" is busy (lock timeout)`, { cause: e });
@@ -90,7 +90,7 @@ export function createJsonDriver(bank: string): MemoryDriver {
       return load(fs, file);
     },
     update<T>(fn: (data: Record<string, Json>) => T, signal?: AbortSignal): Promise<T> {
-      // очередь внутри процесса + lock-файл между процессами
+      // in-process queue + lock file between processes
       const run = async (): Promise<T> => {
         const { fs, file } = await paths();
         if (signal?.aborted) throw new Error("Aborted");
@@ -116,12 +116,12 @@ export function createJsonDriver(bank: string): MemoryDriver {
   };
 }
 
-/** Банк памяти поверх драйвера: ключ → JSON. */
+/** Memory bank on top of a driver: key -> JSON. */
 export function createMemoryHandle(name: string, driverName: string, driver: MemoryDriver, signal?: AbortSignal): MemoryHandle {
   const checkValue = (v: Json) => {
     if (JSON.stringify(v).length > MEMORY_LIMITS.valueBytes) throw new Error(`Value is too large (max ${MEMORY_LIMITS.valueBytes} bytes)`);
   };
-  // ключ — непустая строка; `__proto__` отвергается: присваивание ему меняет прототип объекта, а не создаёт запись
+  // key is a non-empty string; `__proto__` is rejected: assigning to it changes the object's prototype instead of creating an entry
   const checkKey = (key: string) => {
     if (key === "" || key.length > 256) throw new Error("Key must be a string of 1 to 256 characters");
     if (key === "__proto__") throw new Error('Key "__proto__" is not allowed');
@@ -167,19 +167,19 @@ export function createMemoryHandle(name: string, driverName: string, driver: Mem
   };
 }
 
-/** Драйверы банка памяти; новые (SQLite, Redis…) добавляются сюда, подключение к блокам не меняется. */
+/** Memory bank drivers; new ones (SQLite, Redis...) are added here, the connection to blocks does not change. */
 export const MEMORY_DRIVERS: Record<string, (bank: string) => MemoryDriver> = {
   json: createJsonDriver,
 };
 
-/** Банк памяти — «база данных» для Code Agent и других блоков: ключ → JSON, драйвер выбирается параметром. */
+/** Memory bank: a "database" for Code Agent and other blocks: key -> JSON, the driver is chosen by a parameter. */
 export class MemoryBank extends MemoryBlock {
   static type = "memory_bank";
   static label = "Memory Bank";
   static icon = "database";
   static params: ParamSchema[] = [
     { name: "driver", type: "enum", default: "json", options: Object.keys(MEMORY_DRIVERS).map((value) => ({ value })) },
-    // банки с одним именем — одно хранилище (общее для флоу и запусков)
+    // banks with the same name are one storage (shared across flows and runs)
     { name: "name", type: "string", required: true, default: "default" },
   ];
 

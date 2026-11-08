@@ -1,14 +1,14 @@
 import type { Json } from "@fl0w/schema";
 import { Block } from "./block";
 
-/** Финальный блок: нет выходов, его вход фиксируется движком как результат запуска. */
+/** Final block: no outputs; its input is recorded by the engine as the run result. */
 export class ResultBlock extends Block {
   static type = "result";
   static label = "Result";
   static icon = "flag";
   static category = "io";
   static ports = { inputs: [{ id: "in0" }], outputs: [] };
-  static override serviceOutputs = ["in0"] as const; // для ленты: что получил Result
+  static override serviceOutputs = ["in0"] as const; // for the feed: what Result received
   static params = [];
   static defaultCss = "";
 

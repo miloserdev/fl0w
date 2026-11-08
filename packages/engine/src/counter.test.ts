@@ -28,14 +28,14 @@ const shown = async (fl: ReturnType<typeof f>) => {
   return { display: done?.event === "node:done" ? done.display : undefined, result: r.done?.result };
 };
 
-describe("Counter в запуске флоу", () => {
-  it("node:done несёт display с числом срабатываний; данные идут дальше нетронутыми", async () => {
+describe("Counter in a flow run", () => {
+  it("node:done carries a display with the trigger count; data goes on untouched", async () => {
     expect(await shown(f())).toEqual({ display: "1", result: { a: 1 } });
     expect((await shown(f())).display).toBe("2");
     expect((await shown(f())).display).toBe("3");
   });
 
-  it("счёт принадлежит флоу и ноде: другой флоу и другая нода считают отдельно", async () => {
+  it("the count belongs to the flow and node: another flow and another node count separately", async () => {
     expect((await shown(f("flow_other"))).display).toBe("1");
     const renamed = f();
     renamed.nodes[1]!.id = "c2";
@@ -44,7 +44,7 @@ describe("Counter в запуске флоу", () => {
     expect(r.events.some((e) => e.event === "node:done" && e.nodeId === "c2" && e.display === "1")).toBe(true);
   });
 
-  it("закреплённая (pin) нода не исполняется и не считает; reset обнуляет", async () => {
+  it("a pinned node is not executed and does not count; reset zeroes it", async () => {
     const pinned = f();
     pinned.nodes[1] = { ...pinned.nodes[1]!, pinData: { out0: { fake: true } } };
     expect((await shown(pinned)).display).toBeUndefined();

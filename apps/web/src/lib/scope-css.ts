@@ -1,15 +1,15 @@
 /**
- * Scoped CSS для нод (SPEC §7).
+ * Scoped CSS for nodes.
  *
- * Пользовательский CSS не вставляется как есть: сначала `sanitizeCss` разбирает его на
- * верхнеуровневые элементы (строки, комментарии, скобки учитываются), выбрасывает
- * запрещённые at-правила и лишние `}` и гарантирует сбалансированность. Затем
- * `scopeCss` оборачивает результат в `[data-node-id="…"] { … }` — нативный CSS nesting:
- * все селекторы автоматически становятся потомками контейнера ноды, `&` — сам контейнер.
+ * User CSS is not inserted as is: first `sanitizeCss` splits it into
+ * top-level items (strings, comments and brackets are accounted for), drops
+ * forbidden at-rules and stray `}` and guarantees balance. Then
+ * `scopeCss` wraps the result in `[data-node-id="…"] { … }` — native CSS nesting:
+ * all selectors automatically become descendants of the node container, `&` is the container itself.
  */
 
-// at-правила, безопасные внутри scope. Остальные (@import, @font-face, @keyframes,
-// @property, @namespace, …) создают глобальные сущности — их отбрасываем.
+// at-rules that are safe inside a scope. The others (@import, @font-face, @keyframes,
+// @property, @namespace, …) create global entities — we drop them.
 const ALLOWED_AT_RULES = new Set(["media", "supports", "container", "layer"]);
 
 type Item = { text: string; kind: "block" | "statement" };
@@ -58,7 +58,7 @@ function splitTopLevel(css: string): Item[] {
       buf += ch;
     } else if (ch === "}") {
       if (depth === 0) {
-        // лишняя закрывающая скобка — попытка «выпрыгнуть» из scope, игнорируем
+        // a stray closing brace is an attempt to "jump out" of the scope, ignore it
         buf = "";
         continue;
       }
@@ -76,7 +76,7 @@ function splitTopLevel(css: string): Item[] {
       buf += ch;
     }
   }
-  // незакрытый блок/хвост без `;` в конце — отбрасываем (например, при наборе в редакторе)
+  // an unclosed block/tail without `;` at the end — dropped (for example, while typing in the editor)
   return items;
 }
 

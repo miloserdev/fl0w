@@ -1,4 +1,4 @@
-/** Идущие запуски песочницы: управление паузой по runId, который клиент присылает вместе с POST /api/run. */
+/** Running sandbox runs: pause control by runId, which the client sends along with POST /api/run. */
 export type RunControl = { pause: () => void; resume: () => void };
 
 const g = globalThis as { __fl0wRunControls?: Map<string, RunControl> };

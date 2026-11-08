@@ -6,7 +6,7 @@ import { textOf, valueOf } from "./value-io";
 const ALGS = { HS256: "sha256", HS384: "sha384", HS512: "sha512" } as const;
 type Alg = keyof typeof ALGS;
 
-/** JWT (HMAC): sign, verify, decode. Секрет задаётся в параметрах. verify проверяет подпись, алгоритм, exp и nbf. */
+/** JWT (HMAC): sign, verify, decode. The secret is set in the parameters. verify checks the signature, algorithm, exp and nbf. */
 export class Jwt extends Block {
   static type = "jwt";
   static label = "JWT";
@@ -28,10 +28,10 @@ export class Jwt extends Block {
       default: "HS256",
       options: (Object.keys(ALGS) as Alg[]).map((value) => ({ value })),
     },
-    // sign: claims; строки с «{{ путь }}» берут данные из входа
+    // sign: claims; strings with "{{ path }}" take data from the input
     { name: "payload", type: "json", default: {} },
     { name: "expiresInSeconds", type: "number", default: 0, min: 0 },
-    // verify / decode: токен или шаблон; пусто — вход (строка или поле token)
+    // verify / decode: a token or a template; empty means the input (a string or the token field)
     { name: "token", type: "string", default: "" },
   ];
 

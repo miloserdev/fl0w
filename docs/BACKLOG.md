@@ -1,90 +1,90 @@
-# BACKLOG — очередь работы оркестратора
+# BACKLOG — the orchestrator's work queue
 
-Живой документ: оркестратор сам берёт задачи сверху вниз, обновляет статусы и добавляет найденное по дороге. Правила работы — в `CLAUDE.md`.
-Статусы: `todo` · `doing` · `blocked` (ждёт владельца) · `done`. Исполнитель — агент из `.claude/agents/` или «я» (оркестратор).
+A living document: the orchestrator takes tasks from the top down, updates statuses and adds what it finds along the way. Working rules are in `CLAUDE.md`.
+Statuses: `todo` · `doing` · `blocked` (waiting for the owner) · `done`. Executor: an agent from `.claude/agents/` or "me" (the orchestrator).
 
-## Решения владельца (ждут ответа)
+## Owner decisions (awaiting an answer)
 
-Задачи, зависящие от них, помечены `blocked`. Каждое решение — с рекомендацией оркестратора.
+Tasks that depend on them are marked `blocked`. Each decision comes with the orchestrator's recommendation.
 
-| # | Вопрос | Варианты | Рекомендация |
+| # | Question | Options | Recommendation |
 |---|---|---|---|
-| D1 | **SSH** — удалённые команды на других машинах | A — системный `ssh` (ключи/`ssh-agent`, `known_hosts`, список разрешённых хостов); B — библиотека `ssh2` с ключом в параметрах; C — агент на удалённой машине (pull-модель) | A, только выполнение команд; команда = исполняемый файл + массив аргументов (экранируются), список хостов в `FL0W_SSH_HOSTS`; SFTP — отдельным шагом |
-| D2 | **Модель доступа** к редактору и API (они без аутентификации) | слушать только `127.0.0.1`; токен `FL0W_TOKEN` (Bearer/cookie); оба | оба: по умолчанию `127.0.0.1`, при внешнем доступе обязателен токен |
-| D3 | **Хранилище учётных данных** | зашифрованный файл + мастер-ключ в окружении; интеграция с системным keyring | зашифрованный файл (AES-256-GCM, ключ `FL0W_MASTER_KEY`); блоки ссылаются на учётные данные по имени, секреты не попадают во флоу и логи |
-| D4 | **WebSocket-триггер** | клиент к чужому сокету; сервер для ваших клиентов | зависит от сценария — нужен ответ владельца |
-| D5 | **Execute Workflow** (вызов флоу из флоу) | контракт: вход/выход подфлоу, Execute Workflow Trigger, защита от рекурсии | сделать после D3; рекурсия ограничивается глубиной |
+| D1 | **SSH** — remote commands on other machines | A — system `ssh` (keys/`ssh-agent`, `known_hosts`, allowlist of hosts); B — the `ssh2` library with a key in the parameters; C — an agent on the remote machine (pull model) | A, command execution only; command = executable + array of arguments (escaped), host list in `FL0W_SSH_HOSTS`; SFTP as a separate step |
+| D2 | **Access model** for the editor and API (they have no authentication) | listen on `127.0.0.1` only; `FL0W_TOKEN` token (Bearer/cookie); both | both: `127.0.0.1` by default, a token is mandatory for external access |
+| D3 | **Credential store** | encrypted file + master key in the environment; system keyring integration | encrypted file (AES-256-GCM, key `FL0W_MASTER_KEY`); blocks reference credentials by name, secrets do not end up in flows or logs |
+| D4 | **WebSocket trigger** | client to someone else's socket; server for your own clients | depends on the scenario — needs the owner's answer |
+| D5 | **Execute Workflow** (calling a flow from a flow) | contract: subflow input/output, Execute Workflow Trigger, recursion protection | do after D3; recursion is limited by depth |
 
-## Очередь
+## Queue
 
-| P | Статус | Задача | Критерий готовности | Исполнитель |
+| P | Status | Task | Done criterion | Executor |
 |---|---|---|---|---|
-| P1 | blocked (D2) | Слушать `127.0.0.1` по умолчанию (`FL0W_HOST`), токен для внешнего доступа | `pnpm dev`/`start` недоступны по внешнему адресу без токена; тесты на отказ; docs | engine-dev → security-reviewer |
-| P1 | todo | **История запусков**: сохранять на диск последние N запусков флоу (сводка + события с лимитами), показывать список в UI и открывать запуск | переживает перезапуск сервера; лимиты размера; UI открывает любой запуск в панели результата; тесты | engine-dev (хранилище/API) → ui-dev (список) |
-| P1 | todo (подтвердить: раньше исключено) | **Серверные флоу в UI**: `GET /api/flows` (список), меню «Мои флоу» (draft/published, открыть, удалить, «Новый флоу») | опубликованные флоу из другого браузера находятся и открываются; удаление снимает публикацию; тесты API | engine-dev + ui-dev |
-| P2 | todo | Блоки: **GraphQL** (обёртка над HTTP), **TOTP**, **Split In Batches** (чанки), **Debug Helper**, **Execution Data** | по `block-builder` на блок, до 3 параллельно; общие файлы (`registry.ts`, `index.ts`, словари, `block-icon.tsx`, `BLOCKS.md`) — оркестратор после волны | block-builder × N → qa-verifier |
-| P2 | todo | Блоки с зависимостями: **HTML** (cheerio), **XML** (fast-xml-parser), **Markdown** (marked), **RSS** | сначала `researcher` (нативные модули/build-скрипты pnpm запрещены, размер); зависимости подгружаются динамически внутри `run` | researcher → block-builder |
-| P2 | todo | **Надёжность тестов**: прогнать 20× файловый наблюдатель и планировщик, найти флейки, стабилизировать | 20 прогонов подряд без падений | qa-verifier |
-| P2 | todo | **Холодный старт раннера**: ~0.4 с на `tsx`; собрать раннер в один JS + кэш | запуск `Source → Result` быстрее вдвое; поведение и тесты те же; режим разработки подхватывает изменения блоков | engine-dev |
-| P2 | **done** | **Параллельные ветки**: независимые ноды выполняются одновременно (лимит 16, сбой одной обрывает остальные, wait-all/any сохранены) | — | я |
-| P2 | todo | **Monaco локально** (без CDN) | редактор работает без интернета; воркеры собираются Next | ui-dev |
-| P3 | todo | UX: короткая подпись параметров на ноде (как subtitle у n8n), копирование/дублирование нод | проверено `ui-check`, словари ru/en | ui-dev |
-| P3 | todo | Наблюдаемость: лог сервера в файл с ротацией, счётчики запусков | не растёт бесконечно; тесты | engine-dev |
-| P3 | blocked (D1) | Блок SSH | см. D1 | block-builder → security-reviewer |
-| P3 | blocked (D3) | Учётные данные + HTTP Request с авторизацией | см. D3 | engine-dev + ui-dev → security-reviewer |
+| P1 | blocked (D2) | Listen on `127.0.0.1` by default (`FL0W_HOST`), token for external access | `pnpm dev`/`start` are unreachable on an external address without a token; tests for the denial; docs | engine-dev → security-reviewer |
+| P1 | todo | **Run history**: store the last N runs of a flow on disk (summary + events with limits), show a list in the UI and open a run | survives a server restart; size limits; the UI opens any run in the result panel; tests | engine-dev (storage/API) → ui-dev (list) |
+| P1 | todo (confirm: previously excluded) | **Server flows in the UI**: `GET /api/flows` (list), a "Flows" menu (draft/published, open, delete, "New flow") | published flows from another browser can be found and opened; deleting unpublishes; API tests | engine-dev + ui-dev |
+| P2 | todo | Blocks: **GraphQL** (HTTP wrapper), **TOTP**, **Split In Batches** (chunks), **Debug Helper**, **Execution Data** | one `block-builder` per block, up to 3 in parallel; shared files (`registry.ts`, `index.ts`, dictionaries, `block-icon.tsx`, `BLOCKS.md`) — the orchestrator after the wave | block-builder × N → qa-verifier |
+| P2 | todo | Blocks with dependencies: **HTML** (cheerio), **XML** (fast-xml-parser), **Markdown** (marked), **RSS** | `researcher` first (native modules/pnpm build scripts are forbidden, size); dependencies are loaded dynamically inside `run` | researcher → block-builder |
+| P2 | todo | **Test reliability**: run the file watcher and scheduler tests 20×, find flaky tests, stabilize them | 20 consecutive runs without failures | qa-verifier |
+| P2 | todo | **Runner cold start**: ~0.4 s on `tsx`; bundle the runner into a single JS file + cache | launching `Source → Result` is twice as fast; behavior and tests unchanged; dev mode picks up block changes | engine-dev |
+| P2 | **done** | **Parallel branches**: independent nodes run simultaneously (limit 16, a failure of one aborts the rest, wait-all/any preserved) | — | me |
+| P2 | todo | **Monaco locally** (no CDN) | the editor works without internet; workers are built by Next | ui-dev |
+| P3 | todo | UX: short parameter caption on the node (like the subtitle in n8n), copying/duplicating nodes | checked with `ui-check`, ru/en dictionaries | ui-dev |
+| P3 | todo | Observability: server log to a file with rotation, run counters | does not grow without bound; tests | engine-dev |
+| P3 | blocked (D1) | SSH block | see D1 | block-builder → security-reviewer |
+| P3 | blocked (D3) | Credentials + HTTP Request with authorization | see D3 | engine-dev + ui-dev → security-reviewer |
 
-## Идеи из внешнего обзора (n8n-боли) — разбор
+## Ideas from an external review (n8n pain points) — analysis
 
-| # | Идея | Состояние | Решение |
+| # | Idea | State | Decision |
 |---|---|---|---|
-| I1 | Вход/выход на каждой ноде | **есть**: вкладка «Данные» (вход, параметры, выход, лог, ошибка) | — |
-| I2 | Pin data (закрепить выход ноды для отладки) | **сделано** (`node.pinData`, только ручные запуски, редактор JSON) | — |
-| I3 | Пошаговый запуск, re-run с выбранной ноды | re-run **сделан** (`from`+`seeds`, кнопка «Запустить отсюда»); пошаговый режим (по одной ноде) — todo | P1: «следующий шаг» поверх `from` |
-| I4 | Git-native: стабильный порядок и id | частично (zod-схема, id задаёт редактор) | P2: сортировка нод/рёбер и ключей при сохранении, тест «save→load→save даёт тот же текст» |
-| I5 | Сопровождаемость: группы/сабфлоу, поиск по нодам, заметки, миникарта | миникарта есть | P2: заметки (блок-комментарий), поиск (Ctrl+K), группы; сабфлоу — после D5 |
-| I6 | Error-порт и повторы на ноде | есть Error Trigger на уровне флоу | P1: общий параметр ноды `retries/retryDelay` и опциональный выход ошибки (`onError: stop|continue|port`) |
-| I7 | `require`/npm в Code | **нет, нужно решение владельца** (модель доверия, SPEC §5a/§12) | D6 |
-| I8 | Избегать: скрытая потеря данных в циклах, тихие падения вебхуков | циклов нет (DAG); падения вебхука | P2: аудит ответов `/api/hooks` и журнала (ошибка запуска видна в Watch и логе) |
+| I1 | Input/output on every node | **exists**: the "Data" tab (input, parameters, output, log, error) | — |
+| I2 | Pin data (pin a node's output for debugging) | **done** (`node.pinData`, manual runs only, JSON editor) | — |
+| I3 | Step-by-step execution, re-run from a selected node | re-run **done** (`from`+`seeds`, the "Run from here" button); step-by-step mode (one node at a time) — todo | P1: "next step" on top of `from` |
+| I4 | Git-native: stable order and ids | partial (zod schema, ids are assigned by the editor) | P2: sort nodes/edges and keys on save, a "save→load→save yields the same text" test |
+| I5 | Maintainability: groups/subflows, node search, notes, minimap | minimap exists | P2: notes (comment block), search (Ctrl+K), groups; subflows — after D5 |
+| I6 | Error port and retries on a node | Error Trigger exists at the flow level | P1: a common node parameter `retries/retryDelay` and an optional error output (`onError: stop|continue|port`) |
+| I7 | `require`/npm in Code | **no, needs the owner's decision** (trust model, architecture rule 5) | D6 |
+| I8 | Avoid: hidden data loss in loops, silent webhook failures | no loops (DAG); webhook failures | P2: audit of `/api/hooks` responses and the journal (a run error is visible in Watch and the log) |
 
-D6 (ждёт владельца): разрешать ли Code `require`/npm? Рекомендация — нет по умолчанию; опционально список разрешённых модулей через `FL0W_CODE_MODULES` и отдельный процесс без `vm`-границ.
+D6 (awaiting the owner): should Code be allowed `require`/npm? Recommendation — no by default; optionally an allowlist of modules via `FL0W_CODE_MODULES` and a separate process without the `vm` boundary.
 
-## Находки ревью потоков данных (открытые)
+## Findings of the data-flow review (open)
 
-| # | Находка | Статус |
+| # | Finding | Status |
 |---|---|---|
-| R1 | **Вторичная подстановка**: значение, подставленное `{{ inputs… }}`, затем ещё раз проходит `{{ путь }}` в блоке (set, telegram, files, shell args/env/stdin, respond, jwt, stop_and_error) — внешний текст `{{ secret }}` превращается в чтение поля входа. Нужно решение по модели шаблонов (экранирование подставленных значений либо один проход) | **blocked: решение владельца** (рекомендация — экранировать подставленное, `\{{` для литерала) |
-| R2 | `{{ путь }}` не работает в `url/body/headers` HTTP Request, `cwd` Shell, `headers` Respond to Webhook | todo |
-| R3 | `null` из выражения даёт `"null"` в Shell `args/env/stdin`, заголовках, `stop_and_error.message` — единый хелпер текста | todo |
-| R4 | `crypto.secret`, `jwt.secret` — литералом во флоу; подключить `resolveSecret` (`env:FL0W_SECRET_*`) | todo |
-| R5 | таблица «блок → параметры → механизм» в `docs/BLOCKS.md` | todo |
+| R1 | **Secondary substitution**: a value substituted by `{{ inputs… }}` then passes through `{{ path }}` once more in the block (set, telegram, files, shell args/env/stdin, respond, jwt, stop_and_error) — external text `{{ secret }}` turns into a read of an input field. A decision on the template model is needed (escape substituted values or a single pass) | **blocked: owner's decision** (recommendation — escape the substituted value, `\{{` for a literal) |
+| R2 | `{{ path }}` does not work in `url/body/headers` of HTTP Request, `cwd` of Shell, `headers` of Respond to Webhook | todo |
+| R3 | `null` from an expression yields `"null"` in Shell `args/env/stdin`, headers, `stop_and_error.message` — a single text helper | todo |
+| R4 | `crypto.secret`, `jwt.secret` — literals in the flow; wire up `resolveSecret` (`env:FL0W_SECRET_*`) | todo |
+| R5 | a "block → parameters → mechanism" table in `docs/BLOCKS.md` | todo |
 
-Сделано: число-строка в `datetime` — мс эпохи; «целое» выражение с несуществующим путём — понятная ошибка; заголовки `authorization/cookie/x-api-key` маскируются в событиях.
+Done: a numeric string in `datetime` is epoch ms; a "whole" expression with a nonexistent path gives a clear error; the `authorization/cookie/x-api-key` headers are masked in events.
 
-## Принятые решения (журнал)
+## Decisions made (log)
 
-- **Ресурсные порты (tools/memory) и Code Agent** — по просьбе владельца, по образцу sub-nodes AI Agent в n8n (SPEC §5b). Вместо модели — нода с кодом; модель добавится третьим видом ресурса (`model`). Банк памяти — один блок `memory_bank` с параметром `driver` (сейчас `json`), новые драйверы — в `MEMORY_DRIVERS`.
-- **Запуск идёт от стартовых нод** (триггеры; без триггеров — источники данных). Нода без связи со стартом не выполняется. (SPEC §5.3)
-- **Публикация** требует хотя бы один автоматический триггер (`autoTrigger`: Every, Webhook, Local File, Error, Activation, Workflow); исполняется серверная копия флоу.
-- **Shell отключён по умолчанию**, включается `FL0W_ALLOW_SHELL=1`; скрипт не шаблонизируется; окружение команды урезано. (SPEC §12)
-- **Файлы** — только внутри `FL0W_FILES_DIR`; симлинки наружу отвергаются.
-- **Выражения n8n заменены шаблонами `{{ путь }}`** без исполнения кода. «Целый» шаблон — вся строка без внешних пробелов.
-- **Error Trigger** принимает ошибки только автоматических запусков; запуск обработчика не порождает цепочку ошибок; передаётся сообщение самой ноды.
-- **Вебхуки без аутентификации** — для локального/доверенного использования; лимиты: тело 1 МБ, 8 параллельных запусков.
-- **Git**: коммиты от Claude, без подписи, через `scripts/commit.sh`; глобальный конфиг владельца не трогаем.
-- **Секреты — ссылки на переменные окружения** `env:FL0W_SECRET_*` (только этот префикс): токен не лежит во флоу и не попадает в логи/ошибки/ленту. Это промежуточное решение до D3 (полноценное хранилище).
-- **Telegram Trigger — два режима**: `polling` по умолчанию (только исходящие запросы, один опрос на токен, очередь 500) и `webhook` по просьбе владельца (нужен `FL0W_PUBLIC_URL`; наружу выставлять только `/api/telegram/*`, т.к. редактор без аутентификации — D2). Ключ и секрет вебхука выводятся из токена HMAC; смешивать режимы на одном токене нельзя.
-- **Выражение в строковом параметре**: «целое» `{{ inputs.inN.путь }}` с числом/булевым/объектом приводится к строке (id чата — число); у числовых и булевых параметров тип сохраняется.
-- **Ручной запуск не стартует триггеры событий** (`eventDriven`: Webhook, Local File, Telegram, Error, Activation, Workflow): у них нет настоящих данных, а выдуманные «example» запускали цепочки с побочными эффектами. Остаются Manual, Every и источники; если во флоу только триггеры событий — понятная ошибка. Их запускает событие (планировщик).
-- **Ожидание входов**: по умолчанию wait-all (SPEC §5); Merge получил параметр `wait: all|any` через `Block.waitMode()` — `any` запускает ноду по пришедшим входам (граф — DAG, нода идёт после всех предшественников, поэтому это «те, что дошли»). Run Flow: `maxDepth: 0` — без ограничения цепочки.
-- **Песочница ≠ production**: «Запустить» (в т.ч. «Запустить отсюда», pin data) работает по сохранённым копиям и в отдельной памяти (`_sandbox`), не пишет в Watch/Error Trigger рабочих флоу; Run Flow из песочницы не запускает опубликованные копии. Опубликованный флоу вызывает только опубликованные. Внешние эффекты не изолируются.
-- **Пара вызовов (вызов флоу из флоу)**: блоки `run_flow`/`call_trigger` (типы сохранены, метки Outgoing Call/Incoming), связь по `channelId` 1:1, режимы `await`/`shoot`, вызванный флоу — вложенный запуск в раннере вызывающего (поэтому глубина ≤ 20, «0 = без ограничения» убрано); incoming call не стартует ничем, кроме вызова; shoot-вызовы раннер не ждёт и обрывает по завершении (`node:killed`). Старые параметры `flowId/triggerId` не используются — у существующих нод нужно задать `channelId`.
-- **Параллельное исполнение**: нода стартует, как только определились все её входы; независимые ветки и несвязанные графы одного флоу идут одновременно (Wait/HTTP задерживают только зависящее от них), лимит 16 нод; при падении одной остальные обрываются без лишних `node:error`; порядок ключей результата топологический. Блоки на CPU (Code с синхронным циклом) по-прежнему блокируют процесс — это один поток.
-- **Рекурсия запрещена, повторение — Loop** (решение владельца): Emitter и Collector не могут быть в одном графе (компонента связности), поэтому вызванный граф никого не вызывает — цепочек/циклов вызовов нет; `allowRecursive`/`maxDepth` убраны. Цена: вызванный граф сам не вызывает (нет цепочек); если понадобятся — разрешить цепочки без циклов отдельным решением.
-- **Loop — отдельная логика, не вызовы**: блок `loop` с выходами `out0` (готово) и `body` (итерация); тело — ноды от `body`, исполняет движок (вложенный запуск «области» на том же флоу), режимы items/count/while/forever, Break, лимит `maxIterations`; граф остаётся DAG.
-- **Форма ноды**: у стартовых (есть выход, нет входа) скруглена левая сторона 24px, у финальных (вход без выхода) — правая.
-- **Условная видимость параметров** (`showWhen`) — общее средство схемы, как `displayOptions` в n8n; скрытые параметры не требуются и не проверяются.
-- **Пропущено осознанно**: Loop Over Items (граф — DAG), бинарные ноды, остальные интеграции с внешними аккаунтами (нужен D3), Telegram *Send and Wait for Response*.
+- **Resource ports (tools/memory) and Code Agent** — at the owner's request, modeled on the AI Agent sub-nodes in n8n (architecture rules in `CLAUDE.md`). Instead of a model there is a node with code; the model will be added as a third kind of resource (`model`). The memory bank is a single `memory_bank` block with a `driver` parameter (currently `json`); new drivers go in `MEMORY_DRIVERS`.
+- **A run starts from the start nodes** (triggers; without triggers — data sources). A node with no connection to a start does not execute.
+- **Publishing** requires at least one automatic trigger (`autoTrigger`: Every, Webhook, Local File, Error, Activation, Workflow); the server copy of the flow is what runs.
+- **Shell is disabled by default**, enabled by `FL0W_ALLOW_SHELL=1`; the script is not templated; the command's environment is trimmed. (architecture rule 5)
+- **Files** — only inside `FL0W_FILES_DIR`; symlinks leading outside are rejected.
+- **n8n expressions are replaced by `{{ path }}` templates** with no code execution. A "whole" template is the entire string without outer whitespace.
+- **Error Trigger** accepts errors only from automatic runs; running the handler does not produce an error chain; the message of the node itself is passed.
+- **Webhooks without authentication** — for local/trusted use; limits: 1 MB body, 8 parallel runs.
+- **Git**: commits are authored by Claude, unsigned, via `scripts/commit.sh`; the owner's global config is not touched.
+- **Secrets are references to environment variables** `env:FL0W_SECRET_*` (only this prefix): the token does not live in the flow and does not end up in logs/errors/the feed. This is an interim decision until D3 (a full store).
+- **Telegram Trigger has two modes**: `polling` by default (outgoing requests only, one poll per token, queue of 500) and `webhook` at the owner's request (needs `FL0W_PUBLIC_URL`; expose only `/api/telegram/*` outward, since the editor has no authentication — D2). The webhook key and secret are derived from the token via HMAC; modes cannot be mixed on one token.
+- **Expression in a string parameter**: a "whole" `{{ inputs.inN.path }}` with a number/boolean/object is coerced to a string (chat id is a number); numeric and boolean parameters keep their type.
+- **A manual run does not start event triggers** (`eventDriven`: Webhook, Local File, Telegram, Error, Activation, Workflow): they have no real data, and made-up "example" data started chains with side effects. What remains are Manual, Every and sources; if the flow contains only event triggers, there is a clear error. They are started by an event (the scheduler).
+- **Waiting for inputs**: wait-all by default (architecture rule 1); Merge got a `wait: all|any` parameter via `Block.waitMode()` — `any` runs the node on the inputs that have arrived (the graph is a DAG, a node runs after all its predecessors, so this means "those that arrived").
+- **Sandbox ≠ production**: "Run" (including "Run from here", pin data) works on the saved copies and in a separate memory (`_sandbox`), does not write to Watch/Error Trigger of working flows; Run Flow from the sandbox does not start published copies. A published flow calls only published ones. External effects are not isolated.
+- **Call pair (calling a flow from a flow)**: the `run_flow`/`call_trigger` blocks (types preserved, labels Outgoing Call/Incoming), linked by `channelId` 1:1, modes `await`/`shoot`; the called flow is a nested run in the caller's runner (hence depth ≤ 20, "0 = unlimited" removed); an incoming call is started by nothing except a call; the runner does not wait for shoot calls and aborts them on completion (`node:killed`). The old `flowId/triggerId` parameters are no longer used — existing nodes need a `channelId` set.
+- **Parallel execution**: a node starts as soon as all its inputs are determined; independent branches and unconnected graphs of one flow run simultaneously (Wait/HTTP delay only what depends on them), limit of 16 nodes; when one fails the rest are aborted without extra `node:error`; the key order of the result is topological. CPU-bound blocks (Code with a synchronous loop) still block the process — it is a single thread.
+- **Recursion is forbidden, repetition is Loop** (owner's decision): Emitter and Collector cannot be in the same graph (connected component), so a called graph calls nobody — there are no call chains/cycles; `allowRecursive`/`maxDepth` removed. Cost: a called graph does not call anything itself (no chains); if they are needed, allow chains without cycles as a separate decision.
+- **Loop is separate logic, not calls**: the `loop` block with outputs `out0` (done) and `body` (iteration); the body is the nodes from `body`, executed by the engine (a nested run of a "scope" on the same flow), modes items/count/while/forever, Break, a `maxIterations` limit; the graph stays a DAG.
+- **Node shape**: start nodes (have an output, no input) have the left side rounded at 24px, final ones (input without output) the right side.
+- **Conditional parameter visibility** (`showWhen`) — a general schema facility, like `displayOptions` in n8n; hidden parameters are not required and not validated.
+- **Skipped deliberately**: Loop Over Items (the graph is a DAG), binary nodes, other integrations with external accounts (need D3), Telegram *Send and Wait for Response*.
 
-## Журнал процесса
+## Process log
 
-- Введены `CLAUDE.md`, шесть агентов, `scripts/` (`commit.sh`, `ui-check.mjs`, `shadcn-add.mjs`), команды `pnpm check` / `pnpm verify`.
+- Introduced `CLAUDE.md`, six agents, `scripts/` (`commit.sh`, `ui-check.mjs`, `shadcn-add.mjs`), the `pnpm check` / `pnpm verify` commands.

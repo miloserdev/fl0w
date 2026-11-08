@@ -4,43 +4,43 @@ import { processSchedulerRun } from "@fl0w/engine/process";
 import { createFileWatcher, createMailPoller, createTelegramSources, FlowStore, RunHub, Scheduler } from "@fl0w/engine/server";
 import { engineDir } from "./engine-dir";
 
-/** Предел времени одного запуска; дальше процесс-раннер убивается. */
+/** Time limit of a single run; after it the runner process is killed. */
 export const RUN_TIMEOUT_MS = 5 * 60 * 1000;
 
 class Runtime {
   readonly store: FlowStore;
   readonly hub = new RunHub();
   readonly scheduler: Scheduler;
-  /** Источники Telegram Trigger; `handleWebhook` принимает входящие обновления вебхука. */
+  /** Telegram Trigger sources; `handleWebhook` accepts incoming webhook updates. */
   readonly telegram = createTelegramSources({ log: (msg) => console.log(`[telegram] ${msg}`) });
   private started: Promise<void> | null = null;
 
   constructor() {
-    // Каталог данных: переменная окружения или .data рядом с приложением (в .gitignore).
+    // Data directory: an environment variable or .data next to the application (in .gitignore).
     const dir = process.env["FL0W_DATA_DIR"] ?? path.join(/* turbopackIgnore: true */ process.cwd(), ".data", "flows");
     this.store = new FlowStore(dir);
-    // Каталог файлов для блоков Read/Write Files, Shell и Local File Trigger (выше него доступа нет).
-    // Переменная выставляется в окружение сервера, поэтому её наследуют процессы-раннеры.
+    // Files directory for the Read/Write Files, Shell and Local File Trigger blocks (there is no access above it).
+    // The variable is set in the server environment, so runner processes inherit it.
     const filesDir = process.env["FL0W_FILES_DIR"] ?? path.join(/* turbopackIgnore: true */ process.cwd(), ".data", "files");
     process.env["FL0W_FILES_DIR"] = filesDir;
-    // Каталог банков памяти (блок Memory Bank, драйвер json): рядом с данными флоу, наследуется процессами-раннерами.
+    // Memory banks directory (Memory Bank block, json driver): next to the flow data, inherited by the runner processes.
     process.env["FL0W_MEMORY_DIR"] ??= path.join(/* turbopackIgnore: true */ process.cwd(), ".data", "memory");
     this.scheduler = new Scheduler({
       store: this.store,
       hub: this.hub,
       registry,
-      // каждый плановый запуск — отдельный процесс, как и ручной (SPEC §2.1)
+      // each scheduled run is a separate process, like a manual one
       run: processSchedulerRun({ engineDir: engineDir(), timeoutMs: RUN_TIMEOUT_MS }),
       watchFiles: createFileWatcher({ baseDir: filesDir, log: (msg) => console.log(`[file-watch] ${msg}`) }),
-      // Telegram Trigger: опрос (по умолчанию, только исходящие запросы) или вебхук (нужен FL0W_PUBLIC_URL)
+      // Telegram Trigger: polling (default, outgoing requests only) or webhook (needs FL0W_PUBLIC_URL)
       pollTelegram: this.telegram.factory,
-      // Mail Trigger: опрос почтового ящика (IMAP или Microsoft Graph)
+      // Mail Trigger: polling a mailbox (IMAP or Microsoft Graph)
       pollMail: createMailPoller({ log: (msg) => console.log(`[mail] ${msg}`) }),
       log: (msg) => console.log(`[scheduler] ${msg}`),
     });
   }
 
-  /** Поднимает расписание опубликованных флоу; идемпотентно, вызывается и при старте сервера, и из роутов. */
+  /** Starts the schedule of published flows; idempotent, called both at server start and from routes. */
   start(): Promise<void> {
     this.started ??= this.scheduler.start().catch((e) => {
       console.error("[scheduler] failed to start:", e);
@@ -49,13 +49,13 @@ class Runtime {
   }
 }
 
-// Один экземпляр на процесс: переживает пересборку модулей при HMR в dev, иначе таймеры задвоятся.
+// One instance per process: survives module rebuilds under HMR in dev, otherwise timers would double.
 const g = globalThis as { __fl0wRuntime?: Runtime };
 
 export function getRuntime(): Runtime {
   const current = g.__fl0wRuntime;
-  // В dev после правки движка модуль пересобран, а в globalThis остался экземпляр СТАРОГО класса (без новых методов планировщика —
-  // «scheduler.fireFrom is not a function»). Такой экземпляр останавливаем и создаём заново из актуального кода.
+  // In dev after an engine edit the module is rebuilt, but globalThis still holds an instance of the OLD class (without the scheduler's new methods —
+  // "scheduler.fireFrom is not a function"). Such an instance is stopped and recreated from the current code.
   if (current && current.constructor !== Runtime) {
     current.scheduler.stop();
     g.__fl0wRuntime = undefined;

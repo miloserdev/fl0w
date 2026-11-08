@@ -9,14 +9,14 @@ const MAX_INTERVAL = 3600;
 const on = (param: string, ...values: string[]) => ({ param, in: values });
 
 /**
- * Mail Trigger: срабатывает на каждое новое письмо в почтовом ящике (аналог Email Trigger (IMAP) и Microsoft Outlook Trigger из n8n).
- * Работает у опубликованного флоу: сервер опрашивает ящик (`intervalSec`, не реже раза в 15 с) через тот же драйвер провайдера, что и
- * блок Mail — IMAP (любой сервер) или Microsoft Graph. По письму — один запуск; выход — письмо целиком, как у Mail → getMail:
- * `{ id, from, to, cc, subject, date, unread, text, html, attachments, folder }` (при `saveAttachments` у вложений есть `path`).
+ * Mail Trigger: fires on every new message in a mailbox (analogue of Email Trigger (IMAP) and Microsoft Outlook Trigger from n8n).
+ * Works for a published flow: the server polls the mailbox (`intervalSec`, at most once per 15 s) through the same provider driver as
+ * the Mail block: IMAP (any server) or Microsoft Graph. One run per message; the output is the whole message, as in Mail -> getMail:
+ * `{ id, from, to, cc, subject, date, unread, text, html, attachments, folder }` (with `saveAttachments` attachments have a `path`).
  *
- * `action: markRead` — после запуска пометить письмо прочитанным (так оно не сработает снова после перезапуска сервера);
- * `none` — не трогать (повтор после перезапуска исключён тем, что уже лежащие в ящике письма в этом режиме пропускаются).
- * `processExisting` — обработать и письма, уже лежащие в ящике на момент публикации. Состояние «что уже видели» живёт в памяти сервера.
+ * `action: markRead`: mark the message read after the run (so it does not fire again after a server restart);
+ * `none`: leave it alone (a repeat after a restart is ruled out because messages already in the mailbox are skipped in this mode).
+ * `processExisting`: also process messages already in the mailbox at publish time. The "already seen" state lives in server memory.
  */
 export class MailTrigger extends Block {
   static type = "mail_trigger";

@@ -39,14 +39,14 @@ const count = (params: Record<string, Json> = {}, input: Json = { a: 1 }, ids = 
 const last = () => Number(shown.at(-1));
 
 describe("Counter", () => {
-  it("считает, сколько раз нода сработала, и просит показать число на ноде; данные идут дальше без изменений", async () => {
-    expect(await count({}, { a: 1 })).toEqual({ out0: { a: 1 } }); // никаких лишних полей в JSON
+  it("counts how many times the node fired and asks to show the number on the node; data goes on unchanged", async () => {
+    expect(await count({}, { a: 1 })).toEqual({ out0: { a: 1 } }); // no extra fields in the JSON
     await count();
     await count();
     expect(shown).toEqual(["1", "2", "3"]);
   });
 
-  it("у каждой ноды свой счёт (по флоу и id ноды); счёт переживает запуски", async () => {
+  it("each node has its own count (by flow and node id); the count survives runs", async () => {
     await count({}, 1, { flowId: "f", nodeId: "a" });
     await count({}, 1, { flowId: "f", nodeId: "a" });
     await count({}, 1, { flowId: "f", nodeId: "b" });
@@ -54,17 +54,17 @@ describe("Counter", () => {
     expect(shown).toEqual(["1", "2", "1", "1"]);
   });
 
-  it("именованный счётчик общий для нод; именованный и «свой» не пересекаются", async () => {
+  it("a named counter is shared by nodes; named and own do not overlap", async () => {
     await count({ name: "shared" }, 1, { flowId: "f", nodeId: "a" });
     await count({ name: "shared" }, 1, { flowId: "g", nodeId: "z" });
     expect(shown).toEqual(["1", "2"]);
-    await count({}, 1, { flowId: "f", nodeId: "a" }); // свой счёт этой ноды отдельно
+    await count({}, 1, { flowId: "f", nodeId: "a" }); // this node's own count separately
     expect(last()).toBe(1);
-    await count({ name: "node:f/a" }); // имя, похожее на внутренний ключ, не попадает в чужой счёт
+    await count({ name: "node:f/a" }); // a name that looks like an internal key does not get into a foreign count
     expect(last()).toBe(1);
   });
 
-  it("reset обнуляет и показывает 0; следующий запуск снова даёт 1", async () => {
+  it("reset zeroes and shows 0; the next run gives 1 again", async () => {
     await count();
     await count();
     await count({ operation: "reset" });
@@ -73,24 +73,24 @@ describe("Counter", () => {
     expect(last()).toBe(1);
   });
 
-  it("параллельные срабатывания не теряются (атомарно)", async () => {
+  it("parallel firings are not lost (atomic)", async () => {
     await Promise.all(Array.from({ length: 30 }, () => count()));
     expect(Math.max(...shown.map(Number))).toBe(30);
     expect(new Set(shown).size).toBe(30);
   });
 
-  it("ошибки: нет ни имени, ни id ноды; слишком длинное имя; неизвестная операция; нечисловое значение в хранилище", async () => {
+  it("errors: neither a name nor a node id; a too long name; unknown operation; a non-numeric value in storage", async () => {
     await expect(new Counter().run({ in0: 1 }, {}, ctx())).rejects.toThrow(/needs a name/);
     await expect(count({ name: "x".repeat(257) })).rejects.toThrow(/too long/);
     await expect(count({ operation: "explode" })).rejects.toThrow(/Unknown operation/);
-    // имена вроде __proto__ / constructor — обычные ключи (с префиксом), а не прототип
+    // names like __proto__ / constructor are ordinary keys (with a prefix), not a prototype
     await expect(count({ name: "__proto__" })).resolves.toBeDefined();
     expect(last()).toBe(1);
     await count({ name: "constructor" });
     expect(last()).toBe(1);
   });
 
-  it("без каталога памяти — понятная ошибка; без display в контексте работает (display необязателен)", async () => {
+  it("without a memory directory a clear error; works without display in the context (display is optional)", async () => {
     await new Counter().run({ in0: 1 }, { name: "x" }, { signal: new AbortController().signal, log() {} });
     delete process.env[MEMORY_DIR_ENV];
     await expect(count()).rejects.toThrow(/not configured/);
@@ -100,13 +100,13 @@ describe("Counter", () => {
 describe("Log", () => {
   const run = (input: Json, params: Record<string, Json> = {}) => new Log().run({ in0: input }, params, ctx());
 
-  it("по умолчанию пишет весь вход как JSON и пропускает данные дальше без изменений", async () => {
+  it("by default writes the whole input as JSON and passes data on unchanged", async () => {
     const out = await run({ a: [1, 2] });
     expect(logs).toEqual(['{"a":[1,2]}']);
     expect(out).toEqual({ out0: { a: [1, 2] } });
   });
 
-  it("сообщение с шаблонами из входа; строка — как есть; многострочное — отдельные строки лога", async () => {
+  it("a message with templates from the input; a string as is; multi-line becomes separate log lines", async () => {
     await run({ user: { name: "Ann" }, n: 3 }, { message: "hello {{ user.name }} #{{ n }}" });
     expect(logs).toEqual(["hello Ann #3"]);
     logs = [];
@@ -117,21 +117,21 @@ describe("Log", () => {
     expect(logs).toEqual(["plain text"]);
   });
 
-  it("уровень добавляет префикс (по нему терминал красит строки); неизвестный уровень — ошибка", async () => {
+  it("a level adds a prefix (the terminal colours lines by it); an unknown level is an error", async () => {
     await run(1, { message: "careful", level: "warn" });
     await run(1, { message: "bad", level: "error" });
     expect(logs).toEqual(["[warn] careful", "[error] bad"]);
     await expect(run(1, { level: "debug" })).rejects.toThrow(/Unknown level/);
   });
 
-  it("шаблон без значения не роняет ноду: пустая подстановка", async () => {
+  it("a template without a value does not fail the node: an empty substitution", async () => {
     await run({ a: 1 }, { message: "x={{ nope }}" });
     expect(logs).toEqual(["x="]);
   });
 });
 
-describe("реестр: Counter и Log", () => {
-  it("метаданные, порты, размеры и параметры по умолчанию валидны", () => {
+describe("registry: Counter and Log", () => {
+  it("metadata, ports, sizes and default parameters are valid", () => {
     expect(registry["counter"]!.ports).toEqual({ inputs: [{ id: "in0" }], outputs: [{ id: "out0" }] });
     expect(registry["log"]!.resizable).toBe(true);
     expect(registry["counter"]!.resizable).toBe(false);
