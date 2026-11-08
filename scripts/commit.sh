@@ -21,7 +21,6 @@ fi
 
 msg="$1"
 [ -n "${2:-}" ] && msg="$msg"$'\n\n'"$2"
-msg="$msg"$'\n\n'"Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 
 GIT_TERMINAL_PROMPT=0 git -c commit.gpgsign=false -c tag.gpgsign=false commit -q -m "$msg"
 git log --oneline -1
